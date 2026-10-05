@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="JDDL — identity, image-making and digital experiences." />
+    <title>JDDL</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="public-page">
+    <main class="portfolio-shell">
+      <aside class="studio-info">
+        <div>
+          <p class="section-label" id="studio-eyebrow">Who we are</p>
+          <p class="studio-about" id="studio-about">Loading studio information…</p>
+        </div>
+        <div class="info-section">
+          <p class="section-label muted">Selected clients</p>
+          <ul class="plain-list caps" id="client-list"></ul>
+        </div>
+        <div class="info-section projects-section">
+          <p class="section-label muted">Projects</p>
+          <ul class="plain-list" id="project-list"></ul>
+        </div>
+        <a class="admin-link" href="/admin">Admin</a>
+      </aside>
+
+      <section class="gallery-pane" id="gallery-pane" aria-label="Filterable image archive">
+        <nav class="filter-bar" id="filter-bar" aria-label="Filter images by tag"></nav>
+        <div
+          class="image-field"
+          id="image-field"
+          role="region"
+          tabindex="0"
+          aria-label="Image field. Drag, scroll, or use the up and down arrow keys to explore."
+        ></div>
+        <p class="field-hint" id="field-hint">Drag or scroll</p>
+        <p class="empty-state" id="empty-state" hidden>No images match these filters.</p>
+      </section>
+    </main>
+
+    <dialog class="project-gallery-dialog" id="project-gallery-dialog" aria-labelledby="project-gallery-title">
+      <header class="project-gallery-header">
+        <div class="project-gallery-services">
+          <p class="project-gallery-label">Services / Tags</p>
+          <div class="project-gallery-tags" id="project-gallery-tags"></div>
+        </div>
+        <button class="project-gallery-close" id="project-gallery-close" type="button" aria-label="Close project gallery">Close</button>
+      </header>
+
+      <section class="project-gallery-media" aria-label="Project images">
+        <div class="project-gallery-viewer">
+          <button class="project-gallery-arrow" id="project-gallery-previous" type="button" aria-label="Show previous image">←</button>
+          <button class="project-gallery-primary" id="project-gallery-primary" type="button" aria-label="Show next image">
+            <img id="project-gallery-image" alt="" />
+          </button>
+          <button class="project-gallery-arrow" id="project-gallery-next" type="button" aria-label="Show next image">→</button>
+          <p class="project-gallery-counter" id="project-gallery-counter" aria-live="polite"></p>
+        </div>
+        <div class="project-gallery-thumbnails" id="project-gallery-thumbnails" aria-label="Choose a project image"></div>
+      </section>
+
+      <footer class="project-gallery-info">
+        <div>
+          <p class="project-gallery-client" id="project-gallery-client"></p>
+          <h2 id="project-gallery-title"></h2>
+        </div>
+        <p class="project-gallery-description" id="project-gallery-description"></p>
+      </footer>
+    </dialog>
+    <script type="module" src="/public.js"></script>
+  </body>
+</html>

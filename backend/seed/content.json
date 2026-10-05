@@ -1,0 +1,541 @@
+{
+  "projects": [
+    {
+      "id": "nature-s-calling",
+      "slug": "nature-s-calling",
+      "title": "Nature's Calling",
+      "client": "Branding",
+      "description": "Branding for Berlin's no. 1 Winery",
+      "published": 1,
+      "sort_order": 0,
+      "created_at": "2026-08-31 12:37:49",
+      "updated_at": "2026-08-31 12:37:49"
+    },
+    {
+      "id": "identity-systems",
+      "slug": "adidas-sw-2025",
+      "title": "Adidas SW 2025",
+      "client": "Comission",
+      "description": "Brand identities built to move across campaigns, products and places.",
+      "published": 1,
+      "sort_order": 10,
+      "created_at": "2026-08-31 09:33:07",
+      "updated_at": "2026-08-31 11:12:02"
+    },
+    {
+      "id": "moving-images",
+      "slug": "stone-techno-festival",
+      "title": "Stone Techno Festival",
+      "client": "Culture and fashion",
+      "description": "Direction and image-making for stories with atmosphere and momentum.",
+      "published": 1,
+      "sort_order": 20,
+      "created_at": "2026-08-31 09:33:07",
+      "updated_at": "2026-08-31 11:12:12"
+    },
+    {
+      "id": "digital-places",
+      "slug": "amelie-lens-exhale",
+      "title": "Amelie Lens Exhale",
+      "client": "Platforms and experiences",
+      "description": "We teamed up wit amelie lens to establish a brand visual for their EXHALE events",
+      "published": 1,
+      "sort_order": 30,
+      "created_at": "2026-08-31 09:33:07",
+      "updated_at": "2026-08-31 11:12:43"
+    }
+  ],
+  "images": [
+    {
+      "id": "showcase-02",
+      "filename": null,
+      "remote_url": "/branding-identity-screenshot-2026-06-30-121703.jpg",
+      "original_name": "branding-identity-screenshot-2026-06-30-121703.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Brand identity presentation",
+      "aspect_ratio": 0.802568,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 15:23:17",
+      "url": "/branding-identity-screenshot-2026-06-30-121703.jpg",
+      "tag_ids": [
+        "branding-identity"
+      ],
+      "project_ids": [
+        "moving-images"
+      ]
+    },
+    {
+      "id": "showcase-03",
+      "filename": null,
+      "remote_url": "/branding-identity-kagel-abholung-transporter.jpg",
+      "original_name": "branding-identity-kagel-abholung-transporter.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Kagel transporter identity",
+      "aspect_ratio": 0.749625,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 11:43:04",
+      "url": "/branding-identity-kagel-abholung-transporter.jpg",
+      "tag_ids": [
+        "branding-identity"
+      ],
+      "project_ids": [
+        "identity-systems"
+      ]
+    },
+    {
+      "id": "showcase-04",
+      "filename": null,
+      "remote_url": "/branding-identity-screenshot-2026-06-30-121634.jpg",
+      "original_name": "branding-identity-screenshot-2026-06-30-121634.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Brand identity application",
+      "aspect_ratio": 0.805802,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 12:37:57",
+      "url": "/branding-identity-screenshot-2026-06-30-121634.jpg",
+      "tag_ids": [
+        "branding-identity"
+      ],
+      "project_ids": [
+        "nature-s-calling"
+      ]
+    },
+    {
+      "id": "showcase-05",
+      "filename": null,
+      "remote_url": "/branding-identity-screenshot-2026-06-30-135907.jpg",
+      "original_name": "branding-identity-screenshot-2026-06-30-135907.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Brand identity artwork",
+      "aspect_ratio": 1.506024,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 15:20:14",
+      "url": "/branding-identity-screenshot-2026-06-30-135907.jpg",
+      "tag_ids": [
+        "branding-identity",
+        "graphic",
+        "kampagne"
+      ],
+      "project_ids": [
+        "nature-s-calling"
+      ]
+    },
+    {
+      "id": "showcase-06",
+      "filename": null,
+      "remote_url": "/web-sez-thumb.jpg",
+      "original_name": "web-sez-thumb.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "SEZ website design",
+      "aspect_ratio": 1.49925,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 11:43:04",
+      "url": "/web-sez-thumb.jpg",
+      "tag_ids": [
+        "web"
+      ],
+      "project_ids": [
+        "digital-places"
+      ]
+    },
+    {
+      "id": "showcase-07",
+      "filename": null,
+      "remote_url": "/web-hkst-thumb.jpg",
+      "original_name": "web-hkst-thumb.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "HKST website design",
+      "aspect_ratio": 1.49925,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 11:43:04",
+      "url": "/web-hkst-thumb.jpg",
+      "tag_ids": [
+        "web"
+      ],
+      "project_ids": [
+        "digital-places"
+      ]
+    },
+    {
+      "id": "showcase-08",
+      "filename": null,
+      "remote_url": "/web-trailer-neu.jpg",
+      "original_name": "web-trailer-neu.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Responsive website presentation",
+      "aspect_ratio": 0.56243,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 11:43:04",
+      "url": "/web-trailer-neu.jpg",
+      "tag_ids": [
+        "web"
+      ],
+      "project_ids": [
+        "digital-places"
+      ]
+    },
+    {
+      "id": "showcase-09",
+      "filename": null,
+      "remote_url": "/web-screenshot-2026-06-30-142337.jpg",
+      "original_name": "web-screenshot-2026-06-30-142337.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Website interface presentation",
+      "aspect_ratio": 0.809717,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 11:43:04",
+      "url": "/web-screenshot-2026-06-30-142337.jpg",
+      "tag_ids": [
+        "web"
+      ],
+      "project_ids": [
+        "digital-places"
+      ]
+    },
+    {
+      "id": "showcase-10",
+      "filename": null,
+      "remote_url": "/graphic-screenshot-2026-06-30-142553.jpg",
+      "original_name": "graphic-screenshot-2026-06-30-142553.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Graphic design composition",
+      "aspect_ratio": 0.810373,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 11:43:04",
+      "url": "/graphic-screenshot-2026-06-30-142553.jpg",
+      "tag_ids": [
+        "graphic"
+      ],
+      "project_ids": [
+        "identity-systems"
+      ]
+    },
+    {
+      "id": "showcase-11",
+      "filename": null,
+      "remote_url": "/graphic-nc-sticker-overview.jpg",
+      "original_name": "graphic-nc-sticker-overview.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "NC sticker overview",
+      "aspect_ratio": 1.686341,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 12:38:05",
+      "url": "/graphic-nc-sticker-overview.jpg",
+      "tag_ids": [
+        "graphic"
+      ],
+      "project_ids": [
+        "nature-s-calling"
+      ]
+    },
+    {
+      "id": "showcase-12",
+      "filename": null,
+      "remote_url": "/graphic-img-6790.jpg",
+      "original_name": "graphic-img-6790.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Printed graphic design material",
+      "aspect_ratio": 1.49925,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 11:43:04",
+      "url": "/graphic-img-6790.jpg",
+      "tag_ids": [
+        "graphic"
+      ],
+      "project_ids": [
+        "identity-systems"
+      ]
+    },
+    {
+      "id": "showcase-13",
+      "filename": null,
+      "remote_url": "/graphic-screenshot-2026-06-30-142142.jpg",
+      "original_name": "graphic-screenshot-2026-06-30-142142.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Graphic design presentation",
+      "aspect_ratio": 0.744602,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 11:43:04",
+      "url": "/graphic-screenshot-2026-06-30-142142.jpg",
+      "tag_ids": [
+        "graphic"
+      ],
+      "project_ids": [
+        "identity-systems"
+      ]
+    },
+    {
+      "id": "showcase-14",
+      "filename": null,
+      "remote_url": "/kampagne-sez-thumb-infopoint-hoch.jpg",
+      "original_name": "kampagne-sez-thumb-infopoint-hoch.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "SEZ campaign infopoint",
+      "aspect_ratio": 0.666667,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 11:43:04",
+      "url": "/kampagne-sez-thumb-infopoint-hoch.jpg",
+      "tag_ids": [
+        "kampagne"
+      ],
+      "project_ids": [
+        "moving-images"
+      ]
+    },
+    {
+      "id": "showcase-15",
+      "filename": null,
+      "remote_url": "/kampagne-trailer-neu-1.jpg",
+      "original_name": "kampagne-trailer-neu-1.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Campaign presentation",
+      "aspect_ratio": 0.56243,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 11:43:04",
+      "url": "/kampagne-trailer-neu-1.jpg",
+      "tag_ids": [
+        "kampagne"
+      ],
+      "project_ids": [
+        "moving-images"
+      ]
+    },
+    {
+      "id": "showcase-16",
+      "filename": null,
+      "remote_url": "/kampagne-weltspiele-iphone-story.jpg",
+      "original_name": "kampagne-weltspiele-iphone-story.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Weltspiele mobile campaign",
+      "aspect_ratio": 1.49925,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 11:43:04",
+      "url": "/kampagne-weltspiele-iphone-story.jpg",
+      "tag_ids": [
+        "kampagne"
+      ],
+      "project_ids": [
+        "moving-images"
+      ]
+    },
+    {
+      "id": "showcase-17",
+      "filename": null,
+      "remote_url": "/space-designreport-3-web.jpg",
+      "original_name": "space-designreport-3-web.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Designreport spatial installation",
+      "aspect_ratio": 0.666667,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 11:43:04",
+      "url": "/space-designreport-3-web.jpg",
+      "tag_ids": [
+        "space"
+      ],
+      "project_ids": [
+        "identity-systems"
+      ]
+    },
+    {
+      "id": "showcase-18",
+      "filename": null,
+      "remote_url": "/space-credibil-hochformat-1.jpg",
+      "original_name": "space-credibil-hochformat-1.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Credibil spatial design",
+      "aspect_ratio": 0.749625,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 11:43:04",
+      "url": "/space-credibil-hochformat-1.jpg",
+      "tag_ids": [
+        "space"
+      ],
+      "project_ids": [
+        "identity-systems"
+      ]
+    },
+    {
+      "id": "showcase-19",
+      "filename": null,
+      "remote_url": "/space-credibil-querformat-3.jpg",
+      "original_name": "space-credibil-querformat-3.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Credibil exhibition view",
+      "aspect_ratio": 1.48368,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 11:43:04",
+      "url": "/space-credibil-querformat-3.jpg",
+      "tag_ids": [
+        "space"
+      ],
+      "project_ids": [
+        "identity-systems"
+      ]
+    },
+    {
+      "id": "showcase-20",
+      "filename": null,
+      "remote_url": "/space-akh-hochformat-14.jpg",
+      "original_name": "space-akh-hochformat-14.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "AKH spatial installation",
+      "aspect_ratio": 0.526039,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 11:43:04",
+      "url": "/space-akh-hochformat-14.jpg",
+      "tag_ids": [
+        "space"
+      ],
+      "project_ids": [
+        "identity-systems"
+      ]
+    },
+    {
+      "id": "showcase-21",
+      "filename": null,
+      "remote_url": "/merch-screenshot-2026-06-30-142448.jpg",
+      "original_name": "merch-screenshot-2026-06-30-142448.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Merchandise presentation",
+      "aspect_ratio": 0.790514,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 11:43:04",
+      "url": "/merch-screenshot-2026-06-30-142448.jpg",
+      "tag_ids": [
+        "merch"
+      ],
+      "project_ids": [
+        "identity-systems"
+      ]
+    },
+    {
+      "id": "showcase-22",
+      "filename": null,
+      "remote_url": "/merch-frame-1686561102.jpg",
+      "original_name": "merch-frame-1686561102.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Merchandise detail",
+      "aspect_ratio": 0.749625,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 11:43:04",
+      "url": "/merch-frame-1686561102.jpg",
+      "tag_ids": [
+        "merch"
+      ],
+      "project_ids": [
+        "identity-systems"
+      ]
+    },
+    {
+      "id": "showcase-23",
+      "filename": null,
+      "remote_url": "/moods-for-mockups-image-377.jpg",
+      "original_name": "moods-for-mockups-image-377.jpg",
+      "mime_type": "image/jpeg",
+      "alt_text": "Mockup mood reference",
+      "aspect_ratio": 0.706714,
+      "published": 1,
+      "archived": 0,
+      "created_at": "2026-08-31 11:43:04",
+      "updated_at": "2026-08-31 11:43:04",
+      "url": "/moods-for-mockups-image-377.jpg",
+      "tag_ids": [
+        "moods-for-mockups"
+      ],
+      "project_ids": [
+        "moving-images"
+      ]
+    }
+  ],
+  "tags": [
+    {
+      "id": "branding-identity",
+      "slug": "branding-identity",
+      "name": "Branding / Identity",
+      "sort_order": 0
+    },
+    {
+      "id": "web",
+      "slug": "web",
+      "name": "Web",
+      "sort_order": 10
+    },
+    {
+      "id": "graphic",
+      "slug": "graphic",
+      "name": "Graphic",
+      "sort_order": 20
+    },
+    {
+      "id": "kampagne",
+      "slug": "kampagne",
+      "name": "Kampagne",
+      "sort_order": 30
+    },
+    {
+      "id": "space",
+      "slug": "space",
+      "name": "Space",
+      "sort_order": 40
+    },
+    {
+      "id": "merch",
+      "slug": "merch",
+      "name": "Merch",
+      "sort_order": 50
+    },
+    {
+      "id": "moods-for-mockups",
+      "slug": "moods-for-mockups",
+      "name": "Moods für Mockups",
+      "sort_order": 60
+    }
+  ],
+  "settings": {
+    "eyebrow": "Who we are",
+    "about": "JDDL is an independent creative practice working across identity, image-making and digital experiences. We build visual systems that are precise enough to be useful and open enough to stay alive.",
+    "clients": "Adidas\nNew Balance\nNike\nStone Techno\nGlitch Festival\nTerra Kaffe"
+  }
+}

@@ -1,0 +1,23 @@
+# Runtime content and secrets
+/data/
+/uploads/
+**/data/
+**/uploads/
+*.db
+*.db-wal
+*.db-shm
+session.secret
+.env
+.env.*
+!.env.example
+# Generated dependencies and outputs
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.DS_Store
+# Preserved local repository metadata; never a nested Git checkout
+/archive/.legacy-git/
+
+# Generated legacy export; source is retained separately
+/archive/Page Test/project.zip.b64

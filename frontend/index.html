@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>JDDL — Independent design studio</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="masthead">
+    <p class="about"></p>
+    <nav class="menu" aria-label="Projects"></nav>
+  </header>
+  <main class="portfolio" aria-label="Selected projects">
+    <p id="status" role="status">Loading projects…</p>
+    <div class="project-context">
+      <p id="description" aria-live="polite" aria-atomic="true"><span id="project-title"></span><span id="project-copy"></span></p>
+      <div class="stories" role="group" aria-label="Gallery images"></div>
+    </div>
+    <div class="rail" tabindex="0" role="region" aria-label="Project gallery. Scroll horizontally or use left and right arrow keys.">
+      <div class="track"></div>
+    </div>
+  </main>
+</body>
+</html>

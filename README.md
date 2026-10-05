@@ -14,7 +14,8 @@ python3 server.py
 
 - Website: http://127.0.0.1:4174/
 - Editor: http://127.0.0.1:4174/admin
-- Local demonstration password: `jddl` (override with `ADMIN_PASSWORD`).
+- A local admin password is generated in the ignored `data/admin.password` file.
+  Set `ADMIN_PASSWORD` to choose your own password.
 
 The rail loops in both directions and snaps projects to the left inset. Mouse
 wheel input glides horizontally; touch and horizontal trackpad gestures use
