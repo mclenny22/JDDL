@@ -451,8 +451,8 @@ function openTags() {
 
 function selectFile(file) {
   if (!file || !file.type.startsWith("image/")) return;
-  if (file.size > 20 * 1024 * 1024) {
-    $("#image-error").textContent = "Image must be smaller than 20 MB.";
+  if (file.size > (location.hostname === "localhost" || location.hostname === "127.0.0.1" ? 20 : 4) * 1024 * 1024) {
+    $("#image-error").textContent = "Image is too large. Hosted uploads must be smaller than 4 MB; local uploads can be up to 20 MB.";
     return;
   }
   state.selectedFile = file;

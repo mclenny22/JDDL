@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "python3 scripts/build_vercel.py",
+  "outputDirectory": "public",
+  "regions": ["dub1"],
+  "functions": {
+    "api/index.py": {
+      "excludeFiles": "{archive/**,data/**,uploads/**,tests/**,.legacy-git/**}"
+    }
+  },
+  "rewrites": [
+    {"source": "/api/:path*", "destination": "/api/index"},
+    {"source": "/admin", "destination": "/api/index"},
+    {"source": "/admin/", "destination": "/api/index"}
+  ]
+}

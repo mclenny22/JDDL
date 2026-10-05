@@ -21,3 +21,6 @@ __pycache__/
 
 # Generated legacy export; source is retained separately
 /archive/Page Test/project.zip.b64
+
+# Generated Vercel static output
+/public/

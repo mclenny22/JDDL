@@ -35,6 +35,12 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   temporarily disables native snapping and rebases its target with the rail.
   Reduced motion skips easing; browser pinch-to-zoom is preserved. The focused
   rail supports Left/Right/Home/End. Resize preserves the active project.
+- About, project text and menu share the root font size and line height, including
+  responsive overrides. Story fills animate their actual width with fixed round
+  caps, rather than scaling their shape. Rail spacing uses fractional bounding
+  rectangles to match native snapping exactly; the context/progress width follows
+  the measured tile width. Story selection also aligns the active tile, and
+  native scroll completion corrects residual misalignment.
 - No frontend framework or package dependencies are needed. Haffer uses a system
   sans-serif fallback until licensed font files are supplied.
 
@@ -65,6 +71,27 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
 - Production requires HTTPS, a real `ADMIN_PASSWORD`, a reverse proxy and
   persistent backups of both storage directories. Non-local binding requires
   an explicit password. `COOKIE_SECURE=1` enables secure session cookies.
+
+## Vercel deployment
+
+- `vercel.json` selects the active app explicitly and excludes archived versions
+  from the Python function. `scripts/build_vercel.py` exports frontend, CMS assets
+  and seed images to the ignored `public/` CDN output.
+- `api/index.py` exposes the existing HTTP handler. API and `/admin` rewrites retain
+  their original routes. Cloud functions fail closed when no database is linked.
+- `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` select the persistent Turso/libSQL
+  database through `backend/cloud.py`. Cloud tables share one database; local
+  development keeps the two SQLite files. Initialization seeds once in a locked
+  transaction, with a marker and session signing secret in private_config,
+  which is never part of either public or admin content payloads.
+- Vercel requires an explicit `ADMIN_PASSWORD`. Cookies are Secure automatically.
+  Connect a public Vercel Blob store to provide `BLOB_READ_WRITE_TOKEN`; uploaded
+  assets then persist in Blob. Hosted multipart requests are limited to 4 MB to
+  fit Vercel's request limit; local uploads retain 20 MB. Existing seed images are
+  served from the CDN. Do not put secrets in source or public content settings.
+- Install pinned cloud dependencies from `requirements.txt` for deployment.
+  The local SQLite server remains dependency-free. Keep production and preview
+  databases separate when previews should not edit production content.
 
 ## Archive
 

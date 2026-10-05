@@ -86,6 +86,7 @@ async function start() {
       button.setAttribute('aria-label', `Show image ${index + 1}`);
       button.innerHTML = '<span class="story-fill"></span>';
       button.addEventListener('click', () => {
+        navigate(active);
         state[active].slide = index;
         state[active].elapsed = 0;
         renderSlides();
@@ -100,7 +101,11 @@ async function start() {
   function measure() {
     stopWheel();
     const savedProject = step ? Math.round(rail.scrollLeft / step) % projects.length : active;
-    step = tiles[1].offsetLeft - tiles[0].offsetLeft;
+    // offsetLeft rounds to whole pixels; repeated tiles amplify that rounding
+    // into a visible mismatch with CSS snapping. Keep the live fractional geometry.
+    const first = tiles[0].getBoundingClientRect();
+    step = tiles[1].getBoundingClientRect().left - first.left;
+    document.querySelector('.project-context').style.width = `${first.width}px`;
     cycle = step * projects.length;
     rail.scrollLeft = middle * cycle + savedProject * step;
     onScroll();
@@ -139,6 +144,13 @@ async function start() {
   }
   menu.forEach(button => button.addEventListener('click', () => navigate(Number(button.dataset.project))));
   rail.addEventListener('scroll', onScroll, { passive: true });
+  rail.addEventListener('scrollend', () => {
+    if (wheelTarget !== null) return;
+    const target = Math.round(rail.scrollLeft / step) * step;
+    if (Math.abs(rail.scrollLeft - target) > .5) {
+      rail.scrollTo({ left: target, behavior: reducedMotion.matches ? 'instant' : 'smooth' });
+    }
+  });
   rail.addEventListener('keydown', event => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
@@ -197,7 +209,8 @@ async function start() {
     const current = state[active];
     bars.forEach((bar, index) => {
       const fill = index < current.slide ? 1 : index === current.slide ? current.elapsed / duration : 0;
-      bar.firstElementChild.style.transform = `scaleX(${fill})`;
+      // Change physical width rather than scaling (which distorts the end caps).
+      bar.firstElementChild.style.width = `${fill * 100}%`;
       bar.setAttribute('aria-pressed', String(index === current.slide));
     });
   }

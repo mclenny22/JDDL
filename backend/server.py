@@ -19,6 +19,7 @@ from http import cookies
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
+from .cloud import CloudConnection, initialize_cloud, cloud_secret, store_upload, delete_upload
 
 
 ROOT = Path(__file__).resolve().parent
@@ -30,7 +31,8 @@ UPLOADS = Path(os.environ.get("JDDL_UPLOADS_DIR", ROOT.parent / "uploads")).expa
 PROJECTS_DB = DATA / "projects.db"
 IMAGES_DB = DATA / "images.db"
 SESSION_SECRET_FILE = DATA / "session.secret"
-MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+CLOUD = bool(os.environ.get("TURSO_DATABASE_URL"))
+MAX_UPLOAD_BYTES = (4 if os.environ.get("VERCEL") else 20) * 1024 * 1024
 SESSION_LIFETIME = 8 * 60 * 60
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"}
 
@@ -42,6 +44,10 @@ def slugify(value: str) -> str:
 
 
 def connect(path: Path) -> sqlite3.Connection:
+    if CLOUD:
+        return CloudConnection()
+    if os.environ.get("VERCEL"):
+        raise RuntimeError("Connect the Turso database before deploying the CMS")
     connection = sqlite3.connect(path)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA journal_mode=WAL")
@@ -50,6 +56,9 @@ def connect(path: Path) -> sqlite3.Connection:
 
 
 def initialize() -> None:
+    if CLOUD:
+        initialize_cloud(SEED, ROOT / "schema.sql")
+        return
     DATA.mkdir(parents=True, exist_ok=True)
     UPLOADS.mkdir(parents=True, exist_ok=True)
     new_projects = not PROJECTS_DB.exists()
@@ -158,6 +167,8 @@ def get_admin_password() -> str:
         if not configured:
             raise ValueError("ADMIN_PASSWORD must not be empty")
         return configured
+    if CLOUD or os.environ.get("VERCEL"):
+        raise RuntimeError("Set ADMIN_PASSWORD in Vercel before using the CMS")
     password_file = DATA / "admin.password"
     if not password_file.exists():
         password_file.write_text(secrets.token_urlsafe(24), encoding="utf-8")
@@ -166,6 +177,8 @@ def get_admin_password() -> str:
 
 
 def get_secret() -> bytes:
+    if CLOUD:
+        return cloud_secret()
     return SESSION_SECRET_FILE.read_text(encoding="utf-8").strip().encode()
 
 
@@ -192,12 +205,17 @@ def public_payload(admin: bool = False) -> dict:
         projects = [dict(row) for row in projects_db.execute(f"SELECT * FROM projects {project_where} ORDER BY sort_order, title")]
         settings = {row["key"]: row["value"] for row in projects_db.execute("SELECT key, value FROM settings")}
         tags = [dict(row) for row in images_db.execute("SELECT * FROM tags ORDER BY sort_order, name")]
+        tag_links, project_links = {}, {}
+        for link in images_db.execute("SELECT image_id, tag_id FROM image_tags"):
+            tag_links.setdefault(link["image_id"], []).append(link["tag_id"])
+        for link in images_db.execute("SELECT image_id, project_id FROM image_projects ORDER BY sort_order"):
+            project_links.setdefault(link["image_id"], []).append(link["project_id"])
         images = []
         for row in images_db.execute(f"SELECT * FROM images {image_where} ORDER BY created_at, id"):
             item = dict(row)
             item["url"] = item["remote_url"] or f"/uploads/{item['filename']}"
-            item["tag_ids"] = [r[0] for r in images_db.execute("SELECT tag_id FROM image_tags WHERE image_id = ?", (item["id"],))]
-            item["project_ids"] = [r[0] for r in images_db.execute("SELECT project_id FROM image_projects WHERE image_id = ? ORDER BY sort_order", (item["id"],))]
+            item["tag_ids"] = tag_links.get(item["id"], [])
+            item["project_ids"] = project_links.get(item["id"], [])
             images.append(item)
     return {"projects": projects, "images": images, "tags": tags, "settings": settings}
 
@@ -291,7 +309,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if not hmac.compare_digest(supplied, configured):
                     return self.json_response({"error": "Incorrect password"}, 401)
                 expires = int(time.time()) + SESSION_LIFETIME
-                secure = "; Secure" if os.environ.get("COOKIE_SECURE") == "1" else ""
+                secure = "; Secure" if os.environ.get("COOKIE_SECURE") == "1" or os.environ.get("VERCEL") else ""
                 cookie = f"jddl_session={sign_session(expires)}; HttpOnly; SameSite=Strict; Path=/; Max-Age={SESSION_LIFETIME}{secure}"
                 return self.json_response({"authenticated": True}, headers={"Set-Cookie": cookie})
             if path == "/api/logout":
@@ -422,7 +440,7 @@ class Handler(SimpleHTTPRequestHandler):
         if "multipart/form-data" not in content_type:
             raise ValueError("Expected multipart form data")
         if length > MAX_UPLOAD_BYTES:
-            raise ValueError("Image must be smaller than 20 MB")
+            raise ValueError(f"Image request must be smaller than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB")
         raw = self.rfile.read(length)
         message = BytesParser(policy=policy.default).parsebytes(
             f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode() + raw
@@ -448,14 +466,16 @@ class Handler(SimpleHTTPRequestHandler):
         image_id = uuid.uuid4().hex
         extension = mimetypes.guess_extension(upload["type"]) or Path(upload["filename"]).suffix.lower() or ".img"
         filename = f"{image_id}{extension.replace('.jpe', '.jpg')}"
-        (UPLOADS / filename).write_bytes(upload["content"])
+        remote_url = store_upload(filename, upload["content"], upload["type"]) if CLOUD else None
+        if not CLOUD:
+            (UPLOADS / filename).write_bytes(upload["content"])
         ratio = float(fields.get("aspect_ratio") or 1)
         published = int(str(fields.get("published", "true")).lower() == "true")
         archived = int(str(fields.get("archived", "false")).lower() == "true")
         with connect(IMAGES_DB) as db:
             db.execute(
-                "INSERT INTO images (id, filename, original_name, mime_type, alt_text, aspect_ratio, published, archived) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (image_id, filename, str(fields.get("original_name") or Path(upload["filename"]).name).strip(), upload["type"], fields.get("alt_text", ""), ratio, published, archived),
+                "INSERT INTO images (id, filename, remote_url, original_name, mime_type, alt_text, aspect_ratio, published, archived) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (image_id, filename, remote_url, str(fields.get("original_name") or Path(upload["filename"]).name).strip(), upload["type"], fields.get("alt_text", ""), ratio, published, archived),
             )
             self.replace_image_links(db, image_id, fields.get("tag_names", ""), fields.get("project_ids", "[]"))
         self.json_response({"image": image_id}, 201)
@@ -499,11 +519,13 @@ class Handler(SimpleHTTPRequestHandler):
 
     def delete_image(self, image_id: str) -> None:
         with connect(IMAGES_DB) as db:
-            image = db.execute("SELECT filename FROM images WHERE id = ?", (image_id,)).fetchone()
+            image = db.execute("SELECT filename, remote_url FROM images WHERE id = ?", (image_id,)).fetchone()
             if not image:
                 return self.json_response({"error": "Image not found"}, 404)
             db.execute("DELETE FROM images WHERE id = ?", (image_id,))
-        if image["filename"]:
+        if CLOUD and image["filename"] and image["remote_url"]:
+            delete_upload(image["remote_url"])
+        elif image["filename"]:
             (UPLOADS / Path(image["filename"]).name).unlink(missing_ok=True)
         self.json_response({"deleted": True})
 

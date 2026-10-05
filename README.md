@@ -70,3 +70,14 @@ frontend alone will not provide the CMS or database APIs.
 
 The Figma reference is [Website Planning, node 563:1020](https://www.figma.com/design/83EmCrcQUbPM4r2UiCcgnx/Website-Planning?node-id=563-1020).
 Haffer was not supplied; typography uses the existing system sans-serif fallback.
+
+## Vercel
+
+Import the root repository with the Other preset; `vercel.json` provides the
+build and routes. Connect Turso (Starter) and a public Vercel Blob store to the
+project. Turso supplies `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`; Blob supplies
+`BLOB_READ_WRITE_TOKEN`. Add a strong `ADMIN_PASSWORD` as a sensitive environment
+variable, then redeploy. `/admin` edits the durable cloud database; uploads go
+to Blob. Hosted image requests must be under 4 MB. The site initializes the
+public seed snapshot once and never overwrites later CMS edits. Back up the
+managed database and Blob store independently.

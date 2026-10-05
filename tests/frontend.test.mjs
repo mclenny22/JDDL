@@ -38,7 +38,8 @@ test('loads fresh CMS content and reports API failures', async () => {
 });
 
 class Element {
-  constructor() {
+  constructor(step = 310) {
+    this.step = step;
     this.children = []; this.dataset = {}; this.style = {}; this.attrs = {};
     this.listeners = {}; this.scrollLeft = 0; this.classes = new Set();
     this.classList = {
@@ -51,7 +52,8 @@ class Element {
   setAttribute(key, value) { this.attrs[key] = value; }
   removeAttribute(key) { delete this.attrs[key]; }
   addEventListener(key, callback) { this.listeners[key] = callback; }
-  get offsetLeft() { return this.parent.children.indexOf(this) * 310 + 16; }
+  get offsetLeft() { return Math.round(this.parent.children.indexOf(this) * this.step + 16); }
+  getBoundingClientRect() { return { left: this.parent.children.indexOf(this) * this.step + 16, width: this.step - 10 }; }
   get firstElementChild() { return this.children[0]; }
   get clientWidth() { return 1000; }
   set innerHTML(value) { this.children = [new Element()]; }
@@ -59,21 +61,21 @@ class Element {
   contains(element) { return element === this; }
 }
 
-async function mount(data = seed, reduced = false) {
+async function mount(data = seed, reduced = false, step = 310) {
   const selectors = ['.rail', '.track', '#project-title', '#project-copy', '.stories', '.about', '.menu', '#status', '.project-context'];
-  const elements = Object.fromEntries(selectors.map(selector => [selector, new Element()]));
+  const elements = Object.fromEntries(selectors.map(selector => [selector, new Element(step)]));
   let frame;
   let time = 0;
   const listeners = {};
   const document = {
     querySelector: selector => elements[selector],
-    createElement: () => new Element(), createTextNode: text => ({ textContent: text }),
+    createElement: () => new Element(step), createTextNode: text => ({ textContent: text }),
     addEventListener: (key, callback) => { listeners[key] = callback; }, hidden: false,
   };
   const context = vm.createContext({
     console, document, performance: { now: () => time },
     loadPortfolio: async () => ({ projects: normalizePortfolio(data), settings: data.settings || {} }),
-    matchMedia: () => ({ matches: reduced }), Image: Element,
+    matchMedia: () => ({ matches: reduced }), Image: class extends Element { constructor() { super(step); } },
     ResizeObserver: class { observe() {} }, requestAnimationFrame: callback => { frame = callback; },
   });
   const source = fs.readFileSync(new URL('../frontend/app.js', import.meta.url), 'utf8')
@@ -141,4 +143,39 @@ test('reduced motion keeps manual galleries; empty data produces an empty state'
   const empty = await mount({ projects: [], images: [], settings: {} });
   assert.equal(empty.elements['#status'].textContent, 'No published projects yet.');
   assert.equal(empty.elements['.project-context'].hidden, true);
+});
+
+
+test('fractional tile geometry aligns wheel, menu, story clicks and native settling', async () => {
+  const step = 310.375;
+  const { elements, listeners, tick } = await mount(seed, false, step);
+  const rail = elements['.rail'];
+  assert.equal(rail.scrollLeft, 12 * step);
+  assert.equal(elements['.project-context'].style.width, `${step - 10}px`);
+  elements['.menu'].children[1].listeners.click();
+  assert.equal(rail.scrollLeft, 13 * step);
+  listeners.wheel({ ctrlKey: false, deltaX: 0, deltaY: 120, deltaMode: 0,
+    target: rail, preventDefault() {} });
+  for (let index = 0; index < 120; index++) tick(16);
+  assert.equal(rail.scrollLeft, 14 * step);
+  rail.scrollLeft += 1.5;
+  rail.listeners.scrollend();
+  assert.equal(rail.scrollLeft, 14 * step);
+  rail.scrollLeft += 30;
+  elements['.stories'].children[1].listeners.click();
+  assert.equal(rail.scrollLeft, 14 * step);
+  rail.scrollLeft = 5 * 4 * step - 10; rail.listeners.scroll();
+  listeners.wheel({ ctrlKey: false, deltaX: 0, deltaY: 400, deltaMode: 0,
+    target: rail, preventDefault() {} });
+  for (let index = 0; index < 120; index++) tick(16);
+  assert.equal(rail.scrollLeft % step, 0);
+});
+
+test('story progress uses actual fill width without scaling its rounded ends', async () => {
+  const { elements, tick } = await mount();
+  for (let index = 0; index < 22; index++) tick();
+  tick(50);
+  const fill = elements['.stories'].children[0].firstElementChild;
+  assert.equal(fill.style.width, '50%');
+  assert.equal(fill.style.transform, undefined);
 });
