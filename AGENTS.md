@@ -74,6 +74,10 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
 
 ## Vercel deployment
 
+- Read `docs/DEPLOYMENT.md` for the production URLs, Vercel team/project,
+  Turso database, Blob store, environment scopes and setup verification record.
+  Keep that record current when hosting resources or configuration change.
+
 - `vercel.json` selects the active app explicitly and excludes archived versions
   from the Python function. `scripts/build_vercel.py` exports frontend, CMS assets
   and seed images to the ignored `public/` CDN output.

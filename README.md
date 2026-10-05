@@ -81,3 +81,6 @@ variable, then redeploy. `/admin` edits the durable cloud database; uploads go
 to Blob. Hosted image requests must be under 4 MB. The site initializes the
 public seed snapshot once and never overwrites later CMS edits. Back up the
 managed database and Blob store independently.
+
+The current accounts, dashboard links, resource IDs, credential locations and
+maintenance workflow are recorded in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
