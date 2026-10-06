@@ -51,6 +51,6 @@ button:focus-visible, .rail:focus-visible { outline: 2px solid #838383; outline-
 }
 @media (prefers-reduced-motion: reduce) { .tile img { transition: none; } }
 
-#project-copy { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-top: 6px; font-size: inherit; line-height: inherit; text-transform: none; }
+#project-copy { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-top: 6px; font-size: inherit; line-height: inherit; text-transform: uppercase; }
 #project-copy:empty { display: none; }
 #status { margin: 0 var(--inset) 20px; font-size: inherit; }
