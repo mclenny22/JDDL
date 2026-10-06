@@ -179,3 +179,23 @@ test('story progress uses actual fill width without scaling its rounded ends', a
   assert.equal(fill.style.width, '50%');
   assert.equal(fill.style.transform, undefined);
 });
+
+
+test('saved CMS project order determines the landing project and its first visible image', async () => {
+  const data = structuredClone(seed);
+  const featured = data.projects[2];
+  featured.sort_order = -20;
+  const firstImage = data.images.find(image => image.project_ids.includes(featured.id) && image.published && !image.archived);
+  const { elements } = await mount(data);
+  assert.equal(elements['#project-title'].textContent, featured.title);
+  const activeTile = elements['.track'].children.find(tile => tile.attrs['aria-hidden'] === 'false');
+  assert.equal(activeTile.children[0].src, firstImage.url);
+  assert.equal(activeTile.children[0].classes.has('visible'), true);
+  featured.published = 0;
+  const hidden = await mount(data);
+  assert.equal(hidden.elements['#project-title'].textContent, normalizePortfolio(data)[0].title);
+  featured.published = 1;
+  data.images.filter(image => image.project_ids.includes(featured.id)).forEach(image => { image.archived = 1; });
+  const empty = await mount(data);
+  assert.equal(empty.elements['#project-title'].textContent, normalizePortfolio(data)[0].title);
+});

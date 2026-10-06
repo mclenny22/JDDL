@@ -180,6 +180,27 @@ class BackendIntegrationTests(unittest.TestCase):
         self.assertEqual(self.request('DELETE', f'/api/images/{image_id}')[0], 200)
         self.assertEqual(self.request('GET', image['url'])[0], 404)
 
+    def test_project_reordering_is_atomic_and_controls_public_order(self):
+        self.assertEqual(self.request('POST', '/api/projects/reorder', {'project_ids': []})[0], 401)
+        self.login()
+        original = json.loads(self.request('GET', '/api/admin/bootstrap')[2])
+        ids = [project['id'] for project in reversed(original['projects'])]
+        self.assertEqual(self.request('POST', '/api/projects/reorder', {'project_ids': ids})[0], 200)
+        reordered = json.loads(self.request('GET', '/api/admin/bootstrap')[2])
+        self.assertEqual([project['id'] for project in reordered['projects']], ids)
+        self.assertEqual([project['sort_order'] for project in reordered['projects']], list(range(0, len(ids) * 10, 10)))
+        public = json.loads(self.request('GET', '/api/public')[2])
+        self.assertEqual([project['id'] for project in public['projects']], ids)
+        self.assertEqual(reordered['images'], original['images'])
+        originals = {project['id']: project for project in original['projects']}
+        for project in reordered['projects']:
+            for field in ['title', 'description', 'client', 'published', 'slug']:
+                self.assertEqual(project[field], originals[project['id']][field])
+        for invalid, expected in [(ids[:-1], 409), (ids + [ids[0]], 400), (ids[:-1] + ['unknown'], 409), ([{}], 400), (None, 400)]:
+            self.assertEqual(self.request('POST', '/api/projects/reorder', {'project_ids': invalid})[0], expected)
+            current = json.loads(self.request('GET', '/api/admin/bootstrap')[2])
+            self.assertEqual([project['id'] for project in current['projects']], ids)
+
     def test_delete_project_keeps_images_and_restart_does_not_reseed(self):
         self.login()
         public = json.loads(self.request('GET', '/api/public')[2])

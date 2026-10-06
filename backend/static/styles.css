@@ -432,3 +432,11 @@ html.has-open-drawer { overflow: hidden; }
 .project-combobox-option:hover, .project-combobox-option.is-active { background: #f4f4f5; }
 .project-option-check { flex: 0 0 16px; }
 .project-combobox-empty { margin: 0; padding: 1rem; color: var(--muted); font-size: .8125rem; text-align: center; }
+
+.drag-col { width: 48px; }
+.project-drag-handle { display: grid; place-items: center; width: 28px; height: 32px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: #a1a1aa; cursor: grab; touch-action: none; }
+.project-drag-handle svg { width: 16px; height: 20px; fill: currentColor; }
+.project-drag-handle:hover { background: #f4f4f5; color: #18181b; }
+.project-drag-handle:disabled { opacity: .4; cursor: wait; }
+#project-table .is-dragging { background: #f4f4f5; box-shadow: inset 0 2px #a1a1aa, inset 0 -2px #a1a1aa; }
+.is-reordering-projects, .is-reordering-projects * { cursor: grabbing !important; user-select: none; }

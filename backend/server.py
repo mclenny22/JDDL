@@ -343,6 +343,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.json_response({"authenticated": False}, headers={"Set-Cookie": "jddl_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"})
             if not self.require_admin():
                 return
+            if path == "/api/projects/reorder":
+                return self.reorder_projects(self.read_json())
             if path == "/api/projects":
                 return self.save_project(self.read_json())
             if path == "/api/tags":
@@ -415,6 +417,23 @@ class Handler(SimpleHTTPRequestHandler):
                 values,
             )
         self.json_response({"project": project_id})
+
+    def reorder_projects(self, payload: dict) -> None:
+        project_ids = payload.get("project_ids")
+        if not isinstance(project_ids, list) or any(not isinstance(item, str) for item in project_ids):
+            raise ValueError("Bitte übermittle eine vollständige Projektliste")
+        if len(project_ids) != len(set(project_ids)):
+            raise ValueError("Jedes Projekt darf nur einmal vorkommen")
+        with connect(PROJECTS_DB) as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing_ids = {row["id"] for row in db.execute("SELECT id FROM projects")}
+            if set(project_ids) != existing_ids:
+                return self.json_response({"error": "Die Projektliste hat sich geändert. Bitte lade sie neu."}, 409)
+            db.executemany(
+                "UPDATE projects SET sort_order=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                [(position * 10, project_id) for position, project_id in enumerate(project_ids)],
+            )
+        self.json_response({"project_ids": project_ids})
 
     def delete_project(self, project_id: str) -> None:
         with connect(PROJECTS_DB) as projects_db:

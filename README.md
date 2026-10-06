@@ -55,6 +55,81 @@ recoverable from Git history; see [docs/HISTORY.md](docs/HISTORY.md).
 Fresh checkouts initialize from the public
 seed; restarting does not replace edited content or intentionally empty databases.
 
+## Database connections
+
+### Public content
+
+Read published portfolio content without credentials:
+
+```sh
+curl --fail https://jddl.vercel.app/api/public
+```
+
+For local content, start the server and use
+`http://127.0.0.1:4174/api/public`. The API returns projects, images, tags and
+studio settings; it excludes unpublished/archived images and private settings.
+Use `/admin` for ordinary content edits.
+
+### Production: Turso / libSQL
+
+Production uses the SQLite-compatible **jddl-database** database through the
+Vercel/Turso integration. Supply these variables privately in the process
+environment:
+
+- `TURSO_DATABASE_URL`: the database connection URL.
+- `TURSO_AUTH_TOKEN`: its authentication token.
+
+Obtain them through the integration linked in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+Install the pinned cloud dependencies in a Python virtual environment:
+
+```sh
+python3 -m venv .venv
+. .venv/bin/activate
+python3 -m pip install -r requirements.txt
+```
+
+With both variables available, this query connects directly without starting
+the server or running database initialization:
+
+```python
+import os
+import libsql
+
+connection = libsql.connect(
+    database=os.environ["TURSO_DATABASE_URL"],
+    auth_token=os.environ["TURSO_AUTH_TOKEN"],
+)
+try:
+    projects = connection.execute(
+        "SELECT id, title, sort_order FROM projects ORDER BY sort_order, title"
+    ).fetchall()
+    print(projects)
+finally:
+    connection.close()
+```
+
+Setting `TURSO_DATABASE_URL` switches the server to cloud storage. `.env` files
+are ignored by Git but are **not automatically loaded**; export the variables
+before starting the server. Never commit or print authentication tokens.
+Production and Preview share a database according to the deployment record;
+confirm the target before editing. Direct production SQL connectivity has not
+been verified in this workspace; see the verification record in
+[docs/DATABASE_ACCESS.md](docs/DATABASE_ACCESS.md).
+
+### Local: SQLite
+
+Without `TURSO_DATABASE_URL`, running the server initializes two local files:
+
+- `data/projects.db`: projects and studio settings.
+- `data/images.db`: images, tags and image/project relationships.
+
+`JDDL_DATA_DIR` overrides their directory. Local databases are separate from
+Turso, and local edits do not synchronize with production. No additional Python
+packages are needed. For inspection, use `sqlite3.connect(uri, uri=True)` with a
+`file:` URI ending in `?mode=ro`; a complete example is in
+[docs/DATABASE_ACCESS.md](docs/DATABASE_ACCESS.md). Preserve `data/` and `uploads/`,
+and use SQLite backup APIs when copying live databases.
+
 ## Verification
 
 ```sh

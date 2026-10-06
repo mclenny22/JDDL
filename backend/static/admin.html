@@ -69,12 +69,12 @@
 
         <section data-view-content="projects" hidden>
           <div class="admin-heading">
-            <div><p class="admin-eyebrow">Projektübersicht</p><h1>Projekte</h1></div>
+            <div><p class="admin-eyebrow">Projektübersicht</p><h1>Projekte</h1><p class="export-intro" id="project-order-help">Am Griff ziehen, um Projekte zu sortieren. Mit der Tastatur: Pfeil nach oben / unten. Das erste veröffentlichte Projekt mit Bildern startet die Website.</p></div>
             <button class="button primary" id="add-project-button" type="button">Neues Projekt</button>
           </div>
           <div class="table-shell">
             <table id="project-table">
-              <thead><tr><th>Name</th><th>Kunde / Art</th><th>Beschreibung</th><th>Bilder</th><th>Status</th><th>Reihenfolge</th><th class="action-col"><span class="sr-only">Aktionen</span></th></tr></thead>
+              <thead><tr><th class="drag-col"><span class="sr-only">Reihenfolge</span></th><th>Name</th><th>Kunde / Art</th><th>Beschreibung</th><th>Bilder</th><th>Status</th><th class="action-col"><span class="sr-only">Aktionen</span></th></tr></thead>
               <tbody id="project-table-body"></tbody>
             </table>
             <div class="admin-empty" id="projects-empty" hidden><h2>Noch keine Projekte</h2><p>Erstelle ein Projekt und ordne ihm Bilder zu.</p><button class="button primary" type="button" data-open-project>Neues Projekt</button></div>
@@ -182,7 +182,6 @@
         <label class="field" for="project-client"><span>Kunde / Art</span><input id="project-client" /></label>
         <label class="field" for="project-description"><span>Beschreibung</span><textarea id="project-description"></textarea></label>
         <div class="field-grid">
-          <label class="field" for="project-order"><span>Sortierreihenfolge</span><input id="project-order" type="number" value="0" /></label>
           <label class="check-field"><input id="project-published" type="checkbox" checked /><span>Veröffentlicht</span></label>
         </div>
         <p class="form-error" id="project-error" role="alert"></p>

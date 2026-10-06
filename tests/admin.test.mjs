@@ -49,7 +49,7 @@ function mount() {
     images: [{ id: 'image', original_name: 'Photo', published: 1, archived: 0, aspect_ratio: 1.5, project_ids: ['alpha'], tag_ids: [] }],
     tags: [], settings: {}
   }`, context);
-  return { context, elements, calls, document, run: code => vm.runInContext(code, context) };
+  return { context, elements, calls, document, Element, run: code => vm.runInContext(code, context) };
 }
 
 test('new and archived images open unpublished; existing published images stay checked', () => {
@@ -114,4 +114,52 @@ test('saving visibility keeps publication and archive mutually exclusive', async
     assert.deepEqual(payload.project_ids, ['alpha']);
     assert.equal(submit.disabled, false);
   }
+});
+
+
+test('project reorder saves all positions together and restores order on failure', async () => {
+  const { run, calls, context } = mount();
+  await run("saveProjectOrder(['beta', 'alpha'], 'beta')");
+  const request = calls.find(call => call.url === '/api/projects/reorder');
+  assert.deepEqual(JSON.parse(request.options.body), { project_ids: ['beta', 'alpha'] });
+  assert.deepEqual(JSON.parse(run('JSON.stringify(state.data.projects.map(project => [project.id, project.sort_order]))')), [['beta', 0], ['alpha', 10]]);
+  assert.equal(run('state.reorderingProjects'), false);
+  context.fetch = async () => { throw new Error('Offline'); };
+  await run("saveProjectOrder(['alpha', 'beta'], 'alpha')");
+  assert.deepEqual(JSON.parse(run('JSON.stringify(state.data.projects.map(project => project.id))')), ['beta', 'alpha']);
+  assert.equal(run('state.reorderingProjects'), false);
+});
+
+test('touch dragging changes project order, cancellation restores it and keyboard moves save', async () => {
+  const { elements, Element, run } = mount();
+  const body = elements.get('#project-table-body');
+  const rows = ['alpha', 'beta'].map(id => {
+    const row = new Element();
+    row.dataset.projectRow = id;
+    row.getBoundingClientRect = () => ({ top: rows.indexOf(row) * 66, height: 66 });
+    const handle = new Element();
+    handle.dataset.dragProject = id;
+    handle.closest = () => row;
+    handle.setPointerCapture = () => {};
+    handle.hasPointerCapture = () => false;
+    row.handle = handle;
+    return row;
+  });
+  body.querySelectorAll = selector => selector === '[data-project-row]' ? rows : rows.map(row => row.handle);
+  body.insertBefore = (row, before) => {
+    rows.splice(rows.indexOf(row), 1);
+    rows.splice(before ? rows.indexOf(before) : rows.length, 0, row);
+  };
+  const event = (key, y) => ({ target: { closest: () => rows.find(row => row.dataset.projectRow === 'alpha').handle }, key, clientY: y, pointerId: 1, button: 0, isPrimary: true, preventDefault() {} });
+  // Keep pointer movement clear of viewport autoscroll thresholds.
+  run('innerHeight = 500; window.scrollBy = () => {};');
+  body.listeners.pointerdown(event(null, 33));
+  body.listeners.pointermove(event(null, 120));
+  assert.deepEqual(rows.map(row => row.dataset.projectRow), ['beta', 'alpha']);
+  body.listeners.pointercancel();
+  assert.equal(run('state.projectDrag'), null);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(state.data.projects.map(project => project.id))')), ['alpha', 'beta']);
+  body.listeners.keydown(event('ArrowDown'));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(JSON.parse(run('JSON.stringify(state.data.projects.map(project => project.id))')), ['beta', 'alpha']);
 });

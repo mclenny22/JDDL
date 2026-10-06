@@ -98,6 +98,10 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   checked saves published/unarchived. New uploads default to archived in the UI
   and API. Existing content is unchanged until saved. Project assignment uses a
   searchable single-select combobox with keyboard navigation and “Kein Projekt”.
+  Projects reorder through pointer dragging (mouse/touch) or Up/Down on row grips.
+  `/api/projects/reorder` validates the complete ID list and saves positions in one
+  transaction; new projects append. The public rail starts at the first published
+  project with published, unarchived images and shows its first assigned image.
 - Project deletion retains images and clears links; tag deletion clears tag
   associations; image deletion removes its upload where present. Public data
   excludes archived and unpublished images. Admin bootstrap includes both.

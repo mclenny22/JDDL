@@ -7,6 +7,8 @@ const state = {
   rowMenu: null,
   projectOptions: [],
   projectOptionIndex: -1,
+  projectDrag: null,
+  reorderingProjects: false,
   exportTags: new Set(),
   exportSelected: new Set(),
 };
@@ -99,6 +101,7 @@ function projectNames(image) {
 }
 
 function setView(view) {
+  cancelProjectDrag();
   closeRowMenu();
   document.querySelectorAll("[data-view-content]").forEach((section) => {
     section.hidden = section.dataset.viewContent !== view;
@@ -164,17 +167,117 @@ function renderProjects() {
   el.projectTable.hidden = !projects.length;
   el.projectsEmpty.hidden = Boolean(projects.length);
   $("#project-result-count").textContent = `${projects.length} ${projects.length === 1 ? "Eintrag" : "Einträge"}`;
-  el.projectBody.innerHTML = projects.map((project) => {
+  el.projectBody.innerHTML = projects.map((project, index) => {
     const count = state.data.images.filter((image) => image.project_ids.includes(project.id)).length;
-    return `<tr>
+    return `<tr data-project-row="${escapeHtml(project.id)}">
+      <td><button class="project-drag-handle" type="button" data-drag-project="${escapeHtml(project.id)}" aria-label="${escapeHtml(project.title)} verschieben, Position ${index + 1} von ${projects.length}" aria-describedby="project-order-help" ${state.reorderingProjects ? "disabled" : ""}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="5" r="1" /><circle cx="15" cy="5" r="1" /><circle cx="9" cy="12" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="9" cy="19" r="1" /><circle cx="15" cy="19" r="1" /></svg></button></td>
       <td><button class="cell-button" data-edit-project="${project.id}"><span class="file-name">${escapeHtml(project.title)}</span></button></td>
       <td class="${project.client ? "" : "admin-muted"}">${escapeHtml(project.client || "—")}</td>
       <td class="description-cell ${project.description ? "" : "admin-muted"}">${escapeHtml(project.description || "Keine Beschreibung")}</td>
-      <td>${count}</td><td><span class="status">${project.published ? "Veröffentlicht" : "Entwurf"}</span></td><td>${project.sort_order}</td>
+      <td>${count}</td><td><span class="status">${project.published ? "Veröffentlicht" : "Entwurf"}</span></td>
       <td><div class="row-actions">${rowMenuTrigger("project", project.id, project.title)}</div></td>
     </tr>`;
   }).join("");
 }
+
+function focusProjectHandle(id) {
+  const handle = [...el.projectBody.querySelectorAll("[data-drag-project]")].find((button) => button.dataset.dragProject === id);
+  handle?.focus({ preventScroll: true });
+}
+
+async function saveProjectOrder(ids, focusId) {
+  if (state.reorderingProjects || ids.every((id, index) => id === state.data.projects[index]?.id)) {
+    focusProjectHandle(focusId);
+    return;
+  }
+  state.reorderingProjects = true;
+  el.projectTable.setAttribute("aria-busy", "true");
+  el.projectBody.querySelectorAll("button").forEach((button) => { button.disabled = true; });
+  try {
+    await api("/api/projects/reorder", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_ids: ids }) });
+    const projects = new Map(state.data.projects.map((project) => [project.id, project]));
+    state.data.projects = ids.map((id, index) => ({ ...projects.get(id), sort_order: index * 10 }));
+    notify("Projektreihenfolge gespeichert");
+  } catch (error) {
+    notify(error.message);
+    // Restore authoritative order after a stale list or a failed request.
+    try { await refresh(); } catch { /* Keep the last known order if offline. */ }
+  } finally {
+    state.reorderingProjects = false;
+    el.projectTable.setAttribute("aria-busy", "false");
+    renderProjects();
+    renderExportImages();
+    focusProjectHandle(focusId);
+  }
+}
+
+function finishProjectDrag() {
+  const drag = state.projectDrag;
+  state.projectDrag = null;
+  document.documentElement.classList.remove("is-reordering-projects");
+  if (drag) {
+    drag.row.classList.remove("is-dragging");
+    if (drag.handle.hasPointerCapture(drag.pointerId)) drag.handle.releasePointerCapture(drag.pointerId);
+  }
+  return drag;
+}
+
+function cancelProjectDrag() {
+  const drag = finishProjectDrag();
+  if (drag) { renderProjects(); focusProjectHandle(drag.id); }
+}
+
+el.projectBody.addEventListener("pointerdown", (event) => {
+  const handle = event.target.closest("[data-drag-project]");
+  if (!handle || state.reorderingProjects || event.button !== 0 || !event.isPrimary) return;
+  event.preventDefault();
+  closeRowMenu();
+  handle.focus({ preventScroll: true });
+  state.projectDrag = { id: handle.dataset.dragProject, handle, row: handle.closest("[data-project-row]"), pointerId: event.pointerId, startY: event.clientY, moved: false, ids: state.data.projects.map((project) => project.id) };
+  handle.setPointerCapture(event.pointerId);
+});
+el.projectBody.addEventListener("pointermove", (event) => {
+  const drag = state.projectDrag;
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  if (!drag.moved && Math.abs(event.clientY - drag.startY) < 5) return;
+  event.preventDefault();
+  drag.moved = true;
+  drag.row.classList.add("is-dragging");
+  document.documentElement.classList.add("is-reordering-projects");
+  const rows = [...el.projectBody.querySelectorAll("[data-project-row]")];
+  const others = rows.filter((row) => row !== drag.row);
+  const index = others.filter((row) => {
+    const box = row.getBoundingClientRect();
+    return event.clientY > box.top + box.height / 2;
+  }).length;
+  const ids = others.map((row) => row.dataset.projectRow);
+  ids.splice(index, 0, drag.id);
+  if (ids.some((id, position) => id !== drag.ids[position])) {
+    el.projectBody.insertBefore(drag.row, others[index] || null);
+    // Re-establish capture after moving the row in the DOM.
+    drag.handle.setPointerCapture(drag.pointerId);
+    drag.ids = ids;
+  }
+  if (event.clientY < 90) window.scrollBy(0, -16);
+  else if (event.clientY > innerHeight - 70) window.scrollBy(0, 16);
+});
+el.projectBody.addEventListener("pointerup", (event) => {
+  if (event.pointerId !== state.projectDrag?.pointerId) return;
+  const drag = finishProjectDrag();
+  if (drag.moved) saveProjectOrder(drag.ids, drag.id);
+});
+el.projectBody.addEventListener("pointercancel", cancelProjectDrag);
+el.projectBody.addEventListener("keydown", (event) => {
+  const handle = event.target.closest("[data-drag-project]");
+  if (!handle || state.reorderingProjects || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+  event.preventDefault();
+  const ids = state.data.projects.map((project) => project.id);
+  const index = ids.indexOf(handle.dataset.dragProject);
+  const destination = index + (event.key === "ArrowUp" ? -1 : 1);
+  if (destination < 0 || destination >= ids.length) return;
+  ids.splice(destination, 0, ids.splice(index, 1)[0]);
+  saveProjectOrder(ids, handle.dataset.dragProject);
+});
 
 function renderTagManager() {
   el.tagManager.innerHTML = state.data.tags.length
@@ -513,7 +616,6 @@ function openProject(project = null) {
   $("#project-title").value = project?.title || "";
   $("#project-client").value = project?.client || "";
   $("#project-description").value = project?.description || "";
-  $("#project-order").value = project?.sort_order || 0;
   $("#project-published").checked = project ? Boolean(project.published) : true;
   $("#project-dialog-title").textContent = project ? "Projekt bearbeiten" : "Neues Projekt";
   openDrawer(el.projectDialog);
@@ -711,6 +813,7 @@ document.addEventListener("click", (event) => {
   if (!event.target.closest("#image-project-field")) closeProjectSelect();
 });
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.projectDrag) { event.preventDefault(); cancelProjectDrag(); }
   const trigger = event.target.closest("[data-row-kind]");
   if (trigger && ["ArrowDown", "ArrowUp"].includes(event.key)) {
     event.preventDefault();
@@ -779,7 +882,7 @@ el.projectForm.addEventListener("submit", async (event) => {
     await api("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: id || undefined, title: $("#project-title").value, client: $("#project-client").value, description: $("#project-description").value, sort_order: Number($("#project-order").value), published: $("#project-published").checked }),
+      body: JSON.stringify({ id: id || undefined, title: $("#project-title").value, client: $("#project-client").value, description: $("#project-description").value, sort_order: id ? projectFor(id)?.sort_order || 0 : Math.max(-10, ...state.data.projects.map((project) => project.sort_order || 0)) + 10, published: $("#project-published").checked }),
     });
     el.projectDialog.close();
     await refresh();
