@@ -40,8 +40,6 @@ const el = {
   imageTags: $("#image-tag-options"),
   imageProjects: $("#image-project-options"),
   tagManager: $("#tag-manager-list"),
-  cellEditor: $("#cell-editor"),
-  cellContent: $("#cell-editor-content"),
   toast: $("#toast"),
 };
 
@@ -90,19 +88,6 @@ function projectNames(image) {
   return image.project_ids.map((id) => projectFor(id)?.title).filter(Boolean);
 }
 
-function imagePayload(image, changes = {}) {
-  const tagIds = changes.tag_ids ?? image.tag_ids;
-  return {
-    original_name: changes.original_name ?? image.original_name,
-    alt_text: changes.alt_text ?? image.alt_text,
-    aspect_ratio: changes.aspect_ratio ?? image.aspect_ratio,
-    published: changes.published ?? Boolean(image.published),
-    archived: changes.archived ?? Boolean(image.archived),
-    tag_names: tagIds.map((id) => tagFor(id)?.name).filter(Boolean).join(", "),
-    project_ids: changes.project_ids ?? image.project_ids,
-  };
-}
-
 function setView(view) {
   document.querySelectorAll("[data-view-content]").forEach((section) => {
     section.hidden = section.dataset.viewContent !== view;
@@ -112,7 +97,7 @@ function setView(view) {
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-selected", String(active));
   });
-  closeCell();
+  closeFilterMenu();
 }
 
 function renderFilters() {
@@ -169,7 +154,7 @@ function renderProjects() {
   el.projectBody.innerHTML = projects.map((project) => {
     const count = state.data.images.filter((image) => image.project_ids.includes(project.id)).length;
     return `<tr>
-      <td><span class="file-name">${escapeHtml(project.title)}</span></td>
+      <td><button class="cell-button" data-edit-project="${project.id}"><span class="file-name">${escapeHtml(project.title)}</span></button></td>
       <td class="${project.client ? "" : "admin-muted"}">${escapeHtml(project.client || "—")}</td>
       <td class="description-cell ${project.description ? "" : "admin-muted"}">${escapeHtml(project.description || "Keine Beschreibung")}</td>
       <td>${count}</td><td><span class="status">${project.published ? "Veröffentlicht" : "Entwurf"}</span></td><td>${project.sort_order}</td>
@@ -405,7 +390,7 @@ function renderProjectOptions(container, selectedId) {
   container.innerHTML = options.map((project) => `<label class="tag-check"><input type="radio" name="image-project" value="${project.id}" ${project.id === selectedId ? "checked" : ""} /><span>${escapeHtml(project.title)}</span></label>`).join("");
 }
 
-function openImage(image = null) {
+function openImage(image = null, field = "name") {
   el.imageForm.reset();
   $("#image-error").textContent = "";
   $("#image-id").value = image?.id || "";
@@ -424,7 +409,11 @@ function openImage(image = null) {
   if (image) el.imagePreview.src = image.url;
   else el.imagePreview.removeAttribute("src");
   el.dropzone.classList.toggle("is-readonly", Boolean(image));
-  el.imageDialog.showModal();
+  openDrawer(el.imageDialog);
+  const focusTargets = { name: "#image-name", tags: "#image-tags-field input", project: "#image-project-field input" };
+  const target = $(focusTargets[field] || focusTargets.name) || $("#image-name");
+  target.focus({ preventScroll: true });
+  target.scrollIntoView({ block: "nearest" });
 }
 
 function openProject(project = null) {
@@ -437,7 +426,7 @@ function openProject(project = null) {
   $("#project-order").value = project?.sort_order || 0;
   $("#project-published").checked = project ? Boolean(project.published) : true;
   $("#project-dialog-title").textContent = project ? "Projekt bearbeiten" : "Neues Projekt";
-  el.projectDialog.showModal();
+  openDrawer(el.projectDialog);
   $("#project-title").focus();
 }
 
@@ -462,52 +451,34 @@ function selectFile(file) {
   if (!$("#image-name").value) $("#image-name").value = file.name;
 }
 
-function closeCell() {
-  el.cellEditor.hidden = true;
-  el.cellContent.replaceChildren();
+function closeFilterMenu() {
+  el.filterMenu.hidden = true;
+  $("#tag-filter-button").setAttribute("aria-expanded", "false");
 }
 
-function positionCell(anchor) {
-  el.cellEditor.hidden = false;
-  const anchorBox = anchor.getBoundingClientRect();
-  const editorBox = el.cellEditor.getBoundingClientRect();
-  const left = Math.max(8, Math.min(anchorBox.left, innerWidth - editorBox.width - 8));
-  const below = anchorBox.bottom + 5;
-  const top = below + editorBox.height <= innerHeight ? below : Math.max(8, anchorBox.top - editorBox.height - 5);
-  el.cellEditor.style.left = `${left}px`;
-  el.cellEditor.style.top = `${top}px`;
+function openDrawer(drawer) {
+  closeFilterMenu();
+  drawer.querySelector(".drawer-body").scrollTop = 0;
+  drawer.showModal();
+  document.documentElement.classList.add("has-open-drawer");
 }
 
-function openCell(anchor, image, field) {
-  if (field === "name") {
-    el.cellContent.innerHTML = `<form class="cell-form" id="cell-name-form" data-image-id="${image.id}"><input id="cell-name-input" value="${escapeHtml(image.original_name)}" maxlength="240" required /><button class="button primary">Speichern</button></form>`;
-  }
-  if (field === "tags") {
-    const selected = new Set(image.tag_ids);
-    el.cellContent.innerHTML = `<form id="cell-relations-form" data-field="tags" data-image-id="${image.id}"><div class="cell-heading">Tags auswählen</div><div class="cell-options">${state.data.tags.length ? state.data.tags.map((tag) => `<label class="cell-option"><input type="checkbox" name="cell-tag" value="${tag.id}" ${selected.has(tag.id) ? "checked" : ""} /><span>${escapeHtml(tag.name)}</span></label>`).join("") : '<div class="cell-option admin-muted">Keine Tags verfügbar</div>'}</div><div class="cell-actions"><button class="button" type="button" data-close-cell>Abbrechen</button><button class="button primary">Speichern</button></div></form>`;
-  }
-  if (field === "project") {
-    const selectedId = image.project_ids[0] || "";
-    const projects = [{ id: "", title: "Kein Projekt" }, ...state.data.projects];
-    el.cellContent.innerHTML = `<form id="cell-relations-form" data-field="project" data-image-id="${image.id}"><div class="cell-heading">Projekt auswählen</div><div class="cell-options">${projects.map((project) => `<label class="cell-option"><input type="radio" name="cell-project" value="${project.id}" ${selectedId === project.id ? "checked" : ""} /><span>${escapeHtml(project.title)}</span></label>`).join("")}</div><div class="cell-actions"><button class="button" type="button" data-close-cell>Abbrechen</button><button class="button primary">Speichern</button></div></form>`;
-  }
-  positionCell(anchor);
-  if (field === "name") {
-    $("#cell-name-input").focus();
-    $("#cell-name-input").select();
-  }
-}
-
-async function updateImage(image, changes) {
-  await api(`/api/images/${image.id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(imagePayload(image, changes)),
+// Native modal dialogs provide focus containment, Escape and return focus.
+[el.imageDialog, el.projectDialog].forEach((drawer) => {
+  let backdropPress = false;
+  const outside = (event) => {
+    const box = drawer.getBoundingClientRect();
+    return event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
+  };
+  drawer.addEventListener("pointerdown", (event) => { backdropPress = event.target === drawer && outside(event); });
+  drawer.addEventListener("pointerup", (event) => {
+    if (backdropPress && event.target === drawer && outside(event)) drawer.close();
+    backdropPress = false;
   });
-  closeCell();
-  await refresh();
-  notify("Bild aktualisiert");
-}
+  drawer.addEventListener("close", () => {
+    document.documentElement.classList.remove("has-open-drawer");
+  });
+});
 
 $("#login-form").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -534,7 +505,10 @@ document.querySelectorAll("[data-open-project]").forEach((button) => button.addE
 document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => button.closest("dialog").close()));
 
 $("#image-search").addEventListener("input", (event) => { state.search = event.target.value; renderImages(); });
-$("#tag-filter-button").addEventListener("click", () => { el.filterMenu.hidden = !el.filterMenu.hidden; });
+$("#tag-filter-button").addEventListener("click", () => {
+  el.filterMenu.hidden = !el.filterMenu.hidden;
+  $("#tag-filter-button").setAttribute("aria-expanded", String(!el.filterMenu.hidden));
+});
 el.tagFilters.addEventListener("change", (event) => {
   const input = event.target.closest("[data-tag-id]");
   if (!input) return;
@@ -568,13 +542,14 @@ el.clearExportSelection.addEventListener("click", () => {
 el.createPortfolioButton.addEventListener("click", createPortfolioPdf);
 
 document.addEventListener("click", (event) => {
-  if (!event.target.closest(".menu-wrap")) el.filterMenu.hidden = true;
-  if (!event.target.closest("#cell-editor") && !event.target.closest("[data-edit-field]")) closeCell();
+  if (!event.target.closest(".menu-wrap")) closeFilterMenu();
 });
-window.addEventListener("resize", closeCell);
-window.addEventListener("scroll", (event) => {
-  if (!(event.target instanceof Node) || !el.cellEditor.contains(event.target)) closeCell();
-}, true);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !el.filterMenu.hidden) {
+    closeFilterMenu();
+    $("#tag-filter-button").focus();
+  }
+});
 
 el.imageFile.addEventListener("change", () => selectFile(el.imageFile.files[0]));
 el.dropzone.addEventListener("dragover", (event) => { if (!el.imageFile.disabled) event.preventDefault(); });
@@ -686,7 +661,7 @@ el.imageBody.addEventListener("click", async (event) => {
   const field = event.target.closest("[data-edit-field]");
   if (field) {
     const image = state.data.images.find((item) => item.id === field.dataset.imageId);
-    if (image) openCell(field, image, field.dataset.editField);
+    if (image) openImage(image, field.dataset.editField);
     return;
   }
   const edit = event.target.closest("[data-edit-image]");
@@ -697,26 +672,6 @@ el.imageBody.addEventListener("click", async (event) => {
   await refresh();
   notify("Bild gelöscht");
 });
-
-el.cellEditor.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const image = state.data.images.find((item) => item.id === event.target.dataset.imageId);
-  if (!image) return;
-  try {
-    if (event.target.id === "cell-name-form") await updateImage(image, { original_name: $("#cell-name-input").value });
-    if (event.target.id === "cell-relations-form") {
-      const field = event.target.dataset.field;
-      if (field === "tags") {
-        const values = [...el.cellEditor.querySelectorAll('input[name="cell-tag"]:checked')].map((input) => input.value);
-        await updateImage(image, { tag_ids: values });
-      } else {
-        const selectedProject = el.cellEditor.querySelector('input[name="cell-project"]:checked')?.value || "";
-        await updateImage(image, { project_ids: selectedProject ? [selectedProject] : [] });
-      }
-    }
-  } catch (reason) { notify(reason.message); }
-});
-el.cellEditor.addEventListener("click", (event) => { if (event.target.closest("[data-close-cell]")) closeCell(); });
 
 $("#settings-form").addEventListener("submit", async (event) => {
   event.preventDefault();

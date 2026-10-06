@@ -42,9 +42,9 @@
           </div>
           <div class="admin-toolbar">
             <div class="admin-tools">
-              <label class="admin-search"><span aria-hidden="true">⌕</span><input id="image-search" type="search" placeholder="Bilder filtern…" /></label>
+              <label class="admin-search"><span aria-hidden="true">⌕</span><input id="image-search" type="search" placeholder="Bilder filtern…" aria-label="Bilder filtern" /></label>
               <div class="menu-wrap">
-                <button class="button" id="tag-filter-button" type="button">Tags <span class="count-badge" id="filter-count" hidden></span></button>
+                <button class="button" id="tag-filter-button" type="button" aria-expanded="false" aria-controls="tag-filter-menu">Tags <span class="count-badge" id="filter-count" hidden></span></button>
                 <div class="admin-menu" id="tag-filter-menu" hidden>
                   <p>Nach Tags filtern</p>
                   <div id="tag-filters"></div>
@@ -134,9 +134,10 @@
       </main>
     </div>
 
-    <dialog id="image-dialog">
+    <dialog id="image-dialog" class="editor-drawer" aria-labelledby="image-dialog-title" aria-describedby="image-dialog-description">
       <form id="image-form" enctype="multipart/form-data">
-        <div class="dialog-heading"><div><p class="admin-eyebrow">Bilddetails</p><h2 id="image-dialog-title">Bild hinzufügen</h2></div><button class="icon-button" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+        <div class="dialog-heading"><div><p class="admin-eyebrow">Bilddetails</p><h2 id="image-dialog-title">Bild hinzufügen</h2><p class="drawer-description" id="image-dialog-description">Bildinformationen, Zuordnung und Sichtbarkeit verwalten.</p></div><button class="icon-button" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+        <div class="drawer-body">
         <input id="image-id" type="hidden" />
         <label class="dropzone" id="dropzone">
           <input id="image-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" />
@@ -150,16 +151,18 @@
           <label class="check-field"><input id="image-published" type="checkbox" checked /><span>Veröffentlicht</span></label>
           <label class="check-field"><input id="image-archived" type="checkbox" /><span>Archiviert</span></label>
         </div>
-        <fieldset class="field"><legend>Tags</legend><div class="tag-options" id="image-tag-options"></div></fieldset>
-        <fieldset class="field"><legend>Projekt</legend><div class="tag-options" id="image-project-options"></div></fieldset>
+        <fieldset class="field" id="image-tags-field"><legend>Tags</legend><div class="tag-options" id="image-tag-options"></div></fieldset>
+        <fieldset class="field" id="image-project-field"><legend>Projekt</legend><div class="tag-options" id="image-project-options"></div></fieldset>
         <p class="form-error" id="image-error" role="alert"></p>
-        <div class="dialog-actions"><button class="button" type="button" data-close-dialog>Abbrechen</button><button class="button primary" type="submit">Bild speichern</button></div>
+        </div>
+        <div class="dialog-actions drawer-footer"><button class="button" type="button" data-close-dialog>Abbrechen</button><button class="button primary" type="submit">Bild speichern</button></div>
       </form>
     </dialog>
 
-    <dialog id="project-dialog">
+    <dialog id="project-dialog" class="editor-drawer" aria-labelledby="project-dialog-title" aria-describedby="project-dialog-description">
       <form id="project-form">
-        <div class="dialog-heading"><div><p class="admin-eyebrow">Projektdetails</p><h2 id="project-dialog-title">Neues Projekt</h2></div><button class="icon-button" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+        <div class="dialog-heading"><div><p class="admin-eyebrow">Projektdetails</p><h2 id="project-dialog-title">Neues Projekt</h2><p class="drawer-description" id="project-dialog-description">Projektdetails und Sichtbarkeit auf der Website verwalten.</p></div><button class="icon-button" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+        <div class="drawer-body">
         <input id="project-id" type="hidden" />
         <label class="field" for="project-title"><span>Titel</span><input id="project-title" maxlength="160" required /></label>
         <label class="field" for="project-client"><span>Kunde / Art</span><input id="project-client" /></label>
@@ -169,20 +172,20 @@
           <label class="check-field"><input id="project-published" type="checkbox" checked /><span>Veröffentlicht</span></label>
         </div>
         <p class="form-error" id="project-error" role="alert"></p>
-        <div class="dialog-actions"><button class="button" type="button" data-close-dialog>Abbrechen</button><button class="button primary" type="submit">Projekt speichern</button></div>
+        </div>
+        <div class="dialog-actions drawer-footer"><button class="button" type="button" data-close-dialog>Abbrechen</button><button class="button primary" type="submit">Projekt speichern</button></div>
       </form>
     </dialog>
 
-    <dialog id="tags-dialog">
+    <dialog id="tags-dialog" aria-labelledby="tags-dialog-title">
       <div class="dialog-panel">
-        <div class="dialog-heading"><div><p class="admin-eyebrow">Tag-Verwaltung</p><h2>Tags verwalten</h2></div><button class="icon-button" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+        <div class="dialog-heading"><div><p class="admin-eyebrow">Tag-Verwaltung</p><h2 id="tags-dialog-title">Tags verwalten</h2></div><button class="icon-button" type="button" data-close-dialog aria-label="Schließen">×</button></div>
         <form class="inline-form" id="new-tag-form"><input id="new-tag-name" maxlength="60" placeholder="Neuer Tag-Name" required /><button class="button primary" type="submit">Tag hinzufügen</button></form>
         <p class="form-error" id="tag-error" role="alert"></p>
         <div class="manager-list" id="tag-manager-list"></div>
       </div>
     </dialog>
 
-    <div class="cell-editor" id="cell-editor" hidden><div id="cell-editor-content"></div></div>
     <div class="toast" id="toast" role="status" hidden></div>
     <script type="module" src="/admin-assets/admin.js"></script>
   </body>
