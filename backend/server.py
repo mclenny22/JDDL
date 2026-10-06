@@ -497,8 +497,8 @@ class Handler(SimpleHTTPRequestHandler):
         if not CLOUD:
             (UPLOADS / filename).write_bytes(upload["content"])
         ratio = float(fields.get("aspect_ratio") or 1)
-        published = int(str(fields.get("published", "true")).lower() == "true")
-        archived = int(str(fields.get("archived", "false")).lower() == "true")
+        published = int(str(fields.get("published", "false")).lower() == "true")
+        archived = int(str(fields.get("archived", str(not published))).lower() == "true")
         with connect(IMAGES_DB) as db:
             db.execute(
                 "INSERT INTO images (id, filename, remote_url, original_name, mime_type, alt_text, aspect_ratio, published, archived) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",

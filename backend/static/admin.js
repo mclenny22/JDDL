@@ -5,6 +5,8 @@ const state = {
   selectedTags: new Set(),
   selectedFile: null,
   rowMenu: null,
+  projectOptions: [],
+  projectOptionIndex: -1,
   exportTags: new Set(),
   exportSelected: new Set(),
 };
@@ -40,6 +42,12 @@ const el = {
   dropzoneCopy: $("#dropzone-copy"),
   imageTags: $("#image-tag-options"),
   imageProjects: $("#image-project-options"),
+  projectTrigger: $("#image-project-trigger"),
+  projectValue: $("#image-project-value"),
+  projectSelection: $("#image-project-id"),
+  projectPanel: $("#image-project-panel"),
+  projectSearch: $("#image-project-search"),
+  projectEmpty: $("#image-project-empty"),
   tagManager: $("#tag-manager-list"),
   rowMenu: $("#row-menu"),
   toast: $("#toast"),
@@ -390,10 +398,87 @@ function renderRelationOptions(container, values, selected, name) {
     : '<span class="admin-muted">Noch keine Optionen.</span>';
 }
 
-function renderProjectOptions(container, selectedId) {
-  const options = [{ id: "", title: "Kein Projekt" }, ...state.data.projects];
-  container.innerHTML = options.map((project) => `<label class="tag-check"><input type="radio" name="image-project" value="${project.id}" ${project.id === selectedId ? "checked" : ""} /><span>${escapeHtml(project.title)}</span></label>`).join("");
+function setProjectOption(index) {
+  state.projectOptionIndex = index;
+  el.imageProjects.querySelectorAll('[role="option"]').forEach((option, position) => {
+    option.classList.toggle("is-active", position === index);
+    if (position === index) option.scrollIntoView({ block: "nearest" });
+  });
+  if (index >= 0) el.projectSearch.setAttribute("aria-activedescendant", `image-project-option-${index}`);
+  else el.projectSearch.removeAttribute("aria-activedescendant");
 }
+
+function renderProjectOptions() {
+  const query = el.projectSearch.value.trim().toLocaleLowerCase("de");
+  state.projectOptions = [{ id: "", title: "Kein Projekt" }, ...state.data.projects]
+    .filter((project) => project.title.toLocaleLowerCase("de").includes(query));
+  el.imageProjects.innerHTML = state.projectOptions.map((project, index) => `<button class="project-combobox-option" id="image-project-option-${index}" type="button" role="option" tabindex="-1" data-project-id="${escapeHtml(project.id)}" aria-selected="${project.id === el.projectSelection.value}"><span>${escapeHtml(project.title)}</span><span class="project-option-check" aria-hidden="true">${project.id === el.projectSelection.value ? "✓" : ""}</span></button>`).join("");
+  el.projectEmpty.hidden = Boolean(state.projectOptions.length);
+  const selected = state.projectOptions.findIndex((project) => project.id === el.projectSelection.value);
+  setProjectOption(state.projectOptions.length ? Math.max(0, selected) : -1);
+}
+
+function closeProjectSelect(returnFocus = false) {
+  el.projectPanel.hidden = true;
+  el.projectTrigger.setAttribute("aria-expanded", "false");
+  el.projectSearch.setAttribute("aria-expanded", "false");
+  el.projectSearch.removeAttribute("aria-activedescendant");
+  if (returnFocus) el.projectTrigger.focus({ preventScroll: true });
+}
+
+function openProjectSelect(last = false) {
+  el.projectSearch.value = "";
+  el.projectPanel.hidden = false;
+  el.projectTrigger.setAttribute("aria-expanded", "true");
+  el.projectSearch.setAttribute("aria-expanded", "true");
+  renderProjectOptions();
+  if (last) setProjectOption(state.projectOptions.length - 1);
+  el.projectSearch.focus({ preventScroll: true });
+  el.projectPanel.scrollIntoView({ block: "nearest" });
+}
+
+function selectProject(id) {
+  el.projectSelection.value = id;
+  el.projectValue.textContent = projectFor(id)?.title || "Kein Projekt";
+  closeProjectSelect(true);
+}
+
+el.projectTrigger.addEventListener("click", () => {
+  if (el.projectPanel.hidden) openProjectSelect();
+  else closeProjectSelect(true);
+});
+el.projectTrigger.addEventListener("keydown", (event) => {
+  if (["ArrowDown", "ArrowUp"].includes(event.key)) {
+    event.preventDefault();
+    openProjectSelect(event.key === "ArrowUp");
+  }
+});
+el.projectSearch.addEventListener("input", renderProjectOptions);
+el.projectSearch.addEventListener("keydown", (event) => {
+  if (["ArrowDown", "ArrowUp"].includes(event.key)) {
+    event.preventDefault();
+    const count = state.projectOptions.length;
+    if (count) setProjectOption((state.projectOptionIndex + (event.key === "ArrowDown" ? 1 : -1) + count) % count);
+  } else if (event.key === "Enter") {
+    event.preventDefault();
+    const project = state.projectOptions[state.projectOptionIndex];
+    if (project) selectProject(project.id);
+  }
+});
+el.projectPanel.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    closeProjectSelect(true);
+  }
+});
+el.imageProjects.addEventListener("click", (event) => {
+  const option = event.target.closest("[data-project-id]");
+  if (option) selectProject(option.dataset.projectId);
+});
+$("#image-project-field").addEventListener("focusout", (event) => {
+  if (event.relatedTarget && !$("#image-project-field").contains(event.relatedTarget)) closeProjectSelect();
+});
 
 function openImage(image = null, field = "name") {
   el.imageForm.reset();
@@ -402,10 +487,11 @@ function openImage(image = null, field = "name") {
   $("#image-dialog-title").textContent = image ? "Bild bearbeiten" : "Bild hinzufügen";
   $("#image-name").value = image?.original_name || "";
   $("#image-alt").value = image?.alt_text || "";
-  $("#image-published").checked = image ? Boolean(image.published) : true;
-  $("#image-archived").checked = image ? Boolean(image.archived) : false;
+  $("#image-published").checked = Boolean(image?.published && !image?.archived);
   renderRelationOptions(el.imageTags, state.data.tags, image?.tag_ids || [], "image-tag");
-  renderProjectOptions(el.imageProjects, image?.project_ids[0] || "");
+  el.projectSelection.value = image?.project_ids[0] || "";
+  el.projectValue.textContent = projectFor(el.projectSelection.value)?.title || "Kein Projekt";
+  closeProjectSelect();
   state.selectedFile = null;
   el.imageFile.disabled = Boolean(image);
   el.imagePreview.hidden = !image;
@@ -414,7 +500,7 @@ function openImage(image = null, field = "name") {
   else el.imagePreview.removeAttribute("src");
   el.dropzone.classList.toggle("is-readonly", Boolean(image));
   openDrawer(el.imageDialog);
-  const focusTargets = { name: "#image-name", tags: "#image-tags-field input", project: "#image-project-field input" };
+  const focusTargets = { name: "#image-name", tags: "#image-tags-field input", project: "#image-project-trigger" };
   const target = $(focusTargets[field] || focusTargets.name) || $("#image-name");
   target.focus({ preventScroll: true });
   target.scrollIntoView({ block: "nearest" });
@@ -550,6 +636,7 @@ function openDrawer(drawer) {
     backdropPress = false;
   });
   drawer.addEventListener("close", () => {
+    if (drawer === el.imageDialog) closeProjectSelect();
     document.documentElement.classList.remove("has-open-drawer");
   });
 });
@@ -621,6 +708,7 @@ document.addEventListener("click", (event) => {
   if (trigger) openRowMenu(trigger);
   else if (!event.target.closest("#row-menu")) closeRowMenu();
   if (!event.target.closest(".menu-wrap")) closeFilterMenu();
+  if (!event.target.closest("#image-project-field")) closeProjectSelect();
 });
 document.addEventListener("keydown", (event) => {
   const trigger = event.target.closest("[data-row-kind]");
@@ -648,7 +736,7 @@ el.imageForm.addEventListener("submit", async (event) => {
   error.textContent = "";
   try {
     const tagIds = [...document.querySelectorAll('input[name="image-tag"]:checked')].map((input) => input.value);
-    const selectedProject = document.querySelector('input[name="image-project"]:checked')?.value || "";
+    const selectedProject = el.projectSelection.value;
     const projectIds = selectedProject ? [selectedProject] : [];
     // Keep existing metadata; new uploads derive their ratio from the actual image.
     let aspectRatio = state.data.images.find((image) => image.id === id)?.aspect_ratio || 1;
@@ -662,7 +750,7 @@ el.imageForm.addEventListener("submit", async (event) => {
       alt_text: $("#image-alt").value,
       aspect_ratio: aspectRatio,
       published: $("#image-published").checked,
-      archived: $("#image-archived").checked,
+      archived: !$("#image-published").checked,
       tag_names: tagIds.map((tagId) => tagFor(tagId)?.name).filter(Boolean).join(", "),
       project_ids: projectIds,
     };

@@ -146,12 +146,27 @@
         </label>
         <label class="field" for="image-name"><span>Name</span><input id="image-name" maxlength="240" required /></label>
         <label class="field" for="image-alt"><span>Alternativtext</span><input id="image-alt" placeholder="Beschreibe das Bild" /></label>
-        <div class="field-grid">
-          <label class="check-field"><input id="image-published" type="checkbox" checked /><span>Veröffentlicht</span></label>
-          <label class="check-field"><input id="image-archived" type="checkbox" /><span>Archiviert</span></label>
+        <div class="field image-visibility">
+          <label class="check-field"><input id="image-published" type="checkbox" aria-describedby="image-visibility-help" /><span>Veröffentlicht</span></label>
+          <small id="image-visibility-help">Nicht veröffentlichte Bilder werden im Archiv gespeichert.</small>
         </div>
         <fieldset class="field" id="image-tags-field"><legend>Tags</legend><div class="tag-options" id="image-tag-options"></div></fieldset>
-        <fieldset class="field" id="image-project-field"><legend>Projekt</legend><div class="tag-options" id="image-project-options"></div></fieldset>
+        <div class="field project-combobox" id="image-project-field">
+          <label id="image-project-label" for="image-project-trigger">Projekt</label>
+          <input id="image-project-id" type="hidden" />
+          <button class="button project-combobox-trigger" id="image-project-trigger" type="button" aria-labelledby="image-project-label image-project-value" aria-haspopup="listbox" aria-expanded="false" aria-controls="image-project-options">
+            <span id="image-project-value">Kein Projekt</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 9 4-4 4 4m-8 6 4 4 4-4" /></svg>
+          </button>
+          <div class="project-combobox-panel" id="image-project-panel" hidden>
+            <div class="project-combobox-search">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></svg>
+              <input id="image-project-search" type="text" role="combobox" aria-label="Projekt suchen" aria-autocomplete="list" aria-expanded="false" aria-controls="image-project-options" placeholder="Projekt suchen…" autocomplete="off" />
+            </div>
+            <div id="image-project-options" role="listbox" aria-labelledby="image-project-label"></div>
+            <p class="project-combobox-empty" id="image-project-empty" hidden>Kein Projekt gefunden.</p>
+          </div>
+        </div>
         <p class="form-error" id="image-error" role="alert"></p>
         </div>
         <div class="dialog-actions drawer-footer"><button class="button" type="button" data-close-dialog>Abbrechen</button><button class="button primary" type="submit">Bild speichern</button></div>

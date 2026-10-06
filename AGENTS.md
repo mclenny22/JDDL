@@ -94,6 +94,10 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   Image/project row actions live in ellipsis dropdowns with edit and delete items;
   menus support arrow keys, Home/End, Escape and return focus to their trigger.
   The shared menu sits outside table overflow and closes on outside click/scroll.
+  Images have one “Veröffentlicht” checkbox: unchecked saves unpublished/archived,
+  checked saves published/unarchived. New uploads default to archived in the UI
+  and API. Existing content is unchanged until saved. Project assignment uses a
+  searchable single-select combobox with keyboard navigation and “Kein Projekt”.
 - Project deletion retains images and clears links; tag deletion clears tag
   associations; image deletion removes its upload where present. Public data
   excludes archived and unpublished images. Admin bootstrap includes both.
