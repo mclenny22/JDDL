@@ -18,7 +18,7 @@ from email.parser import BytesParser
 from http import cookies
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 from .cloud import CloudConnection, initialize_cloud, cloud_secret, store_upload, delete_upload
 
 
@@ -223,6 +223,28 @@ def public_payload(admin: bool = False) -> dict:
 class Handler(SimpleHTTPRequestHandler):
     server_version = "JDDL/2.0"
 
+    def public_api_headers(self) -> dict:
+        # CORS applies only to the read-only content endpoint, never admin APIs.
+        origins = os.environ.get("PUBLIC_API_ORIGINS", "*").strip()
+        headers = {"Vary": "Origin"}
+        origin = self.headers.get("Origin")
+        if origins == "*":
+            headers["Access-Control-Allow-Origin"] = "*"
+        elif origin and origin in {value.strip() for value in origins.split(",") if value.strip()}:
+            headers["Access-Control-Allow-Origin"] = origin
+        return headers
+
+    def do_OPTIONS(self) -> None:
+        if urlparse(self.path).path != "/api/public":
+            return self.send_error(405)
+        self.send_response(204)
+        for key, value in self.public_api_headers().items():
+            self.send_header(key, value)
+        self.send_header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+        self.send_header("Allow", "GET, HEAD, OPTIONS")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def log_message(self, fmt: str, *args) -> None:
         print(f"[{self.log_date_time_string()}] {fmt % args}")
 
@@ -241,7 +263,7 @@ class Handler(SimpleHTTPRequestHandler):
     def read_json(self) -> dict:
         length = int(self.headers.get("Content-Length", "0"))
         if length > MAX_UPLOAD_BYTES:
-            raise ValueError("Request is too large")
+            raise ValueError("Die Anfrage ist zu groß")
         return json.loads(self.rfile.read(length) or b"{}")
 
     def session_value(self) -> str | None:
@@ -251,13 +273,18 @@ class Handler(SimpleHTTPRequestHandler):
     def require_admin(self) -> bool:
         if valid_session(self.session_value()):
             return True
-        self.json_response({"error": "Authentication required"}, 401)
+        self.json_response({"error": "Bitte melde dich an"}, 401)
         return False
 
     def do_GET(self) -> None:
         path = urlparse(self.path).path
         if path == "/api/public":
-            return self.json_response(public_payload())
+            payload = public_payload()
+            base_url = os.environ.get("PUBLIC_BASE_URL", "").strip()
+            if base_url:
+                for item in payload["images"]:
+                    item["url"] = urljoin(base_url.rstrip("/") + "/", item["url"])
+            return self.json_response(payload, headers=self.public_api_headers())
         if path == "/api/session":
             return self.json_response({"authenticated": valid_session(self.session_value())})
         if path == "/api/admin/bootstrap":
@@ -307,7 +334,7 @@ class Handler(SimpleHTTPRequestHandler):
                 supplied = str(self.read_json().get("password", ""))
                 configured = get_admin_password()
                 if not hmac.compare_digest(supplied, configured):
-                    return self.json_response({"error": "Incorrect password"}, 401)
+                    return self.json_response({"error": "Falsches Passwort"}, 401)
                 expires = int(time.time()) + SESSION_LIFETIME
                 secure = "; Secure" if os.environ.get("COOKIE_SECURE") == "1" or os.environ.get("VERCEL") else ""
                 cookie = f"jddl_session={sign_session(expires)}; HttpOnly; SameSite=Strict; Path=/; Max-Age={SESSION_LIFETIME}{secure}"
@@ -367,7 +394,7 @@ class Handler(SimpleHTTPRequestHandler):
     def save_project(self, payload: dict) -> None:
         title = str(payload.get("title", "")).strip()
         if not title:
-            raise ValueError("Project title is required")
+            raise ValueError("Bitte gib einen Projekttitel ein")
         project_id = str(payload.get("id") or slugify(title))
         values = (
             project_id,
@@ -393,7 +420,7 @@ class Handler(SimpleHTTPRequestHandler):
         with connect(PROJECTS_DB) as projects_db:
             exists = projects_db.execute("SELECT 1 FROM projects WHERE id = ?", (project_id,)).fetchone()
             if not exists:
-                return self.json_response({"error": "Project not found"}, 404)
+                return self.json_response({"error": "Projekt nicht gefunden"}, 404)
             projects_db.execute("DELETE FROM projects WHERE id = ?", (project_id,))
         with connect(IMAGES_DB) as images_db:
             images_db.execute("DELETE FROM image_projects WHERE project_id = ?", (project_id,))
@@ -402,7 +429,7 @@ class Handler(SimpleHTTPRequestHandler):
     def create_tag(self, payload: dict) -> None:
         name = str(payload.get("name", "")).strip()
         if not name:
-            raise ValueError("Tag name is required")
+            raise ValueError("Bitte gib einen Tag-Namen ein")
         tag_id = slugify(name)
         with connect(IMAGES_DB) as db:
             sort_order = db.execute("SELECT COALESCE(MAX(sort_order), 0) + 10 FROM tags").fetchone()[0]
@@ -412,18 +439,18 @@ class Handler(SimpleHTTPRequestHandler):
     def update_tag(self, tag_id: str, payload: dict) -> None:
         name = str(payload.get("name", "")).strip()
         if not name:
-            raise ValueError("Tag name is required")
+            raise ValueError("Bitte gib einen Tag-Namen ein")
         with connect(IMAGES_DB) as db:
             result = db.execute("UPDATE tags SET name = ? WHERE id = ?", (name, tag_id))
             if not result.rowcount:
-                return self.json_response({"error": "Tag not found"}, 404)
+                return self.json_response({"error": "Tag nicht gefunden"}, 404)
         self.json_response({"tag": tag_id})
 
     def delete_tag(self, tag_id: str) -> None:
         with connect(IMAGES_DB) as db:
             result = db.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
             if not result.rowcount:
-                return self.json_response({"error": "Tag not found"}, 404)
+                return self.json_response({"error": "Tag nicht gefunden"}, 404)
         self.json_response({"deleted": True})
 
     def save_settings(self, payload: dict) -> None:
@@ -438,9 +465,9 @@ class Handler(SimpleHTTPRequestHandler):
         content_type = self.headers.get("Content-Type", "")
         length = int(self.headers.get("Content-Length", "0"))
         if "multipart/form-data" not in content_type:
-            raise ValueError("Expected multipart form data")
+            raise ValueError("Die Anfrage muss ein Datei-Upload sein")
         if length > MAX_UPLOAD_BYTES:
-            raise ValueError(f"Image request must be smaller than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB")
+            raise ValueError(f"Der Bild-Upload muss kleiner als {MAX_UPLOAD_BYTES // (1024 * 1024)} MB sein")
         raw = self.rfile.read(length)
         message = BytesParser(policy=policy.default).parsebytes(
             f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode() + raw
@@ -460,9 +487,9 @@ class Handler(SimpleHTTPRequestHandler):
         fields, files = self.multipart()
         upload = files.get("image")
         if not upload or not upload["content"]:
-            raise ValueError("Choose an image to upload")
+            raise ValueError("Wähle ein Bild zum Hochladen aus")
         if upload["type"] not in ALLOWED_IMAGE_TYPES:
-            raise ValueError("Supported formats: JPEG, PNG, WebP, GIF and AVIF")
+            raise ValueError("Unterstützte Formate: JPEG, PNG, WebP, GIF und AVIF")
         image_id = uuid.uuid4().hex
         extension = mimetypes.guess_extension(upload["type"]) or Path(upload["filename"]).suffix.lower() or ".img"
         filename = f"{image_id}{extension.replace('.jpe', '.jpg')}"
@@ -484,7 +511,7 @@ class Handler(SimpleHTTPRequestHandler):
         names = [name.strip() for name in str(tag_names).split(",") if name.strip()]
         project_ids = project_ids_json if isinstance(project_ids_json, list) else json.loads(project_ids_json or "[]")
         if not isinstance(project_ids, list):
-            raise ValueError("Project selection must be a list")
+            raise ValueError("Die Projektauswahl muss eine Liste sein")
         project_ids = project_ids[:1]
         db.execute("DELETE FROM image_tags WHERE image_id = ?", (image_id,))
         db.execute("DELETE FROM image_projects WHERE image_id = ?", (image_id,))
@@ -501,7 +528,7 @@ class Handler(SimpleHTTPRequestHandler):
         with connect(IMAGES_DB) as db:
             exists = db.execute("SELECT 1 FROM images WHERE id = ?", (image_id,)).fetchone()
             if not exists:
-                return self.json_response({"error": "Image not found"}, 404)
+                return self.json_response({"error": "Bild nicht gefunden"}, 404)
             db.execute(
                 "UPDATE images SET original_name=?, alt_text=?, aspect_ratio=?, published=?, archived=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
                 (
@@ -521,7 +548,7 @@ class Handler(SimpleHTTPRequestHandler):
         with connect(IMAGES_DB) as db:
             image = db.execute("SELECT filename, remote_url FROM images WHERE id = ?", (image_id,)).fetchone()
             if not image:
-                return self.json_response({"error": "Image not found"}, 404)
+                return self.json_response({"error": "Bild nicht gefunden"}, 404)
             db.execute("DELETE FROM images WHERE id = ?", (image_id,))
         if CLOUD and image["filename"] and image["remote_url"]:
             delete_upload(image["remote_url"])

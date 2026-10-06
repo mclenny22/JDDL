@@ -38,11 +38,11 @@ class BackendIntegrationTests(unittest.TestCase):
         self.env.stop()
         self.temp.cleanup()
 
-    def request(self, method, path, payload=None, content_type='application/json'):
+    def request(self, method, path, payload=None, content_type='application/json', headers=None):
         body = json.dumps(payload).encode() if isinstance(payload, (dict, list)) else payload
         connection = http.client.HTTPConnection('127.0.0.1', self.http.server_port)
         connection.request(method, path, body=body,
-                           headers={'Content-Type': content_type, 'Cookie': self.cookie})
+                           headers={'Content-Type': content_type, 'Cookie': self.cookie, **(headers or {})})
         response = connection.getresponse()
         result = response.status, dict(response.getheaders()), response.read()
         connection.close()
@@ -78,6 +78,57 @@ class BackendIntegrationTests(unittest.TestCase):
             self.assertEqual(status, 200, image['url'])
             self.assertTrue(content, image['url'])
             self.assertTrue(headers['Content-Type'].startswith('image/'))
+
+    def test_cross_origin_public_reads_and_protected_admin(self):
+        origin = {'Origin': 'https://other-frontend.example'}
+        with patch.dict(server.os.environ, PUBLIC_API_ORIGINS='*'):
+            for method in ['GET', 'HEAD', 'OPTIONS']:
+                status, headers, body = self.request(method, '/api/public', headers=origin)
+                self.assertEqual(status, 204 if method == 'OPTIONS' else 200)
+                self.assertEqual(headers['Access-Control-Allow-Origin'], '*')
+                self.assertNotIn('Access-Control-Allow-Credentials', headers)
+                if method != 'GET':
+                    self.assertEqual(body, b'')
+                if method == 'OPTIONS':
+                    self.assertEqual(headers['Access-Control-Allow-Methods'], 'GET, HEAD, OPTIONS')
+            for method, path, expected in [
+                ('GET', '/api/admin/bootstrap', 401),
+                ('POST', '/api/settings', 401),
+                ('OPTIONS', '/api/settings', 405),
+                ('POST', '/api/public', 401),
+            ]:
+                status, headers, _ = self.request(method, path, headers=origin)
+                self.assertEqual(status, expected)
+                self.assertNotIn('Access-Control-Allow-Origin', headers)
+
+    def test_public_origin_allowlist(self):
+        with patch.dict(server.os.environ, PUBLIC_API_ORIGINS='https://one.example, https://two.example'):
+            for method in ['GET', 'OPTIONS']:
+                for origin in ['https://one.example', 'https://two.example', 'https://denied.example', 'null']:
+                    _, headers, _ = self.request(method, '/api/public', headers={'Origin': origin})
+                    self.assertEqual(headers['Vary'], 'Origin')
+                    self.assertEqual(headers.get('Access-Control-Allow-Origin'),
+                                     origin if origin in ['https://one.example', 'https://two.example'] else None)
+        with patch.dict(server.os.environ, PUBLIC_API_ORIGINS=''):
+            self.assertNotIn('Access-Control-Allow-Origin', self.request('GET', '/api/public')[1])
+
+    def test_public_absolute_image_urls_preserve_content_and_admin(self):
+        original = server.public_payload()
+        with patch.dict(server.os.environ, PUBLIC_BASE_URL='https://cms.example/'):
+            public = json.loads(self.request('GET', '/api/public')[2])
+            for image, source in zip(public['images'], original['images']):
+                self.assertEqual(image['url'], server.urljoin('https://cms.example/', source['url']))
+            self.assertEqual(public['projects'], original['projects'])
+            self.assertEqual(public['settings'], original['settings'])
+            self.assertEqual(set(public), {'projects', 'images', 'tags', 'settings'})
+            self.login()
+            admin = json.loads(self.request('GET', '/api/admin/bootstrap')[2])
+            self.assertEqual(admin['images'][0]['url'], original['images'][0]['url'])
+            with server.connect(server.IMAGES_DB) as db:
+                db.execute('UPDATE images SET remote_url=? WHERE id=?',
+                           ('https://assets.example/photo.jpg', original['images'][0]['id']))
+            public = json.loads(self.request('GET', '/api/public')[2])
+            self.assertEqual(public['images'][0]['url'], 'https://assets.example/photo.jpg')
 
     def test_authentication_and_cms_edits_reach_public_api(self):
         self.assertEqual(self.request('GET', '/api/admin/bootstrap')[0], 401)

@@ -16,11 +16,9 @@ dist/
 __pycache__/
 *.pyc
 .DS_Store
-# Preserved local repository metadata; never a nested Git checkout
-/archive/.legacy-git/
-
-# Generated legacy export; source is retained separately
-/archive/Page Test/project.zip.b64
+# Retired prototypes are recoverable from Git history. Preserve local-only
+# legacy storage and metadata without adding them back to the active project.
+/archive/
 
 # Generated Vercel static output
 /public/

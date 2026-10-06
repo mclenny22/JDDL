@@ -88,7 +88,7 @@ def cloud_secret():
 def store_upload(filename, content, mime_type):
     from vercel.blob import put
     if not os.environ.get('BLOB_READ_WRITE_TOKEN'):
-        raise ValueError('Connect a Vercel Blob store before uploading images')
+        raise ValueError('Verbinde einen Vercel Blob-Speicher, bevor du Bilder hochlädst')
     result = put('jddl/' + filename, content, access='public', content_type=mime_type)
     return result.url
 

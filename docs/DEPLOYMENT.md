@@ -95,11 +95,17 @@ Workspace: `/Users/lenni/Library/Mobile Documents/com~apple~CloudDocs/_Projects/
 - `requirements.txt`: pinned cloud dependencies.
 - `vercel.json`: build settings, Dublin function region, routes and exclusions.
 - `scripts/build_vercel.py`: exports active static assets into ignored `public/`.
-- `archive/`: earlier versions; excluded from the function deployment.
+- Earlier versions are in Git history; see `docs/HISTORY.md`. Local-only
+  `archive/` remnants remain ignored and excluded from function deployment.
 
 Vercel uses the **Other** preset and the repository root. The build runs
 `python3 scripts/build_vercel.py` and serves `public/`. `/api/*` and `/admin`
 are routed to the Python function.
+
+The 6 October 2026 source cleanup keeps the same build command and routes.
+The export now copies only runtime frontend/admin files and places seed images
+once at the CDN root, eliminating their duplicate copies under `/admin-assets/`.
+Hosting resources and environment configuration were not changed by this cleanup.
 
 Local development remains separate: run `python3 server.py` at the workspace
 root. Local content lives in ignored `data/projects.db`, `data/images.db`, and

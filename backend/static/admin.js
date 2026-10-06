@@ -57,7 +57,7 @@ function escapeHtml(value) {
 async function api(path, options = {}) {
   const response = await fetch(path, options);
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || "Something went wrong");
+  if (!response.ok) throw new Error(payload.error || "Ein Fehler ist aufgetreten");
   return payload;
 }
 
@@ -71,7 +71,7 @@ function notify(message) {
 function formatDate(value) {
   if (!value) return "—";
   const date = new Date(`${value.replace(" ", "T")}Z`);
-  return Number.isNaN(date.valueOf()) ? value : new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(date);
+  return Number.isNaN(date.valueOf()) ? value : new Intl.DateTimeFormat("de-DE", { dateStyle: "medium" }).format(date);
 }
 
 function tagFor(id) {
@@ -119,7 +119,7 @@ function renderFilters() {
   const counts = new Map(state.data.tags.map((tag) => [tag.id, state.data.images.filter((image) => image.tag_ids.includes(tag.id)).length]));
   el.tagFilters.innerHTML = state.data.tags.length
     ? state.data.tags.map((tag) => `<label class="filter-option"><input type="checkbox" data-tag-id="${tag.id}" ${state.selectedTags.has(tag.id) ? "checked" : ""} /><span>${escapeHtml(tag.name)}</span><span class="option-count">${counts.get(tag.id)}</span></label>`).join("")
-    : '<div class="filter-option admin-muted">No tags available</div>';
+    : '<div class="filter-option admin-muted">Keine Tags verfügbar</div>';
   el.filterCount.textContent = state.selectedTags.size;
   el.filterCount.hidden = !state.selectedTags.size;
   el.clearFilters.hidden = !state.selectedTags.size;
@@ -137,26 +137,26 @@ function filteredImages() {
 function renderImages() {
   const images = filteredImages();
   const filtering = Boolean(state.search.trim()) || state.selectedTags.size > 0;
-  $("#image-count").textContent = `${images.length} ${images.length === 1 ? "image" : "images"}`;
-  $("#table-result-count").textContent = `${images.length} ${images.length === 1 ? "row" : "rows"}`;
+  $("#image-count").textContent = `${images.length} ${images.length === 1 ? "Bild" : "Bilder"}`;
+  $("#table-result-count").textContent = `${images.length} ${images.length === 1 ? "Eintrag" : "Einträge"}`;
   el.imageTable.hidden = !images.length && !filtering;
   el.libraryEmpty.hidden = images.length || filtering;
   if (!images.length && filtering) {
-    el.imageBody.innerHTML = '<tr><td colspan="7"><div class="admin-empty"><h2>No results</h2><p>Try changing the search or filters.</p></div></td></tr>';
+    el.imageBody.innerHTML = '<tr><td colspan="7"><div class="admin-empty"><h2>Keine Ergebnisse</h2><p>Ändere die Suche oder die Filter.</p></div></td></tr>';
     return;
   }
   el.imageBody.innerHTML = images.map((image) => {
     const tags = tagNames(image);
     const projects = projectNames(image);
-    const status = image.archived ? "Archived" : image.published ? "Published" : "Draft";
+    const status = image.archived ? "Archiviert" : image.published ? "Veröffentlicht" : "Entwurf";
     return `<tr>
       <td><img class="admin-thumb" src="${escapeHtml(image.url)}" alt="" loading="lazy" /></td>
-      <td><button class="cell-button" data-edit-field="name" data-image-id="${image.id}"><span class="file-name">${escapeHtml(image.original_name)}</span><small>${escapeHtml(image.alt_text || "No alternative text")}</small></button></td>
-      <td><button class="cell-button" data-edit-field="tags" data-image-id="${image.id}"><span class="tags">${tags.length ? tags.map((name) => `<span class="tag">${escapeHtml(name)}</span>`).join("") : '<span class="admin-muted">Select tags</span>'}</span></button></td>
-      <td><button class="cell-button" data-edit-field="project" data-image-id="${image.id}">${projects.length ? escapeHtml(projects[0]) : '<span class="admin-muted">Select project</span>'}</button></td>
+      <td><button class="cell-button" data-edit-field="name" data-image-id="${image.id}"><span class="file-name">${escapeHtml(image.original_name)}</span><small>${escapeHtml(image.alt_text || "Kein Alternativtext")}</small></button></td>
+      <td><button class="cell-button" data-edit-field="tags" data-image-id="${image.id}"><span class="tags">${tags.length ? tags.map((name) => `<span class="tag">${escapeHtml(name)}</span>`).join("") : '<span class="admin-muted">Tags auswählen</span>'}</span></button></td>
+      <td><button class="cell-button" data-edit-field="project" data-image-id="${image.id}">${projects.length ? escapeHtml(projects[0]) : '<span class="admin-muted">Projekt auswählen</span>'}</button></td>
       <td><span class="status">${status}</span></td>
       <td class="admin-muted">${formatDate(image.created_at)}</td>
-      <td><div class="row-actions"><button class="row-button" data-edit-image="${image.id}">Edit</button><button class="row-button danger" data-delete-image="${image.id}" aria-label="Delete image">×</button></div></td>
+      <td><div class="row-actions"><button class="row-button" data-edit-image="${image.id}">Bearbeiten</button><button class="row-button danger" data-delete-image="${image.id}" aria-label="Bild löschen">×</button></div></td>
     </tr>`;
   }).join("");
 }
@@ -165,15 +165,15 @@ function renderProjects() {
   const projects = state.data.projects;
   el.projectTable.hidden = !projects.length;
   el.projectsEmpty.hidden = Boolean(projects.length);
-  $("#project-result-count").textContent = `${projects.length} ${projects.length === 1 ? "row" : "rows"}`;
+  $("#project-result-count").textContent = `${projects.length} ${projects.length === 1 ? "Eintrag" : "Einträge"}`;
   el.projectBody.innerHTML = projects.map((project) => {
     const count = state.data.images.filter((image) => image.project_ids.includes(project.id)).length;
     return `<tr>
       <td><span class="file-name">${escapeHtml(project.title)}</span></td>
       <td class="${project.client ? "" : "admin-muted"}">${escapeHtml(project.client || "—")}</td>
-      <td class="description-cell ${project.description ? "" : "admin-muted"}">${escapeHtml(project.description || "No description")}</td>
-      <td>${count}</td><td><span class="status">${project.published ? "Published" : "Draft"}</span></td><td>${project.sort_order}</td>
-      <td><div class="row-actions"><button class="row-button" data-edit-project="${project.id}">Edit</button><button class="row-button danger" data-delete-project="${project.id}" aria-label="Delete project">×</button></div></td>
+      <td class="description-cell ${project.description ? "" : "admin-muted"}">${escapeHtml(project.description || "Keine Beschreibung")}</td>
+      <td>${count}</td><td><span class="status">${project.published ? "Veröffentlicht" : "Entwurf"}</span></td><td>${project.sort_order}</td>
+      <td><div class="row-actions"><button class="row-button" data-edit-project="${project.id}">Bearbeiten</button><button class="row-button danger" data-delete-project="${project.id}" aria-label="Projekt löschen">×</button></div></td>
     </tr>`;
   }).join("");
 }
@@ -182,9 +182,9 @@ function renderTagManager() {
   el.tagManager.innerHTML = state.data.tags.length
     ? state.data.tags.map((tag) => {
       const count = state.data.images.filter((image) => image.tag_ids.includes(tag.id)).length;
-      return `<div class="manager-row"><input value="${escapeHtml(tag.name)}" maxlength="60" data-tag-name="${tag.id}" aria-label="Tag name" /><span class="usage">${count} ${count === 1 ? "image" : "images"}</span><button class="button" type="button" data-save-tag="${tag.id}">Save</button><button class="row-button danger" type="button" data-delete-tag="${tag.id}" aria-label="Delete tag">×</button></div>`;
+      return `<div class="manager-row"><input value="${escapeHtml(tag.name)}" maxlength="60" data-tag-name="${tag.id}" aria-label="Tag-Name" /><span class="usage">${count} ${count === 1 ? "Bild" : "Bilder"}</span><button class="button" type="button" data-save-tag="${tag.id}">Speichern</button><button class="row-button danger" type="button" data-delete-tag="${tag.id}" aria-label="Tag löschen">×</button></div>`;
     }).join("")
-    : '<div class="admin-empty compact">No tags yet.</div>';
+    : '<div class="admin-empty compact">Noch keine Tags.</div>';
 }
 
 function renderSettings() {
@@ -202,33 +202,33 @@ function renderExportFilters() {
   const counts = new Map(state.data.tags.map((tag) => [tag.id, state.data.images.filter((image) => image.tag_ids.includes(tag.id)).length]));
   el.exportTagFilters.innerHTML = state.data.tags.length
     ? state.data.tags.map((tag) => `<label class="tag-check"><input type="checkbox" data-export-tag-id="${tag.id}" ${state.exportTags.has(tag.id) ? "checked" : ""} /><span>${escapeHtml(tag.name)} <small>${counts.get(tag.id)}</small></span></label>`).join("")
-    : '<span class="admin-muted">No categories available.</span>';
+    : '<span class="admin-muted">Keine Kategorien verfügbar.</span>';
 }
 
 function renderExportImages() {
   const images = exportFilteredImages();
   const selectedCount = state.exportSelected.size;
-  el.exportSelectionSummary.textContent = `${selectedCount} ${selectedCount === 1 ? "image" : "images"} selected`;
+  el.exportSelectionSummary.textContent = `${selectedCount} ${selectedCount === 1 ? "Bild" : "Bilder"} ausgewählt`;
   el.createPortfolioButton.disabled = selectedCount === 0;
   el.clearExportSelection.disabled = selectedCount === 0;
   $("#select-visible-images").disabled = images.length === 0 || images.every((image) => state.exportSelected.has(image.id));
-  $("#export-result-count").textContent = `${images.length} ${images.length === 1 ? "row" : "rows"}`;
+  $("#export-result-count").textContent = `${images.length} ${images.length === 1 ? "Eintrag" : "Einträge"}`;
   el.exportTable.hidden = images.length === 0;
   if (!images.length) {
-    el.exportBody.innerHTML = '<tr><td colspan="6"><div class="admin-empty"><h2>No results</h2><p>Try changing the category filter.</p></div></td></tr>';
+    el.exportBody.innerHTML = '<tr><td colspan="6"><div class="admin-empty"><h2>Keine Ergebnisse</h2><p>Ändere den Kategoriefilter.</p></div></td></tr>';
     el.exportTable.hidden = false;
     return;
   }
   el.exportBody.innerHTML = images.map((image) => {
     const tags = tagNames(image);
     const projects = projectNames(image);
-    const status = image.archived ? "Archived" : image.published ? "Published" : "Draft";
+    const status = image.archived ? "Archiviert" : image.published ? "Veröffentlicht" : "Entwurf";
     return `<tr class="export-row ${state.exportSelected.has(image.id) ? "is-selected" : ""}">
-      <td><input class="row-checkbox" type="checkbox" data-export-image-id="${image.id}" aria-label="Select ${escapeHtml(image.original_name)}" ${state.exportSelected.has(image.id) ? "checked" : ""} /></td>
+      <td><input class="row-checkbox" type="checkbox" data-export-image-id="${image.id}" aria-label="Auswählen: ${escapeHtml(image.original_name)}" ${state.exportSelected.has(image.id) ? "checked" : ""} /></td>
       <td><img class="admin-thumb" src="${escapeHtml(image.url)}" alt="" loading="lazy" /></td>
-      <td><span class="file-name">${escapeHtml(image.original_name)}</span><small class="row-subtitle">${escapeHtml(image.alt_text || "No alternative text")}</small></td>
-      <td><span class="tags">${tags.length ? tags.map((name) => `<span class="tag">${escapeHtml(name)}</span>`).join("") : '<span class="admin-muted">No categories</span>'}</span></td>
-      <td>${projects.length ? escapeHtml(projects[0]) : '<span class="admin-muted">No project</span>'}</td>
+      <td><span class="file-name">${escapeHtml(image.original_name)}</span><small class="row-subtitle">${escapeHtml(image.alt_text || "Kein Alternativtext")}</small></td>
+      <td><span class="tags">${tags.length ? tags.map((name) => `<span class="tag">${escapeHtml(name)}</span>`).join("") : '<span class="admin-muted">Keine Kategorien</span>'}</span></td>
+      <td>${projects.length ? escapeHtml(projects[0]) : '<span class="admin-muted">Kein Projekt</span>'}</td>
       <td><span class="status">${status}</span></td>
     </tr>`;
   }).join("");
@@ -269,16 +269,16 @@ function groupedExportImages(images) {
 
 function buildPortfolioDocument(images) {
   const chosenCategories = [...state.exportTags].map((id) => tagFor(id)?.name).filter(Boolean);
-  const selectionFocus = $("#portfolio-title").value.trim() || chosenCategories.join(" and ") || "creative";
+  const selectionFocus = $("#portfolio-title").value.trim() || chosenCategories.join(" und ") || "Kreation";
   const studio = state.data.settings;
   const clients = String(studio.clients || "").split("\n").map((client) => client.trim()).filter(Boolean);
   const categories = [...new Set(images.flatMap((image) => tagNames(image)))];
-  const date = new Intl.DateTimeFormat(undefined, { year: "numeric", month: "long" }).format(new Date());
+  const date = new Intl.DateTimeFormat("de-DE", { year: "numeric", month: "long" }).format(new Date());
   let pageNumber = 0;
   const pages = groupedExportImages(images).flatMap(({ project, images: projectImages }) => {
-    const projectTitle = project?.title || "Independent work";
-    const projectDescription = project?.description || "Selected work not assigned to a project.";
-    const projectClient = project?.client || "JDDL studio selection";
+    const projectTitle = project?.title || "Freie Arbeiten";
+    const projectDescription = project?.description || "Ausgewählte Arbeiten ohne Projektzuordnung.";
+    const projectClient = project?.client || "JDDL Studio-Auswahl";
     const projectCategories = [...new Set(projectImages.flatMap((image) => tagNames(image)))];
     const batches = chunk(projectImages, 5);
     return batches.map((batch, batchIndex) => {
@@ -286,8 +286,8 @@ function buildPortfolioDocument(images) {
       const tiles = batch.map((image) => `<figure class="project-tile"><img src="${escapeHtml(new URL(image.url, location.origin).href)}" alt="${escapeHtml(image.alt_text || image.original_name)}" /></figure>`).join("");
       return `<article class="portfolio-page project-page">
         <aside class="project-copy">
-          <div><p class="project-index">${String(pageNumber).padStart(2, "0")} / ${escapeHtml(projectClient)}</p><h2>${escapeHtml(projectTitle)}${batchIndex ? " <small>(continued)</small>" : ""}</h2><p class="project-description">${escapeHtml(projectDescription)}</p></div>
-          <p class="project-meta">${escapeHtml(projectCategories.join(" / ") || "Selected work")}<br />${projectImages.length} ${projectImages.length === 1 ? "image" : "images"}</p>
+          <div><p class="project-index">${String(pageNumber).padStart(2, "0")} / ${escapeHtml(projectClient)}</p><h2>${escapeHtml(projectTitle)}${batchIndex ? " <small>(Fortsetzung)</small>" : ""}</h2><p class="project-description">${escapeHtml(projectDescription)}</p></div>
+          <p class="project-meta">${escapeHtml(projectCategories.join(" / ") || "Ausgewählte Arbeiten")}<br />${projectImages.length} ${projectImages.length === 1 ? "Bild" : "Bilder"}</p>
         </aside>
         <div class="project-grid grid-count-${batch.length}">${tiles}</div>
       </article>`;
@@ -295,7 +295,7 @@ function buildPortfolioDocument(images) {
   }).join("");
 
   return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+<html lang="de"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>JDDL - ${escapeHtml(safeFileName(selectionFocus))} portfolio</title>
 <style>
   :root { color-scheme: light; font-family: Arial, Helvetica, sans-serif; color: #111; background: #d7d7d2; }
@@ -344,10 +344,10 @@ function buildPortfolioDocument(images) {
     .project-copy h2 { font-size: 11mm; }
   }
 </style></head><body>
-  <div class="print-toolbar"><span>Choose “Save as PDF” in the print dialog.</span><button type="button" onclick="window.print()">Print / save PDF</button></div>
+  <div class="print-toolbar"><span>Wähle im Druckdialog „Als PDF speichern“.</span><button type="button" onclick="window.print()">Drucken / PDF speichern</button></div>
   <section class="portfolio-page cover-page">
-    <div class="cover-main"><p class="cover-we-are">We are</p><h1>JDDL</h1><p class="cover-selection">This is a selection of <strong>${escapeHtml(selectionFocus)}</strong> work.</p></div>
-    <div class="cover-footer"><div><h2>${escapeHtml(studio.eyebrow || "About the studio")}</h2><p>${escapeHtml(studio.about || "JDDL is an independent creative practice.")}</p></div><div><h2>Selected clients</h2><p>${escapeHtml(clients.join(" / ") || "JDDL studio portfolio")}<br />${escapeHtml(categories.join(" / ") || "Selected work")} / ${escapeHtml(date)}</p></div></div>
+    <div class="cover-main"><p class="cover-we-are">Wir sind</p><h1>JDDL</h1><p class="cover-selection">Eine Auswahl unserer Arbeiten im Bereich <strong>${escapeHtml(selectionFocus)}</strong>.</p></div>
+    <div class="cover-footer"><div><h2>${escapeHtml(studio.eyebrow || "Über das Studio")}</h2><p>${escapeHtml(studio.about || "JDDL ist ein unabhängiges Kreativstudio.")}</p></div><div><h2>Ausgewählte Kunden</h2><p>${escapeHtml(clients.join(" / ") || "JDDL Studio-Portfolio")}<br />${escapeHtml(categories.join(" / ") || "Ausgewählte Arbeiten")} / ${escapeHtml(date)}</p></div></div>
   </section>
   ${pages}
 <script>
@@ -362,7 +362,7 @@ function createPortfolioPdf() {
   if (!images.length) return;
   const preview = window.open("", "_blank");
   if (!preview) {
-    notify("Allow pop-ups to create the portfolio PDF");
+    notify("Erlaube Pop-ups, um das Portfolio-PDF zu erstellen");
     return;
   }
   preview.document.open();
@@ -397,11 +397,11 @@ async function bootstrap() {
 function renderRelationOptions(container, values, selected, name) {
   container.innerHTML = values.length
     ? values.map((item) => `<label class="tag-check"><input type="checkbox" name="${name}" value="${item.id}" ${selected.includes(item.id) ? "checked" : ""} /><span>${escapeHtml(item.name || item.title)}</span></label>`).join("")
-    : '<span class="admin-muted">No options yet.</span>';
+    : '<span class="admin-muted">Noch keine Optionen.</span>';
 }
 
 function renderProjectOptions(container, selectedId) {
-  const options = [{ id: "", title: "No project" }, ...state.data.projects];
+  const options = [{ id: "", title: "Kein Projekt" }, ...state.data.projects];
   container.innerHTML = options.map((project) => `<label class="tag-check"><input type="radio" name="image-project" value="${project.id}" ${project.id === selectedId ? "checked" : ""} /><span>${escapeHtml(project.title)}</span></label>`).join("");
 }
 
@@ -409,7 +409,7 @@ function openImage(image = null) {
   el.imageForm.reset();
   $("#image-error").textContent = "";
   $("#image-id").value = image?.id || "";
-  $("#image-dialog-title").textContent = image ? "Edit image" : "Add image";
+  $("#image-dialog-title").textContent = image ? "Bild bearbeiten" : "Bild hinzufügen";
   $("#image-name").value = image?.original_name || "";
   $("#image-alt").value = image?.alt_text || "";
   $("#image-ratio").value = image?.aspect_ratio || 1;
@@ -436,7 +436,7 @@ function openProject(project = null) {
   $("#project-description").value = project?.description || "";
   $("#project-order").value = project?.sort_order || 0;
   $("#project-published").checked = project ? Boolean(project.published) : true;
-  $("#project-dialog-title").textContent = project ? "Edit project" : "New project";
+  $("#project-dialog-title").textContent = project ? "Projekt bearbeiten" : "Neues Projekt";
   el.projectDialog.showModal();
   $("#project-title").focus();
 }
@@ -452,7 +452,7 @@ function openTags() {
 function selectFile(file) {
   if (!file || !file.type.startsWith("image/")) return;
   if (file.size > (location.hostname === "localhost" || location.hostname === "127.0.0.1" ? 20 : 4) * 1024 * 1024) {
-    $("#image-error").textContent = "Image is too large. Hosted uploads must be smaller than 4 MB; local uploads can be up to 20 MB.";
+    $("#image-error").textContent = "Das Bild ist zu groß. Online müssen Uploads kleiner als 4 MB sein; lokal sind bis zu 20 MB möglich.";
     return;
   }
   state.selectedFile = file;
@@ -480,16 +480,16 @@ function positionCell(anchor) {
 
 function openCell(anchor, image, field) {
   if (field === "name") {
-    el.cellContent.innerHTML = `<form class="cell-form" id="cell-name-form" data-image-id="${image.id}"><input id="cell-name-input" value="${escapeHtml(image.original_name)}" maxlength="240" required /><button class="button primary">Save</button></form>`;
+    el.cellContent.innerHTML = `<form class="cell-form" id="cell-name-form" data-image-id="${image.id}"><input id="cell-name-input" value="${escapeHtml(image.original_name)}" maxlength="240" required /><button class="button primary">Speichern</button></form>`;
   }
   if (field === "tags") {
     const selected = new Set(image.tag_ids);
-    el.cellContent.innerHTML = `<form id="cell-relations-form" data-field="tags" data-image-id="${image.id}"><div class="cell-heading">Select tags</div><div class="cell-options">${state.data.tags.length ? state.data.tags.map((tag) => `<label class="cell-option"><input type="checkbox" name="cell-tag" value="${tag.id}" ${selected.has(tag.id) ? "checked" : ""} /><span>${escapeHtml(tag.name)}</span></label>`).join("") : '<div class="cell-option admin-muted">No tags available</div>'}</div><div class="cell-actions"><button class="button" type="button" data-close-cell>Cancel</button><button class="button primary">Save</button></div></form>`;
+    el.cellContent.innerHTML = `<form id="cell-relations-form" data-field="tags" data-image-id="${image.id}"><div class="cell-heading">Tags auswählen</div><div class="cell-options">${state.data.tags.length ? state.data.tags.map((tag) => `<label class="cell-option"><input type="checkbox" name="cell-tag" value="${tag.id}" ${selected.has(tag.id) ? "checked" : ""} /><span>${escapeHtml(tag.name)}</span></label>`).join("") : '<div class="cell-option admin-muted">Keine Tags verfügbar</div>'}</div><div class="cell-actions"><button class="button" type="button" data-close-cell>Abbrechen</button><button class="button primary">Speichern</button></div></form>`;
   }
   if (field === "project") {
     const selectedId = image.project_ids[0] || "";
-    const projects = [{ id: "", title: "No project" }, ...state.data.projects];
-    el.cellContent.innerHTML = `<form id="cell-relations-form" data-field="project" data-image-id="${image.id}"><div class="cell-heading">Select project</div><div class="cell-options">${projects.map((project) => `<label class="cell-option"><input type="radio" name="cell-project" value="${project.id}" ${selectedId === project.id ? "checked" : ""} /><span>${escapeHtml(project.title)}</span></label>`).join("")}</div><div class="cell-actions"><button class="button" type="button" data-close-cell>Cancel</button><button class="button primary">Save</button></div></form>`;
+    const projects = [{ id: "", title: "Kein Projekt" }, ...state.data.projects];
+    el.cellContent.innerHTML = `<form id="cell-relations-form" data-field="project" data-image-id="${image.id}"><div class="cell-heading">Projekt auswählen</div><div class="cell-options">${projects.map((project) => `<label class="cell-option"><input type="radio" name="cell-project" value="${project.id}" ${selectedId === project.id ? "checked" : ""} /><span>${escapeHtml(project.title)}</span></label>`).join("")}</div><div class="cell-actions"><button class="button" type="button" data-close-cell>Abbrechen</button><button class="button primary">Speichern</button></div></form>`;
   }
   positionCell(anchor);
   if (field === "name") {
@@ -506,7 +506,7 @@ async function updateImage(image, changes) {
   });
   closeCell();
   await refresh();
-  notify("Image updated");
+  notify("Bild aktualisiert");
 }
 
 $("#login-form").addEventListener("submit", async (event) => {
@@ -585,7 +585,7 @@ el.imageForm.addEventListener("submit", async (event) => {
   const submit = event.submitter;
   const id = $("#image-id").value;
   const error = $("#image-error");
-  if (!id && !state.selectedFile) { error.textContent = "Choose an image first."; return; }
+  if (!id && !state.selectedFile) { error.textContent = "Wähle zuerst ein Bild aus."; return; }
   submit.disabled = true;
   error.textContent = "";
   try {
@@ -611,7 +611,7 @@ el.imageForm.addEventListener("submit", async (event) => {
     }
     el.imageDialog.close();
     await refresh();
-    notify(id ? "Image updated" : "Image added");
+    notify(id ? "Bild aktualisiert" : "Bild hinzugefügt");
   } catch (reason) { error.textContent = reason.message; }
   finally { submit.disabled = false; }
 });
@@ -630,7 +630,7 @@ el.projectForm.addEventListener("submit", async (event) => {
     });
     el.projectDialog.close();
     await refresh();
-    notify(id ? "Project updated" : "Project created");
+    notify(id ? "Projekt aktualisiert" : "Projekt erstellt");
   } catch (reason) { $("#project-error").textContent = reason.message; }
   finally { submit.disabled = false; }
 });
@@ -657,18 +657,18 @@ el.tagManager.addEventListener("click", async (event) => {
       const input = save.closest(".manager-row").querySelector("[data-tag-name]");
       await api(`/api/tags/${save.dataset.saveTag}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: input.value }) });
       await refresh();
-      notify("Tag renamed");
+      notify("Tag umbenannt");
     } catch (reason) { $("#tag-error").textContent = reason.message; save.disabled = false; }
     return;
   }
   const remove = event.target.closest("[data-delete-tag]");
-  if (!remove || !confirm("Delete this tag? It will be removed from assigned images.")) return;
+  if (!remove || !confirm("Diesen Tag löschen? Er wird von allen zugeordneten Bildern entfernt.")) return;
   try {
     state.selectedTags.delete(remove.dataset.deleteTag);
     state.exportTags.delete(remove.dataset.deleteTag);
     await api(`/api/tags/${remove.dataset.deleteTag}`, { method: "DELETE" });
     await refresh();
-    notify("Tag deleted");
+    notify("Tag gelöscht");
   } catch (reason) { $("#tag-error").textContent = reason.message; }
 });
 
@@ -676,10 +676,10 @@ el.projectBody.addEventListener("click", async (event) => {
   const edit = event.target.closest("[data-edit-project]");
   if (edit) { openProject(projectFor(edit.dataset.editProject)); return; }
   const remove = event.target.closest("[data-delete-project]");
-  if (!remove || !confirm("Delete this project? Its images will stay in the library.")) return;
+  if (!remove || !confirm("Dieses Projekt löschen? Seine Bilder bleiben unter „Alle Bilder“ erhalten.")) return;
   await api(`/api/projects/${remove.dataset.deleteProject}`, { method: "DELETE" });
   await refresh();
-  notify("Project deleted");
+  notify("Projekt gelöscht");
 });
 
 el.imageBody.addEventListener("click", async (event) => {
@@ -692,10 +692,10 @@ el.imageBody.addEventListener("click", async (event) => {
   const edit = event.target.closest("[data-edit-image]");
   if (edit) { openImage(state.data.images.find((image) => image.id === edit.dataset.editImage)); return; }
   const remove = event.target.closest("[data-delete-image]");
-  if (!remove || !confirm("Delete this image permanently?")) return;
+  if (!remove || !confirm("Dieses Bild dauerhaft löschen?")) return;
   await api(`/api/images/${remove.dataset.deleteImage}`, { method: "DELETE" });
   await refresh();
-  notify("Image deleted");
+  notify("Bild gelöscht");
 });
 
 el.cellEditor.addEventListener("submit", async (event) => {
@@ -726,7 +726,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
     body: JSON.stringify({ eyebrow: $("#setting-eyebrow").value, about: $("#setting-about").value, clients: $("#setting-clients").value }),
   });
   await refresh();
-  notify("Studio information saved");
+  notify("Studio-Informationen gespeichert");
 });
 
 api("/api/session").then((session) => { if (session.authenticated) return bootstrap(); }).catch(() => {});

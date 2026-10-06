@@ -32,6 +32,11 @@ images participate; galleries are not artificially limited to four slides.
 
 ## Layout
 
+Other frontends can read the same content through `/api/public`, with
+cross-domain reads enabled by default. See [the public API connection guide](docs/PUBLIC_API.md)
+for a working JavaScript example, response fields, and optional origin/image URL
+configuration. Editing remains protected by the CMS login.
+
 - `frontend/`: the current HTML/CSS/JavaScript website.
 - `backend/server.py`: CMS authentication, APIs, upload handling, static serving
   and SQLite initialization.
@@ -41,12 +46,13 @@ images participate; galleries are not artificially limited to four slides.
   creating new databases. It contains no login/session secrets.
 - `data/`: live `projects.db`, `images.db`, and the session signing secret.
 - `uploads/`: persistent image uploads.
-- `archive/`: previous V1, V2 demo, Page Test, Watch Test and backendUI prototypes.
+- `docs/`: database access, public API, deployment and prototype recovery guides.
 - `tests/`: backend HTTP integration and frontend data/interaction checks.
 
 Live databases, uploads, secrets, dependencies, generated builds and preserved
-legacy Git metadata are ignored by Git. Existing local content was retained
-when the prototypes were archived. Fresh checkouts initialize from the public
+legacy storage and Git metadata are ignored by Git. Retired prototypes are
+recoverable from Git history; see [docs/HISTORY.md](docs/HISTORY.md).
+Fresh checkouts initialize from the public
 seed; restarting does not replace edited content or intentionally empty databases.
 
 ## Verification
@@ -84,3 +90,4 @@ managed database and Blob store independently.
 
 The current accounts, dashboard links, resource IDs, credential locations and
 maintenance workflow are recorded in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+Agent connection instructions are in [docs/DATABASE_ACCESS.md](docs/DATABASE_ACCESS.md).
