@@ -20,7 +20,9 @@ button:focus-visible, .rail:focus-visible { outline: 2px solid #838383; outline-
 .about strong { color: #1d1d1d; font-weight: 700; }
 .menu { max-width: 55vw; flex-wrap: wrap; justify-content: flex-end; display: flex; align-items: flex-start; gap: clamp(3px, .272vw, 5px); color: #000; }
 .menu button { border-radius: 4.5px; background: #dfdfdf; min-width: clamp(20px, 1.423vw, 27px); height: clamp(30px, 2.503vw, 46px); padding: 0 6px; font-size: inherit; font-weight: 500; }
-.menu button:first-child { padding-inline: 10px; }
+.menu-label { display: none; }
+.menu button:is(:hover, :focus-visible) .menu-label { display: inline; }
+.menu button:is(:hover, :focus-visible) .menu-number { display: none; }
 .menu button:hover, .menu button.selected { background: #d6d6d6; }
 .portfolio { position: fixed; inset: auto 0 var(--inset); }
 .project-context { position: relative; width: var(--tile-width); margin-left: var(--inset); margin-bottom: clamp(9px, .911vw, 17px); }
@@ -43,7 +45,6 @@ button:focus-visible, .rail:focus-visible { outline: 2px solid #838383; outline-
   .about { width: min(58vw, 310px); }
   .menu { gap: 3px; }
   .menu button { min-width: 22px; padding-inline: 4px; }
-  .menu button:first-child { padding-inline: 6px; }
 }
 @media (max-height: 500px) and (min-width: 601px) {
   :root { --tile-height: 54svh; }

@@ -41,6 +41,9 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   rectangles to match native snapping exactly; the context/progress width follows
   the measured tile width. Story selection also aligns the active tile, and
   native scroll completion corrects residual misalignment.
+- Menu buttons show numbers by default and reveal Highlights, Index, About and
+  random on hover or keyboard focus. These labels retain existing project
+  navigation actions; additional project buttons reveal their project titles.
 - No frontend framework or package dependencies are needed. Haffer uses a system
   sans-serif fallback until licensed font files are supplied.
 

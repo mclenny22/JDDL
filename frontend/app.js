@@ -11,11 +11,18 @@ async function start() {
   document.title = `${name || 'JDDL'} — Independent design studio`;
   const nav = document.querySelector('.menu');
   nav.replaceChildren();
+  const menuLabels = ['Highlights', 'Index', 'About', 'random'];
   const menu = projects.map((project, index) => {
     const button = document.createElement('button');
-    button.textContent = index === 0 ? 'Highlights' : String(index + 1);
+    const number = document.createElement('span');
+    number.className = 'menu-number';
+    number.textContent = String(index + 1);
+    const label = document.createElement('span');
+    label.className = 'menu-label';
+    label.textContent = menuLabels[index] || project.title;
+    button.append(number, label);
     button.dataset.project = String(index);
-    button.setAttribute('aria-label', `Show ${project.title}`);
+    button.setAttribute('aria-label', `${menuLabels[index] || project.title} — Show ${project.title}`);
     nav.append(button);
     return button;
   });
