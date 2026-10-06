@@ -84,6 +84,11 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   filtering uses AND; portfolio export tags use OR and image selection remains
   explicit. Exports open a print-optimized A4 landscape document with a cover
   and project pages containing up to five ratio-preserving images each.
+- Admin controls use a dependency-free shadcn-style neutral design. Project and
+  image creation/editing open right-side modal drawers with fixed headers/actions,
+  scrolling form content, native focus containment and Escape dismissal. Image
+  name, tag and project cells open the same drawer at the corresponding field.
+  Drawer entrance motion respects reduced motion; mobile drawers fill the width.
 - Project deletion retains images and clears links; tag deletion clears tag
   associations; image deletion removes its upload where present. Public data
   excludes archived and unpublished images. Admin bootstrap includes both.
