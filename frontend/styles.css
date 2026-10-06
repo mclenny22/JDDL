@@ -19,7 +19,7 @@ button:focus-visible, .rail:focus-visible { outline: 2px solid #838383; outline-
 .about { margin: 0; width: min(28.43vw, 523px); font-size: inherit; line-height: inherit; text-transform: uppercase; }
 .about strong { color: #1d1d1d; font-weight: 700; }
 .menu { max-width: 55vw; flex-wrap: wrap; justify-content: flex-end; display: flex; align-items: flex-start; gap: clamp(3px, .272vw, 5px); color: #000; }
-.menu button { border-radius: 4.5px; background: #dfdfdf; min-width: clamp(20px, 1.423vw, 27px); height: clamp(30px, 2.503vw, 46px); padding: 0 6px; font-size: inherit; font-weight: 500; position: relative; display: inline-grid; place-items: center; transition: background-color 250ms ease; }
+.menu button { border-radius: 4.5px; background: #dfdfdf; min-width: clamp(20px, 1.423vw, 27px); height: clamp(30px, 2.503vw, 46px); padding: 0 6px; font-size: inherit; font-weight: 500; text-transform: uppercase; position: relative; display: inline-grid; place-items: center; transition: background-color 250ms ease; }
 .menu-number { position: absolute; opacity: 1; transition: opacity 150ms ease; }
 .menu-label { display: block; max-width: 0; overflow: hidden; white-space: nowrap; opacity: 0; transform: translateY(3px); transition: max-width 320ms cubic-bezier(.22, 1, .36, 1), opacity 200ms ease, transform 320ms cubic-bezier(.22, 1, .36, 1); }
 .menu button:is(:hover, :focus-visible) .menu-label { max-width: var(--menu-label-width); opacity: 1; transform: translateY(0); }
