@@ -89,6 +89,11 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   scrolling form content, native focus containment and Escape dismissal. Image
   name, tag and project cells open the same drawer at the corresponding field.
   Drawer entrance motion respects reduced motion; mobile drawers fill the width.
+  Image aspect ratio is hidden metadata: uploads derive it from natural dimensions,
+  and editing retains the stored ratio without a manual dimension control.
+  Image/project row actions live in ellipsis dropdowns with edit and delete items;
+  menus support arrow keys, Home/End, Escape and return focus to their trigger.
+  The shared menu sits outside table overflow and closes on outside click/scroll.
 - Project deletion retains images and clears links; tag deletion clears tag
   associations; image deletion removes its upload where present. Public data
   excludes archived and unpublished images. Admin bootstrap includes both.

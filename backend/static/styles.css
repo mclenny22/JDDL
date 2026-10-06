@@ -242,7 +242,7 @@ td { height: 66px; padding: .5rem .75rem; border-bottom: 1px solid var(--line); 
 tbody tr:hover { background: #fafafa; }
 .thumb-col { width: 76px; }
 .select-col { width: 48px; }
-.action-col { width: 126px; text-align: right; }
+.action-col { width: 64px; text-align: right; }
 .admin-thumb { display: block; width: 48px; height: 48px; border: 1px solid var(--line); border-radius: 5px; background: #f4f4f5; object-fit: cover; }
 .file-name { display: block; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .row-subtitle { display: block; overflow: hidden; margin-top: .2rem; color: var(--muted); font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
@@ -403,3 +403,15 @@ html.has-open-drawer { overflow: hidden; }
   .admin-page button { transition: none; }
   .editor-drawer[open], .editor-drawer[open]::backdrop { animation: none; }
 }
+
+/* Row action dropdown, mounted outside the table so scrolling cannot clip it. */
+.row-menu-trigger { display: grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
+.row-menu-trigger:hover, .row-menu-trigger[aria-expanded="true"] { background: #f4f4f5; }
+.row-menu-trigger svg { width: 18px; height: 18px; fill: currentColor; }
+.row-menu { position: fixed; z-index: 60; width: 172px; padding: 4px; border: 1px solid var(--line); border-radius: 7px; background: white; box-shadow: 0 4px 16px #00000014; }
+.row-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 6px 8px; border: 0; border-radius: 4px; background: transparent; font-size: .8125rem; text-align: left; cursor: pointer; }
+.row-menu-item:hover, .row-menu-item:focus-visible { outline: none; background: #f4f4f5; }
+.row-menu-item.danger { color: #dc2626; }
+.row-menu-item.danger:hover, .row-menu-item.danger:focus-visible { background: #fef2f2; }
+.row-menu-item svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.row-menu-separator { height: 1px; margin: 4px -4px; background: var(--line); }

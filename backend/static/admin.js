@@ -4,6 +4,7 @@ const state = {
   search: "",
   selectedTags: new Set(),
   selectedFile: null,
+  rowMenu: null,
   exportTags: new Set(),
   exportSelected: new Set(),
 };
@@ -40,6 +41,7 @@ const el = {
   imageTags: $("#image-tag-options"),
   imageProjects: $("#image-project-options"),
   tagManager: $("#tag-manager-list"),
+  rowMenu: $("#row-menu"),
   toast: $("#toast"),
 };
 
@@ -89,6 +91,7 @@ function projectNames(image) {
 }
 
 function setView(view) {
+  closeRowMenu();
   document.querySelectorAll("[data-view-content]").forEach((section) => {
     section.hidden = section.dataset.viewContent !== view;
   });
@@ -120,6 +123,7 @@ function filteredImages() {
 }
 
 function renderImages() {
+  closeRowMenu();
   const images = filteredImages();
   const filtering = Boolean(state.search.trim()) || state.selectedTags.size > 0;
   $("#image-count").textContent = `${images.length} ${images.length === 1 ? "Bild" : "Bilder"}`;
@@ -141,12 +145,13 @@ function renderImages() {
       <td><button class="cell-button" data-edit-field="project" data-image-id="${image.id}">${projects.length ? escapeHtml(projects[0]) : '<span class="admin-muted">Projekt auswählen</span>'}</button></td>
       <td><span class="status">${status}</span></td>
       <td class="admin-muted">${formatDate(image.created_at)}</td>
-      <td><div class="row-actions"><button class="row-button" data-edit-image="${image.id}">Bearbeiten</button><button class="row-button danger" data-delete-image="${image.id}" aria-label="Bild löschen">×</button></div></td>
+      <td><div class="row-actions">${rowMenuTrigger("image", image.id, image.original_name)}</div></td>
     </tr>`;
   }).join("");
 }
 
 function renderProjects() {
+  closeRowMenu();
   const projects = state.data.projects;
   el.projectTable.hidden = !projects.length;
   el.projectsEmpty.hidden = Boolean(projects.length);
@@ -158,7 +163,7 @@ function renderProjects() {
       <td class="${project.client ? "" : "admin-muted"}">${escapeHtml(project.client || "—")}</td>
       <td class="description-cell ${project.description ? "" : "admin-muted"}">${escapeHtml(project.description || "Keine Beschreibung")}</td>
       <td>${count}</td><td><span class="status">${project.published ? "Veröffentlicht" : "Entwurf"}</span></td><td>${project.sort_order}</td>
-      <td><div class="row-actions"><button class="row-button" data-edit-project="${project.id}">Bearbeiten</button><button class="row-button danger" data-delete-project="${project.id}" aria-label="Projekt löschen">×</button></div></td>
+      <td><div class="row-actions">${rowMenuTrigger("project", project.id, project.title)}</div></td>
     </tr>`;
   }).join("");
 }
@@ -397,7 +402,6 @@ function openImage(image = null, field = "name") {
   $("#image-dialog-title").textContent = image ? "Bild bearbeiten" : "Bild hinzufügen";
   $("#image-name").value = image?.original_name || "";
   $("#image-alt").value = image?.alt_text || "";
-  $("#image-ratio").value = image?.aspect_ratio || 1;
   $("#image-published").checked = image ? Boolean(image.published) : true;
   $("#image-archived").checked = image ? Boolean(image.archived) : false;
   renderRelationOptions(el.imageTags, state.data.tags, image?.tag_ids || [], "image-tag");
@@ -451,12 +455,82 @@ function selectFile(file) {
   if (!$("#image-name").value) $("#image-name").value = file.name;
 }
 
+function rowMenuTrigger(kind, id, name) {
+  return `<button class="row-menu-trigger" type="button" data-row-kind="${kind}" data-row-id="${escapeHtml(id)}" aria-label="Aktionen für ${escapeHtml(name)}" aria-haspopup="menu" aria-expanded="false" aria-controls="row-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></svg></button>`;
+}
+
+function closeRowMenu(returnFocus = false) {
+  const trigger = state.rowMenu?.trigger;
+  trigger?.setAttribute("aria-expanded", "false");
+  state.rowMenu = null;
+  el.rowMenu.hidden = true;
+  if (returnFocus && trigger?.isConnected) trigger.focus();
+}
+
+function openRowMenu(trigger, last = false) {
+  if (state.rowMenu?.trigger === trigger) { closeRowMenu(true); return; }
+  closeRowMenu();
+  closeFilterMenu();
+  state.rowMenu = { trigger, kind: trigger.dataset.rowKind, id: trigger.dataset.rowId };
+  trigger.setAttribute("aria-expanded", "true");
+  el.rowMenu.hidden = false;
+  const anchor = trigger.getBoundingClientRect();
+  const menu = el.rowMenu.getBoundingClientRect();
+  el.rowMenu.style.left = `${Math.max(8, Math.min(anchor.right - menu.width, innerWidth - menu.width - 8))}px`;
+  el.rowMenu.style.top = `${Math.max(8, Math.min(anchor.bottom + 4 + menu.height > innerHeight - 8 ? anchor.top - menu.height - 4 : anchor.bottom + 4, innerHeight - menu.height - 8))}px`;
+  const items = el.rowMenu.querySelectorAll('[role="menuitem"]');
+  items[last ? items.length - 1 : 0].focus();
+}
+
+el.rowMenu.addEventListener("keydown", (event) => {
+  const items = [...el.rowMenu.querySelectorAll('[role="menuitem"]')];
+  const current = items.indexOf(document.activeElement);
+  if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+    event.preventDefault();
+    const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+    items[next].focus();
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    closeRowMenu(true);
+  } else if (event.key === "Tab") {
+    // Return to the row so normal tab order continues through the table.
+    closeRowMenu(true);
+  }
+});
+el.rowMenu.addEventListener("focusout", (event) => {
+  if (event.relatedTarget && !el.rowMenu.contains(event.relatedTarget)) closeRowMenu();
+});
+el.rowMenu.addEventListener("click", async (event) => {
+  const action = event.target.closest("[data-row-action]")?.dataset.rowAction;
+  const selected = state.rowMenu;
+  if (!action || !selected) return;
+  closeRowMenu(true);
+  const { kind, id } = selected;
+  if (action === "edit") {
+    if (kind === "project") openProject(projectFor(id));
+    else openImage(state.data.images.find((image) => image.id === id));
+    return;
+  }
+  const message = kind === "project" ? "Dieses Projekt löschen? Seine Bilder bleiben unter „Alle Bilder“ erhalten." : "Dieses Bild dauerhaft löschen?";
+  if (!confirm(message)) return;
+  try {
+    await api(`/api/${kind === "project" ? "projects" : "images"}/${id}`, { method: "DELETE" });
+    await refresh();
+    notify(kind === "project" ? "Projekt gelöscht" : "Bild gelöscht");
+  } catch (reason) { notify(reason.message); }
+});
+window.addEventListener("resize", () => closeRowMenu());
+window.addEventListener("scroll", (event) => {
+  if (!(event.target instanceof Node) || !el.rowMenu.contains(event.target)) closeRowMenu();
+}, true);
+
 function closeFilterMenu() {
   el.filterMenu.hidden = true;
   $("#tag-filter-button").setAttribute("aria-expanded", "false");
 }
 
 function openDrawer(drawer) {
+  closeRowMenu();
   closeFilterMenu();
   drawer.querySelector(".drawer-body").scrollTop = 0;
   drawer.showModal();
@@ -499,13 +573,14 @@ $("#logout").addEventListener("click", async () => {
 document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => setView(button.dataset.view)));
 $("#add-image-button").addEventListener("click", () => openImage());
 $("#add-project-button").addEventListener("click", () => openProject());
-$("#manage-tags-button").addEventListener("click", openTags);
+$("#manage-tags-button").addEventListener("click", () => { closeRowMenu(); openTags(); });
 document.querySelectorAll("[data-open-upload]").forEach((button) => button.addEventListener("click", () => openImage()));
 document.querySelectorAll("[data-open-project]").forEach((button) => button.addEventListener("click", () => openProject()));
 document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => button.closest("dialog").close()));
 
 $("#image-search").addEventListener("input", (event) => { state.search = event.target.value; renderImages(); });
 $("#tag-filter-button").addEventListener("click", () => {
+  closeRowMenu();
   el.filterMenu.hidden = !el.filterMenu.hidden;
   $("#tag-filter-button").setAttribute("aria-expanded", String(!el.filterMenu.hidden));
 });
@@ -542,9 +617,17 @@ el.clearExportSelection.addEventListener("click", () => {
 el.createPortfolioButton.addEventListener("click", createPortfolioPdf);
 
 document.addEventListener("click", (event) => {
+  const trigger = event.target.closest("[data-row-kind]");
+  if (trigger) openRowMenu(trigger);
+  else if (!event.target.closest("#row-menu")) closeRowMenu();
   if (!event.target.closest(".menu-wrap")) closeFilterMenu();
 });
 document.addEventListener("keydown", (event) => {
+  const trigger = event.target.closest("[data-row-kind]");
+  if (trigger && ["ArrowDown", "ArrowUp"].includes(event.key)) {
+    event.preventDefault();
+    openRowMenu(trigger, event.key === "ArrowUp");
+  }
   if (event.key === "Escape" && !el.filterMenu.hidden) {
     closeFilterMenu();
     $("#tag-filter-button").focus();
@@ -567,10 +650,17 @@ el.imageForm.addEventListener("submit", async (event) => {
     const tagIds = [...document.querySelectorAll('input[name="image-tag"]:checked')].map((input) => input.value);
     const selectedProject = document.querySelector('input[name="image-project"]:checked')?.value || "";
     const projectIds = selectedProject ? [selectedProject] : [];
+    // Keep existing metadata; new uploads derive their ratio from the actual image.
+    let aspectRatio = state.data.images.find((image) => image.id === id)?.aspect_ratio || 1;
+    if (!id) {
+      try { await el.imagePreview.decode(); }
+      catch { throw new Error("Das Bild konnte nicht gelesen werden. Wähle eine gültige Bilddatei aus."); }
+      aspectRatio = el.imagePreview.naturalWidth / el.imagePreview.naturalHeight || 1;
+    }
     const shared = {
       original_name: $("#image-name").value,
       alt_text: $("#image-alt").value,
-      aspect_ratio: Number($("#image-ratio").value),
+      aspect_ratio: aspectRatio,
       published: $("#image-published").checked,
       archived: $("#image-archived").checked,
       tag_names: tagIds.map((tagId) => tagFor(tagId)?.name).filter(Boolean).join(", "),
@@ -647,30 +737,17 @@ el.tagManager.addEventListener("click", async (event) => {
   } catch (reason) { $("#tag-error").textContent = reason.message; }
 });
 
-el.projectBody.addEventListener("click", async (event) => {
+el.projectBody.addEventListener("click", (event) => {
   const edit = event.target.closest("[data-edit-project]");
-  if (edit) { openProject(projectFor(edit.dataset.editProject)); return; }
-  const remove = event.target.closest("[data-delete-project]");
-  if (!remove || !confirm("Dieses Projekt löschen? Seine Bilder bleiben unter „Alle Bilder“ erhalten.")) return;
-  await api(`/api/projects/${remove.dataset.deleteProject}`, { method: "DELETE" });
-  await refresh();
-  notify("Projekt gelöscht");
+  if (edit) openProject(projectFor(edit.dataset.editProject));
 });
 
-el.imageBody.addEventListener("click", async (event) => {
+el.imageBody.addEventListener("click", (event) => {
   const field = event.target.closest("[data-edit-field]");
   if (field) {
     const image = state.data.images.find((item) => item.id === field.dataset.imageId);
     if (image) openImage(image, field.dataset.editField);
-    return;
   }
-  const edit = event.target.closest("[data-edit-image]");
-  if (edit) { openImage(state.data.images.find((image) => image.id === edit.dataset.editImage)); return; }
-  const remove = event.target.closest("[data-delete-image]");
-  if (!remove || !confirm("Dieses Bild dauerhaft löschen?")) return;
-  await api(`/api/images/${remove.dataset.deleteImage}`, { method: "DELETE" });
-  await refresh();
-  notify("Bild gelöscht");
 });
 
 $("#settings-form").addEventListener("submit", async (event) => {

@@ -59,7 +59,7 @@
           </div>
           <div class="table-shell">
             <table id="image-table">
-              <thead><tr><th class="thumb-col">Vorschau</th><th>Name</th><th>Tags</th><th>Projekt</th><th>Status</th><th>Hinzugefügt</th><th class="action-col">Aktionen</th></tr></thead>
+              <thead><tr><th class="thumb-col">Vorschau</th><th>Name</th><th>Tags</th><th>Projekt</th><th>Status</th><th>Hinzugefügt</th><th class="action-col"><span class="sr-only">Aktionen</span></th></tr></thead>
               <tbody id="image-table-body"></tbody>
             </table>
             <div class="admin-empty" id="library-empty" hidden><h2>Noch keine Bilder</h2><p>Füge das erste Bild zum Archiv hinzu.</p><button class="button primary" type="button" data-open-upload>Bild hinzufügen</button></div>
@@ -74,7 +74,7 @@
           </div>
           <div class="table-shell">
             <table id="project-table">
-              <thead><tr><th>Name</th><th>Kunde / Art</th><th>Beschreibung</th><th>Bilder</th><th>Status</th><th>Reihenfolge</th><th class="action-col">Aktionen</th></tr></thead>
+              <thead><tr><th>Name</th><th>Kunde / Art</th><th>Beschreibung</th><th>Bilder</th><th>Status</th><th>Reihenfolge</th><th class="action-col"><span class="sr-only">Aktionen</span></th></tr></thead>
               <tbody id="project-table-body"></tbody>
             </table>
             <div class="admin-empty" id="projects-empty" hidden><h2>Noch keine Projekte</h2><p>Erstelle ein Projekt und ordne ihm Bilder zu.</p><button class="button primary" type="button" data-open-project>Neues Projekt</button></div>
@@ -147,7 +147,6 @@
         <label class="field" for="image-name"><span>Name</span><input id="image-name" maxlength="240" required /></label>
         <label class="field" for="image-alt"><span>Alternativtext</span><input id="image-alt" placeholder="Beschreibe das Bild" /></label>
         <div class="field-grid">
-          <label class="field" for="image-ratio"><span>Breite ÷ Höhe</span><input id="image-ratio" type="number" min="0.3" max="3" step="0.01" value="1" /></label>
           <label class="check-field"><input id="image-published" type="checkbox" checked /><span>Veröffentlicht</span></label>
           <label class="check-field"><input id="image-archived" type="checkbox" /><span>Archiviert</span></label>
         </div>
@@ -186,6 +185,17 @@
       </div>
     </dialog>
 
+    <div class="row-menu" id="row-menu" role="menu" aria-label="Aktionen" hidden>
+      <button class="row-menu-item" type="button" role="menuitem" tabindex="-1" data-row-action="edit">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m16 3 5 5M4 20l4-1L21 6a2.8 2.8 0 0 0-4-4L4 15z" /></svg>
+        Bearbeiten
+      </button>
+      <div class="row-menu-separator" role="separator"></div>
+      <button class="row-menu-item danger" type="button" role="menuitem" tabindex="-1" data-row-action="delete">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" /></svg>
+        Löschen
+      </button>
+    </div>
     <div class="toast" id="toast" role="status" hidden></div>
     <script type="module" src="/admin-assets/admin.js"></script>
   </body>
