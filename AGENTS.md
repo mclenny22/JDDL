@@ -35,8 +35,8 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   temporarily disables native snapping and rebases its target with the rail.
   Reduced motion skips easing; browser pinch-to-zoom is preserved. The focused
   rail supports Left/Right/Home/End. Resize preserves the active project.
-- About, project text and menu share the root font size and line height, including
-  responsive overrides. Story fills animate their actual width with fixed round
+- About, project text and menu share a fixed 12px root font size and 1.12 line
+  height across all viewport sizes. Story fills animate their actual width with fixed round
   caps, rather than scaling their shape. Rail spacing uses fractional bounding
   rectangles to match native snapping exactly; the context/progress width follows
   the measured tile width. Story selection also aligns the active tile, and

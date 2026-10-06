@@ -1,6 +1,6 @@
 :root {
   font-family: Haffer, Arial, Helvetica, sans-serif;
-  --text-size: clamp(10px, 1.011vw, 18.6px);
+  --text-size: 12px;
   font-size: var(--text-size);
   line-height: 1.12;
   color: #b5b5b5;
@@ -38,7 +38,7 @@ button:focus-visible, .rail:focus-visible { outline: 2px solid #838383; outline-
 .tile img.visible { opacity: 1; }
 
 @media (max-width: 600px) {
-  :root { --text-size: 11px; --tile-height: 57svh; --tile-width: calc(var(--tile-height) * .7086); }
+  :root { --tile-height: 57svh; --tile-width: calc(var(--tile-height) * .7086); }
   .masthead { gap: 14px; }
   .about { width: min(58vw, 310px); }
   .menu { gap: 3px; }
@@ -46,7 +46,7 @@ button:focus-visible, .rail:focus-visible { outline: 2px solid #838383; outline-
   .menu button:first-child { padding-inline: 6px; }
 }
 @media (max-height: 500px) and (min-width: 601px) {
-  :root { --text-size: 10px; --tile-height: 54svh; }
+  :root { --tile-height: 54svh; }
   .about { width: 45vw; }
 }
 @media (prefers-reduced-motion: reduce) { .tile img { transition: none; } }
