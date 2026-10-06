@@ -40,7 +40,7 @@ test('loads fresh CMS content and reports API failures', async () => {
 class Element {
   constructor(step = 310) {
     this.step = step;
-    this.children = []; this.dataset = {}; this.style = {}; this.attrs = {};
+    this.children = []; this.dataset = {}; this.style = { setProperty(name, value) { this[name] = value; } }; this.attrs = {};
     this.listeners = {}; this.scrollLeft = 0; this.classes = new Set();
     this.classList = {
       toggle: (name, enabled) => enabled ? this.classes.add(name) : this.classes.delete(name),

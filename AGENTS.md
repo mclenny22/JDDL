@@ -44,10 +44,18 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
 - Menu buttons show numbers by default and reveal Highlights, Index, About and
   random on hover or keyboard focus. These labels retain existing project
   navigation actions; additional project buttons reveal their project titles.
+  Buttons ease to the measured label width over 320ms while number and label
+  fade; reduced motion disables these transitions.
 - No frontend framework or package dependencies are needed. Haffer uses a system
   sans-serif fallback until licensed font files are supplied.
 
 ## Backend and content
+
+- `/api/public` supports read-only cross-origin access (GET/HEAD/OPTIONS).
+  `PUBLIC_API_ORIGINS` defaults to `*`; comma-separated exact origins restrict
+  browser reads, and an empty value disables CORS. Admin APIs do not expose CORS.
+  Optional `PUBLIC_BASE_URL` resolves public image URLs against the CMS domain;
+  admin payloads retain stored URLs. Integration examples are in `docs/PUBLIC_API.md`.
 
 - `backend/server.py` retains the integrated V1 CMS APIs and admin behavior.
   Frontend assets and admin assets have separate routes to avoid CSS conflicts.

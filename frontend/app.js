@@ -24,6 +24,7 @@ async function start() {
     button.dataset.project = String(index);
     button.setAttribute('aria-label', `${menuLabels[index] || project.title} — Show ${project.title}`);
     nav.append(button);
+    button.style.setProperty('--menu-label-width', `${label.scrollWidth}px`);
     return button;
   });
   const status = document.querySelector('#status');
