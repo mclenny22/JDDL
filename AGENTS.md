@@ -54,6 +54,10 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   Other buttons retain project navigation; additional buttons reveal project titles.
   Buttons ease to the measured label width over 320ms while number and label
   fade; reduced motion disables these transitions.
+- Menu navigation fades the outgoing view over 400ms, switches at opacity zero,
+  then eases the incoming view over 800ms with a small directional horizontal
+  offset. The masthead stays fixed. Exit clicks replace the pending destination;
+  autoplay pauses during transitions. Reduced motion switches immediately.
 - No frontend framework or package dependencies are needed. Haffer uses a system
   sans-serif fallback until licensed font files are supplied.
 

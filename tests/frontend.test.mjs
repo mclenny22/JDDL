@@ -82,6 +82,7 @@ async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1
     addEventListener: (key, callback) => { listeners[key] = callback; }, hidden: false,
   };
   const context = vm.createContext({
+    getComputedStyle: () => ({ opacity: '.5', transform: 'matrix(1, 0, 0, 1, 12, 0)' }),
     console, document, performance: { now: () => time },
     loadPortfolio: async () => ({ projects: normalizePortfolio(data), settings: data.settings || {} }),
     matchMedia: () => ({ matches: reduced, addEventListener() {} }), Image: class extends Element { constructor() { super(step); } },
@@ -221,6 +222,7 @@ test('Index opens the CMS-backed V2 grid, pauses galleries, and returns with pro
   const fill = elements['.stories'].children[0].firstElementChild.style.width;
   const railPosition = elements['.rail'].scrollLeft;
   menu.children[1].listeners.click();
+  tick(400);
   assert.equal(elements['.portfolio'].hidden, true);
   assert.equal(elements['#gallery'].hidden, false);
   assert.equal(elements['#gallery'].focused, true);
@@ -234,6 +236,8 @@ test('Index opens the CMS-backed V2 grid, pauses galleries, and returns with pro
   listeners.wheel({ ctrlKey: false, deltaY: 100, preventDefault: () => assert.fail('Hidden rail intercepted wheel') });
   elements['#gallery'].listeners.wheel({ ctrlKey: true, preventDefault: () => assert.fail('Zoom intercepted') });
   elements['#gallery'].listeners.keydown({ key: 'Escape', target: elements['#gallery'], preventDefault() {} });
+  tick(400);
+  tick(800);
   assert.equal(elements['.portfolio'].hidden, false);
   assert.equal(elements['#gallery'].hidden, true);
   assert.equal(elements['.rail'].scrollLeft, railPosition);
@@ -266,6 +270,7 @@ test('Index grows with viewport width and keeps displayed image sides within 800
   for (const width of [320, 1920, 7680]) {
     const { elements, tick } = await mount(data, false, 310, width);
     elements['.menu'].children[1].listeners.click();
+    tick(400);
     sizes.push(parseFloat(elements['#field'].children[1].style['--width']));
     const assertCap = () => {
       for (const tile of elements['#field'].children) {
@@ -281,4 +286,45 @@ test('Index grows with viewport width and keeps displayed image sides within 800
   }
   assert.ok(sizes[1] > sizes[0] * 5);
   assert.ok(sizes[2] > sizes[1] * 3);
+});
+
+
+test('menu transitions defer the switch, accept the latest choice, and clear motion', async () => {
+  const { elements, tick } = await mount();
+  const menu = elements['.menu'];
+  const portfolio = elements['.portfolio'];
+  const index = elements['#gallery'];
+  const rail = elements['.rail'];
+  const position = rail.scrollLeft;
+  const fill = elements['.stories'].children[0].firstElementChild.style.width;
+  menu.children[1].listeners.click();
+  assert.ok(portfolio.classes.has('page-out'));
+  assert.equal(portfolio.inert, true);
+  tick(300);
+  assert.equal(rail.scrollLeft, position);
+  assert.equal(elements['.stories'].children[0].firstElementChild.style.width, fill);
+  // A quick second click wins without briefly opening Index.
+  menu.children[2].listeners.click();
+  tick(100);
+  assert.equal(elements['#project-title'].textContent, seed.projects[2].title);
+  assert.equal(portfolio.hidden, false);
+  assert.ok(portfolio.classes.has('page-in'));
+  assert.equal(portfolio.inert, false);
+  tick(800);
+  assert.ok(!portfolio.classes.has('page-in'));
+  menu.children[1].listeners.click();
+  tick(400);
+  assert.equal(index.hidden, false);
+  assert.ok(index.classes.has('page-in'));
+  // Returning during entrance replaces the animation and restores the rail.
+  menu.children[0].listeners.click();
+  assert.ok(index.classes.has('page-out-back'));
+  assert.equal(index.style['--page-exit-opacity'], '.5');
+  assert.equal(index.style['--page-exit-transform'], 'matrix(1, 0, 0, 1, 12, 0)');
+  tick(400);
+  assert.equal(index.hidden, true);
+  assert.ok(portfolio.classes.has('page-in-back'));
+  tick(800);
+  assert.ok(!portfolio.classes.has('page-in-back'));
+  assert.equal(rail.scrollLeft % 310, 0);
 });

@@ -61,7 +61,13 @@ button:focus-visible, .rail:focus-visible { outline: 2px solid #838383; outline-
 .orbit-gallery { position: fixed; inset: var(--index-top, 150px) 0 0; overflow: hidden; background: #fff; cursor: grab; touch-action: none; user-select: none; }
 .orbit-gallery.is-dragging { cursor: grabbing; }
 .orbit-gallery:focus-visible { outline: 2px solid #838383; outline-offset: -4px; }
-.orbit-field { position: absolute; inset: 0; pointer-events: none; }
+.orbit-field {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
+}
 .orbit-tile { position: absolute; top: 0; left: 0; width: var(--width); height: var(--height); margin: 0; opacity: var(--opacity, 0); transform: translate3d(var(--x, 0), var(--y, 0), 0) rotate(var(--rotation, 0deg)) scale(var(--scale, .4)); transform-origin: center; will-change: transform, opacity; }
 .orbit-tile img { display: block; width: 100%; height: 100%; border-radius: clamp(10px, 2.2vw, 20px); object-fit: cover; }
 .orbit-controls { position: absolute; z-index: 5000; bottom: var(--inset); left: var(--inset); right: var(--inset); display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; cursor: default; text-transform: uppercase; }
@@ -70,3 +76,30 @@ button:focus-visible, .rail:focus-visible { outline: 2px solid #838383; outline-
 .orbit-controls output { min-width: 3em; }
 .orbit-controls span { margin-left: auto; }
 @media (max-width: 600px) { .orbit-controls { gap: 6px 12px; } .orbit-controls span { margin-left: 0; width: 100%; } }
+
+/* Menu navigation shares the reference site's quiet exit and slower entrance. */
+.page-out { animation: page-out 400ms ease-in both; }
+.page-out-back { animation: page-out-back 400ms ease-in both; }
+.page-in { animation: page-in 800ms cubic-bezier(0, .635, .345, 1) both; }
+.page-in-back { animation: page-in-back 800ms cubic-bezier(0, .635, .345, 1) both; }
+@keyframes page-out {
+  from { opacity: var(--page-exit-opacity, 1); transform: var(--page-exit-transform, none); }
+  80% { opacity: 0; }
+  to { opacity: 0; transform: translate3d(-10px, 0, 0); }
+}
+@keyframes page-out-back {
+  from { opacity: var(--page-exit-opacity, 1); transform: var(--page-exit-transform, none); }
+  80% { opacity: 0; }
+  to { opacity: 0; transform: translate3d(10px, 0, 0); }
+}
+@keyframes page-in {
+  from { opacity: 0; transform: translate3d(max(1vw, 25px), 0, 0); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes page-in-back {
+  from { opacity: 0; transform: translate3d(min(-1vw, -25px), 0, 0); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-out, .page-out-back, .page-in, .page-in-back { animation: none; }
+}

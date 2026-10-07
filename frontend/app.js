@@ -56,6 +56,7 @@ async function start() {
   let showingIndex = false;
   let savedRailPosition = 0;
   function showIndex(visible) {
+    if (visible === showingIndex) return;
     if (visible && !showingIndex) savedRailPosition = rail.scrollLeft;
     const returning = showingIndex && !visible;
     showingIndex = visible;
@@ -72,11 +73,78 @@ async function start() {
   indexView.addEventListener('keydown', event => {
     if (event.key === 'Escape') {
       event.preventDefault();
-      showIndex(false);
-      menu[1].focus({ preventScroll: true });
+      transitionTo(active, false, menu[1]);
     }
   });
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  let pageTransition = null;
+  const transitionClasses = ['page-out', 'page-out-back', 'page-in', 'page-in-back'];
+  function clearPageMotion() {
+    for (const view of [portfolio, indexView]) {
+      transitionClasses.forEach(name => view.classList.remove(name));
+      view.inert = false;
+      view.style.setProperty('--page-exit-opacity', '1');
+      view.style.setProperty('--page-exit-transform', 'none');
+    }
+  }
+  function applyDestination(destination) {
+    showIndex(destination.indexView);
+    if (!destination.indexView) navigate(destination.project, true);
+    (destination.focus || (destination.indexView ? indexView : rail)).focus({ preventScroll: true });
+  }
+  function transitionTo(project, index = false, focus = null) {
+    const destination = { project, indexView: index, focus };
+    if (reducedMotion.matches) {
+      clearPageMotion();
+      pageTransition = null;
+      applyDestination(destination);
+      return;
+    }
+    // A second choice during the exit replaces the destination without flashing
+    // an intermediate page. During entrance, fade out from the current position.
+    if (pageTransition?.phase === 'out') {
+      pageTransition.destination = destination;
+      return;
+    }
+    if (!pageTransition && index === showingIndex && (index || project === active)) return;
+    const outgoing = showingIndex ? indexView : portfolio;
+    const interrupted = pageTransition?.phase === 'in' ? getComputedStyle(outgoing) : null;
+    const exitOpacity = interrupted?.opacity || '1';
+    const exitTransform = interrupted?.transform || 'none';
+    clearPageMotion();
+    stopWheel();
+    const backwards = showingIndex && !index || !showingIndex && !index && project < active;
+    outgoing.style.setProperty('--page-exit-opacity', exitOpacity);
+    outgoing.style.setProperty('--page-exit-transform', exitTransform);
+    outgoing.inert = true;
+    outgoing.classList.add(backwards ? 'page-out-back' : 'page-out');
+    pageTransition = { destination, backwards, phase: 'out', started: performance.now() };
+  }
+  function advancePageTransition(now) {
+    if (!pageTransition) return;
+    if (reducedMotion.matches) {
+      const { destination } = pageTransition;
+      clearPageMotion();
+      pageTransition = null;
+      applyDestination(destination);
+      return;
+    }
+    const elapsed = now - pageTransition.started;
+    if (pageTransition.phase === 'out' && elapsed >= 400) {
+      const transition = pageTransition;
+      // Switch only once the old content has faded away. Both views stay in
+      // their original layout so the rail's fractional geometry is preserved.
+      applyDestination(transition.destination);
+      clearPageMotion();
+      const incoming = showingIndex ? indexView : portfolio;
+      incoming.classList.add(transition.backwards ? 'page-in-back' : 'page-in');
+      pageTransition.phase = 'in';
+      pageTransition.started = now;
+    } else if (pageTransition.phase === 'in' && elapsed >= 800) {
+      clearPageMotion();
+      pageTransition = null;
+    }
+  }
   const duration = 4500;
   const copies = 7;
   const middle = Math.floor(copies / 2);
@@ -182,17 +250,16 @@ async function start() {
     });
   }
 
-  function navigate(index) {
+  function navigate(index, immediate = false) {
     stopWheel();
     const base = Math.floor(rail.scrollLeft / cycle) * cycle;
     const options = [base - cycle, base, base + cycle].map(offset => offset + index * step);
     const target = options.reduce((best, value) => Math.abs(value - rail.scrollLeft) < Math.abs(best - rail.scrollLeft) ? value : best);
-    rail.scrollTo({ left: target, behavior: reducedMotion.matches ? 'instant' : 'smooth' });
+    rail.scrollTo({ left: target, behavior: immediate || reducedMotion.matches ? 'instant' : 'smooth' });
   }
   menu.forEach(button => button.addEventListener('click', () => {
     const index = Number(button.dataset.project);
-    showIndex(index === 1);
-    if (index !== 1) navigate(index);
+    transitionTo(index, index === 1);
   }));
   rail.addEventListener('scroll', onScroll, { passive: true });
   rail.addEventListener('scrollend', () => {
@@ -213,7 +280,7 @@ async function start() {
   // Keep horizontal gestures native inside the rail. Route ordinary mouse-wheel
   // input (and gestures over the fixed header) into that same scroll container.
   document.addEventListener('wheel', event => {
-    if (showingIndex || event.ctrlKey) return; // Preserve browser pinch-to-zoom.
+    if (showingIndex || pageTransition || event.ctrlKey) return; // Preserve browser pinch-to-zoom.
     const horizontal = Math.abs(event.deltaX) > Math.abs(event.deltaY);
     if (rail.contains(event.target) && (horizontal || event.shiftKey)) { stopWheel(); return; }
     const delta = horizontal ? event.deltaX : event.deltaY;
@@ -269,10 +336,12 @@ async function start() {
   function animate(now) {
     const delta = Math.min(now - previous, 100);
     previous = now;
+    const transitioning = Boolean(pageTransition);
+    advancePageTransition(now);
     glide(now, delta);
     let changed = false;
     // Inactive projects retain their slide and progress until they return left.
-    if (!showingIndex && !reducedMotion.matches && !document.hidden) {
+    if (!showingIndex && !transitioning && !pageTransition && !reducedMotion.matches && !document.hidden) {
       const gallery = state[active];
       gallery.elapsed += delta;
       if (gallery.elapsed >= duration) {
