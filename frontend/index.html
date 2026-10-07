@@ -23,5 +23,13 @@
       <div class="track"></div>
     </div>
   </main>
+  <section id="gallery" class="orbit-gallery" hidden tabindex="0" role="region" aria-label="Image index. Drag, scroll, or use up and down arrow keys to move vertically. Escape returns to Highlights.">
+    <div id="field" class="orbit-field"></div>
+    <div class="orbit-controls">
+      <label>Order <input id="chaos" type="range" min="0" max="100" value="72" aria-label="Order to chaos"> Chaos <output id="chaos-value" for="chaos">72%</output></label>
+      <label>Thin <input id="viscosity" type="range" min="0" max="100" value="80" aria-label="Motion viscosity"> Thick <output id="viscosity-value" for="viscosity">80%</output></label>
+      <span>Drag or scroll · Esc to Highlights</span>
+    </div>
+  </section>
 </body>
 </html>

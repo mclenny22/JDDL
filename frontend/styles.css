@@ -19,7 +19,7 @@ button:focus-visible, .rail:focus-visible { outline: 2px solid #838383; outline-
 .about { margin: 0; width: min(28.43vw, 523px); font-size: inherit; line-height: inherit; text-transform: uppercase; }
 .about strong { color: #1d1d1d; font-weight: 700; }
 .menu { max-width: 55vw; flex-wrap: wrap; justify-content: flex-end; display: flex; align-items: flex-start; gap: clamp(3px, .272vw, 5px); color: #000; }
-.menu button { border-radius: 4.5px; background: #dfdfdf; min-width: clamp(20px, 1.423vw, 27px); height: clamp(30px, 2.503vw, 46px); padding: 0 6px; font-size: inherit; font-weight: 500; text-transform: uppercase; position: relative; display: inline-grid; place-items: center; transition: background-color 250ms ease; }
+.menu button { border-radius: 4.5px; background: #dfdfdf; min-width: clamp(20px, 1.423vw, 27px); height: clamp(30px, 2.503vw, 46px); padding: 0 6px; font-size: inherit; font-weight: 400; line-height: inherit; text-transform: uppercase; position: relative; display: inline-grid; place-items: center; transition: background-color 250ms ease; }
 .menu-number { position: absolute; opacity: 1; transition: opacity 150ms ease; }
 .menu-label { display: block; max-width: 0; overflow: hidden; white-space: nowrap; opacity: 0; transform: translateY(3px); transition: max-width 320ms cubic-bezier(.22, 1, .36, 1), opacity 200ms ease, transform 320ms cubic-bezier(.22, 1, .36, 1); }
 .menu button:is(:hover, :focus-visible) .menu-label { max-width: var(--menu-label-width); opacity: 1; transform: translateY(0); }
@@ -56,3 +56,17 @@ button:focus-visible, .rail:focus-visible { outline: 2px solid #838383; outline-
 #project-copy { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-top: 0; font-size: inherit; line-height: inherit; text-transform: uppercase; }
 #project-copy:empty { display: none; }
 #status { margin: 0 var(--inset) 20px; font-size: inherit; }
+
+.masthead { z-index: 5000; }
+.orbit-gallery { position: fixed; inset: var(--index-top, 150px) 0 0; overflow: hidden; background: #fff; cursor: grab; touch-action: none; user-select: none; }
+.orbit-gallery.is-dragging { cursor: grabbing; }
+.orbit-gallery:focus-visible { outline: 2px solid #838383; outline-offset: -4px; }
+.orbit-field { position: absolute; inset: 0; pointer-events: none; }
+.orbit-tile { position: absolute; top: 0; left: 0; width: var(--width); height: var(--height); margin: 0; opacity: var(--opacity, 0); transform: translate3d(var(--x, 0), var(--y, 0), 0) rotate(var(--rotation, 0deg)) scale(var(--scale, .4)); transform-origin: center; will-change: transform, opacity; }
+.orbit-tile img { display: block; width: 100%; height: 100%; border-radius: clamp(10px, 2.2vw, 20px); object-fit: cover; }
+.orbit-controls { position: absolute; z-index: 5000; bottom: var(--inset); left: var(--inset); right: var(--inset); display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; cursor: default; text-transform: uppercase; }
+.orbit-controls label { display: flex; align-items: center; gap: 6px; }
+.orbit-controls input { width: clamp(40px, 8vw, 100px); accent-color: #838383; }
+.orbit-controls output { min-width: 3em; }
+.orbit-controls span { margin-left: auto; }
+@media (max-width: 600px) { .orbit-controls { gap: 6px 12px; } .orbit-controls span { margin-left: 0; width: 100%; } }

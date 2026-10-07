@@ -41,19 +41,25 @@ class Element {
   constructor(step = 310) {
     this.step = step;
     this.children = []; this.dataset = {}; this.style = { setProperty(name, value) { this[name] = value; } }; this.attrs = {};
+    this.value = '72'; this.hidden = false;
     this.listeners = {}; this.scrollLeft = 0; this.classes = new Set();
     this.classList = {
       toggle: (name, enabled) => enabled ? this.classes.add(name) : this.classes.delete(name),
       add: name => this.classes.add(name), remove: name => this.classes.delete(name),
     };
   }
-  append(element) { element.parent = this; this.children.push(element); }
+  append(...elements) { elements.forEach(element => { element.parent = this; this.children.push(element); }); }
+  focus() { this.focused = true; }
+  closest() { return null; }
   replaceChildren(...elements) { this.children = []; elements.forEach(element => this.append(element)); }
   setAttribute(key, value) { this.attrs[key] = value; }
   removeAttribute(key) { delete this.attrs[key]; }
-  addEventListener(key, callback) { this.listeners[key] = callback; }
+  addEventListener(key, callback) {
+    const previous = this.listeners[key];
+    this.listeners[key] = previous ? event => { previous(event); callback(event); } : callback;
+  }
   get offsetLeft() { return Math.round(this.parent.children.indexOf(this) * this.step + 16); }
-  getBoundingClientRect() { return { left: this.parent.children.indexOf(this) * this.step + 16, width: this.step - 10 }; }
+  getBoundingClientRect() { return { left: (this.parent?.children.indexOf(this) || 0) * this.step + 16, width: this.step - 10, height: 700, bottom: 100 }; }
   get firstElementChild() { return this.children[0]; }
   get clientWidth() { return 1000; }
   set innerHTML(value) { this.children = [new Element()]; }
@@ -62,12 +68,14 @@ class Element {
 }
 
 async function mount(data = seed, reduced = false, step = 310) {
-  const selectors = ['.rail', '.track', '#project-title', '#project-copy', '.stories', '.about', '.menu', '#status', '.project-context'];
+  const selectors = ['.rail', '.track', '#project-title', '#project-copy', '.stories', '.about', '.menu', '#status', '.project-context', '.portfolio', '#gallery', '#field', '#chaos', '#chaos-value', '#viscosity', '#viscosity-value', '.masthead'];
   const elements = Object.fromEntries(selectors.map(selector => [selector, new Element(step)]));
-  let frame;
+  const frames = new Map();
+  let nextFrame = 0;
   let time = 0;
   const listeners = {};
   const document = {
+    documentElement: new Element(step),
     querySelector: selector => elements[selector],
     createElement: () => new Element(step), createTextNode: text => ({ textContent: text }),
     addEventListener: (key, callback) => { listeners[key] = callback; }, hidden: false,
@@ -75,14 +83,18 @@ async function mount(data = seed, reduced = false, step = 310) {
   const context = vm.createContext({
     console, document, performance: { now: () => time },
     loadPortfolio: async () => ({ projects: normalizePortfolio(data), settings: data.settings || {} }),
-    matchMedia: () => ({ matches: reduced }), Image: class extends Element { constructor() { super(step); } },
-    ResizeObserver: class { observe() {} }, requestAnimationFrame: callback => { frame = callback; },
+    matchMedia: () => ({ matches: reduced, addEventListener() {} }), Image: class extends Element { constructor() { super(step); } },
+    ResizeObserver: class { observe() {} }, requestAnimationFrame: callback => { frames.set(++nextFrame, callback); return nextFrame; },
+    cancelAnimationFrame: id => frames.delete(id),
   });
+  context.window = context;
+  vm.runInContext(fs.readFileSync(new URL('../frontend/orbit.js', import.meta.url), 'utf8').replace('export function', 'function'), context);
   const source = fs.readFileSync(new URL('../frontend/app.js', import.meta.url), 'utf8')
-    .replace("import { loadPortfolio } from './projects.js';", '');
+    .replace("import { loadPortfolio } from './projects.js';", '')
+    .replace("import { createOrbitGrid } from './orbit.js';", '');
   vm.runInContext(source, context);
   await new Promise(resolve => setImmediate(resolve));
-  return { elements, listeners, tick: (delta = 100) => { time += delta; frame?.(time); }, document };
+  return { elements, listeners, tick: (delta = 100) => { time += delta; const pending = [...frames.values()]; frames.clear(); pending.forEach(frame => frame(time)); }, document };
 }
 
 test('only left project advances, CMS descriptions and bars follow selection', async () => {
@@ -96,7 +108,7 @@ test('only left project advances, CMS descriptions and bars follow selection', a
   for (let index = 0; index < 45; index++) tick();
   assert.ok(track.children[0].children[1].classes.has('visible'));
   assert.ok(track.children[1].children[0].classes.has('visible'));
-  menu.children[1].listeners.click();
+  elements['.rail'].listeners.keydown({ key: 'ArrowRight', preventDefault() {} });
   assert.equal(elements['#project-title'].textContent, seed.projects[1].title);
   assert.equal(elements['.stories'].children.length, 10);
   for (let index = 0; index < 45; index++) tick();
@@ -152,7 +164,7 @@ test('fractional tile geometry aligns wheel, menu, story clicks and native settl
   const rail = elements['.rail'];
   assert.equal(rail.scrollLeft, 12 * step);
   assert.equal(elements['.project-context'].style.width, `${step - 10}px`);
-  elements['.menu'].children[1].listeners.click();
+  rail.listeners.keydown({ key: 'ArrowRight', preventDefault() {} });
   assert.equal(rail.scrollLeft, 13 * step);
   listeners.wheel({ ctrlKey: false, deltaX: 0, deltaY: 120, deltaMode: 0,
     target: rail, preventDefault() {} });
@@ -198,4 +210,49 @@ test('saved CMS project order determines the landing project and its first visib
   data.images.filter(image => image.project_ids.includes(featured.id)).forEach(image => { image.archived = 1; });
   const empty = await mount(data);
   assert.equal(empty.elements['#project-title'].textContent, normalizePortfolio(data)[0].title);
+});
+
+
+test('Index opens the CMS-backed V2 grid, pauses galleries, and returns with progress intact', async () => {
+  const { elements, listeners, tick } = await mount();
+  const menu = elements['.menu'];
+  for (let index = 0; index < 10; index++) tick();
+  const fill = elements['.stories'].children[0].firstElementChild.style.width;
+  const railPosition = elements['.rail'].scrollLeft;
+  menu.children[1].listeners.click();
+  assert.equal(elements['.portfolio'].hidden, true);
+  assert.equal(elements['#gallery'].hidden, false);
+  assert.equal(elements['#gallery'].focused, true);
+  assert.equal(menu.children[1].attrs['aria-current'], 'true');
+  const images = elements['#field'].children.map(tile => tile.children[0]);
+  const publicURLs = new Set(normalizePortfolio(seed).flatMap(project => project.images.map(image => image.url)));
+  assert.ok(images.length >= publicURLs.size);
+  assert.ok(images.every(image => publicURLs.has(image.src)));
+  for (let index = 0; index < 50; index++) tick();
+  assert.equal(elements['.stories'].children[0].firstElementChild.style.width, fill);
+  listeners.wheel({ ctrlKey: false, deltaY: 100, preventDefault: () => assert.fail('Hidden rail intercepted wheel') });
+  elements['#gallery'].listeners.wheel({ ctrlKey: true, preventDefault: () => assert.fail('Zoom intercepted') });
+  elements['#gallery'].listeners.keydown({ key: 'Escape', target: elements['#gallery'], preventDefault() {} });
+  assert.equal(elements['.portfolio'].hidden, false);
+  assert.equal(elements['#gallery'].hidden, true);
+  assert.equal(elements['.rail'].scrollLeft, railPosition);
+  assert.equal(menu.children[1].focused, true);
+  tick();
+  assert.notEqual(elements['.stories'].children[0].firstElementChild.style.width, fill);
+});
+
+test('Index remains available with one project and reduced motion responds directly to keys', async () => {
+  const data = structuredClone(seed);
+  data.projects.slice(1).forEach(project => { project.published = 0; });
+  const { elements, tick } = await mount(data, true);
+  elements['.menu'].children[1].listeners.click();
+  tick();
+  const tile = elements['#field'].children[0];
+  const before = tile.style['--y'];
+  elements['#gallery'].listeners.keydown({ key: 'ArrowDown', target: elements['#gallery'], preventDefault() {} });
+  tick();
+  assert.notEqual(tile.style['--y'], before);
+  assert.equal(tile.style['--rotation'], '0.00deg');
+  elements['.menu'].children[0].listeners.click();
+  assert.equal(elements['.portfolio'].hidden, false);
 });

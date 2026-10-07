@@ -43,8 +43,13 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   the measured tile width. Story selection also aligns the active tile, and
   native scroll completion corrects residual misalignment.
 - Menu buttons show numbers by default and reveal Highlights, Index, About and
-  random on hover or keyboard focus. These labels retain existing project
-  navigation actions; additional project buttons reveal their project titles.
+  random on hover or keyboard focus. Labels match the studio copy's regular
+  weight, uppercase type and line height. Button 2 (Index) opens the CMS-backed
+  Orbit Grid V2 in `frontend/orbit.js`: a vertically wrapping center lens with
+  Order–Chaos and viscosity controls, pointer/touch drag, wheel and Up/Down keys.
+  Escape or another menu button returns to the preserved horizontal gallery.
+  Gallery autoplay pauses in Index; reduced motion removes inertia and springs.
+  Other buttons retain project navigation; additional buttons reveal project titles.
   Buttons ease to the measured label width over 320ms while number and label
   fade; reduced motion disables these transitions.
 - No frontend framework or package dependencies are needed. Haffer uses a system

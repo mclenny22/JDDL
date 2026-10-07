@@ -1,4 +1,5 @@
 import { loadPortfolio } from './projects.js';
+import { createOrbitGrid } from './orbit.js';
 
 async function start() {
   const { projects, settings } = await loadPortfolio();
@@ -10,19 +11,24 @@ async function start() {
   about.replaceChildren(studioName, document.createTextNode(rest.length ? ` ${rest.join(' ')}` : ''));
   document.title = `${name || 'JDDL'} — Independent design studio`;
   const nav = document.querySelector('.menu');
+  const masthead = document.querySelector('.masthead');
+  new ResizeObserver(() => {
+    document.documentElement.style.setProperty('--index-top', `${masthead.getBoundingClientRect().bottom + 24}px`);
+  }).observe(masthead);
   nav.replaceChildren();
   const menuLabels = ['Highlights', 'Index', 'About', 'random'];
-  const menu = projects.map((project, index) => {
+  const menu = Array.from({ length: Math.max(2, projects.length) }, (_, index) => {
+    const project = projects[index];
     const button = document.createElement('button');
     const number = document.createElement('span');
     number.className = 'menu-number';
     number.textContent = String(index + 1);
     const label = document.createElement('span');
     label.className = 'menu-label';
-    label.textContent = menuLabels[index] || project.title;
+    label.textContent = menuLabels[index] || project?.title || '';
     button.append(number, label);
     button.dataset.project = String(index);
-    button.setAttribute('aria-label', `${menuLabels[index] || project.title} — Show ${project.title}`);
+    button.setAttribute('aria-label', index === 1 ? 'Index — Explore all images' : `${menuLabels[index] || project?.title || ''}${project ? ` — Show ${project.title}` : ''}`);
     nav.append(button);
     button.style.setProperty('--menu-label-width', `${label.scrollWidth}px`);
     return button;
@@ -44,6 +50,32 @@ async function start() {
     description.textContent = projects[active].description;
   }
   const stories = document.querySelector('.stories');
+  const portfolio = document.querySelector('.portfolio');
+  const indexView = document.querySelector('#gallery');
+  let orbit;
+  let showingIndex = false;
+  let savedRailPosition = 0;
+  function showIndex(visible) {
+    if (visible && !showingIndex) savedRailPosition = rail.scrollLeft;
+    const returning = showingIndex && !visible;
+    showingIndex = visible;
+    stopWheel();
+    portfolio.hidden = visible;
+    indexView.hidden = !visible;
+    if (visible && !orbit) orbit = createOrbitGrid(projects);
+    orbit?.setVisible(visible);
+    if (returning) rail.scrollLeft = savedRailPosition;
+    if (!visible) measure();
+    updateMenu();
+    (visible ? indexView : rail).focus({ preventScroll: true });
+  }
+  indexView.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      showIndex(false);
+      menu[1].focus({ preventScroll: true });
+    }
+  });
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const duration = 4500;
   const copies = 7;
@@ -108,6 +140,7 @@ async function start() {
 
   function measure() {
     stopWheel();
+    if (showingIndex) return;
     const savedProject = step ? Math.round(rail.scrollLeft / step) % projects.length : active;
     // offsetLeft rounds to whole pixels; repeated tiles amplify that rounding
     // into a visible mismatch with CSS snapping. Keep the live fractional geometry.
@@ -120,6 +153,7 @@ async function start() {
   }
 
   function onScroll() {
+    if (showingIndex) return;
     // Rebase by exact whole cycles, keeping identical pixels under the viewport.
     const shift = rail.scrollLeft < cycle * 2 ? cycle * 2 : rail.scrollLeft >= cycle * 5 ? -cycle * 2 : 0;
     if (shift) {
@@ -135,8 +169,13 @@ async function start() {
       renderProgress();
     }
     tiles.forEach((tile, index) => tile.setAttribute('aria-hidden', String(index !== nearest)));
+    updateMenu();
+  }
+
+  function updateMenu() {
     menu.forEach(button => {
-      const selected = Number(button.dataset.project) === active;
+      const index = Number(button.dataset.project);
+      const selected = showingIndex ? index === 1 : index === (active === 1 ? 0 : active);
       button.classList.toggle('selected', selected);
       if (selected) button.setAttribute('aria-current', 'true');
       else button.removeAttribute('aria-current');
@@ -150,7 +189,11 @@ async function start() {
     const target = options.reduce((best, value) => Math.abs(value - rail.scrollLeft) < Math.abs(best - rail.scrollLeft) ? value : best);
     rail.scrollTo({ left: target, behavior: reducedMotion.matches ? 'instant' : 'smooth' });
   }
-  menu.forEach(button => button.addEventListener('click', () => navigate(Number(button.dataset.project))));
+  menu.forEach(button => button.addEventListener('click', () => {
+    const index = Number(button.dataset.project);
+    showIndex(index === 1);
+    if (index !== 1) navigate(index);
+  }));
   rail.addEventListener('scroll', onScroll, { passive: true });
   rail.addEventListener('scrollend', () => {
     if (wheelTarget !== null) return;
@@ -170,7 +213,7 @@ async function start() {
   // Keep horizontal gestures native inside the rail. Route ordinary mouse-wheel
   // input (and gestures over the fixed header) into that same scroll container.
   document.addEventListener('wheel', event => {
-    if (event.ctrlKey) return; // Preserve browser pinch-to-zoom.
+    if (showingIndex || event.ctrlKey) return; // Preserve browser pinch-to-zoom.
     const horizontal = Math.abs(event.deltaX) > Math.abs(event.deltaY);
     if (rail.contains(event.target) && (horizontal || event.shiftKey)) { stopWheel(); return; }
     const delta = horizontal ? event.deltaX : event.deltaY;
@@ -229,7 +272,7 @@ async function start() {
     glide(now, delta);
     let changed = false;
     // Inactive projects retain their slide and progress until they return left.
-    if (!reducedMotion.matches && !document.hidden) {
+    if (!showingIndex && !reducedMotion.matches && !document.hidden) {
       const gallery = state[active];
       gallery.elapsed += delta;
       if (gallery.elapsed >= duration) {
