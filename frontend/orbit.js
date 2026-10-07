@@ -442,6 +442,7 @@ export function createOrbitGrid(projects, onModeChange = () => {}) {
     state.pointerX = event.clientX;
     state.pointerTime = performance.now();
     state.velocityX = state.velocityY = 0;
+    gallery.classList.add("pointer-focused");
     gallery.focus({ preventScroll: true });
     gallery.setPointerCapture(event.pointerId);
     gallery.classList.add("is-dragging");
@@ -505,7 +506,9 @@ export function createOrbitGrid(projects, onModeChange = () => {}) {
     { passive: false },
   );
 
+  gallery.addEventListener("blur", () => gallery.classList.remove("pointer-focused"));
   gallery.addEventListener("keydown", (event) => {
+    gallery.classList.remove("pointer-focused");
     if (event.target.closest("a, button, input, label")) return;
     const distance = event.shiftKey ? 42 : 20;
     const direction = {

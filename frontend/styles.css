@@ -59,8 +59,9 @@ button:focus-visible, .rail:focus-visible { outline: 2px solid #838383; outline-
 
 .masthead { z-index: 5000; }
 .orbit-gallery { position: fixed; inset: var(--index-top, 150px) 0 0; overflow: hidden; background: #fff; cursor: grab; touch-action: none; user-select: none; }
+.orbit-gallery.pointer-focused:focus { outline: none; }
 .orbit-gallery.is-dragging { cursor: grabbing; }
-.orbit-gallery:focus-visible { outline: 2px solid #838383; outline-offset: -4px; }
+.orbit-gallery:focus-visible:not(.pointer-focused) { outline: 2px solid #838383; outline-offset: -4px; }
 .orbit-field {
   position: absolute;
   inset: 0;
