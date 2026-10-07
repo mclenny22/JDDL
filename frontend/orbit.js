@@ -10,6 +10,9 @@ export function createOrbitGrid(projects) {
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   const columns = 3;
+  const gridWidthFraction = 0.8;
+  const maximumImageSide = 800;
+  const maximumLensScale = 1.68;
   const minimumGap = 10;
   const targetGap = minimumGap + 1.25;
 
@@ -110,7 +113,9 @@ export function createOrbitGrid(projects) {
     const rect = gallery.getBoundingClientRect();
     state.width = rect.width;
     state.height = rect.height;
-    state.unit = clamp(rect.width * 0.145, 78, 138);
+    // Measure the seeded layout in unit coordinates, then fit its widest
+    // possible lens silhouette to 80% of the viewport on every screen size.
+    state.unit = 1;
 
     const columnStep = state.unit * 1.44;
     const rowStep = state.unit * 1.32;
@@ -148,8 +153,26 @@ export function createOrbitGrid(projects) {
       tile.element.style.setProperty("--height", `${height}px`);
     });
 
+    const left = Math.min(...state.tiles.map(tile =>
+      tile.baseX - tile.width * maximumLensScale / 2 - Math.abs(tile.edgeNoiseX) * chaos));
+    const right = Math.max(...state.tiles.map(tile =>
+      tile.baseX + tile.width * maximumLensScale / 2 + Math.abs(tile.edgeNoiseX) * chaos));
+    const fit = rect.width * gridWidthFraction / (right - left);
+    state.unit = fit;
+    state.planeWidth *= fit;
+    state.planeHeight *= fit;
+    state.cycleHeight *= fit;
+    state.tiles.forEach(tile => {
+      tile.width *= fit;
+      tile.height *= fit;
+      tile.baseX *= fit;
+      tile.baseY *= fit;
+      tile.element.style.setProperty("--width", `${tile.width}px`);
+      tile.element.style.setProperty("--height", `${tile.height}px`);
+    });
+    state.cameraX = rect.width / 2 - (left + right) * fit / 2;
+
     if (recenter) {
-      state.cameraX = (state.width - state.planeWidth) / 2;
       state.cameraY = (state.height - state.planeHeight) / 2;
       state.velocityY = 0;
       state.tiles.forEach((tile) => {
@@ -240,7 +263,8 @@ export function createOrbitGrid(projects) {
       const focus = Math.exp(-(normalizedY ** 2) * 2.7);
       const edge = 1 - focus;
       const edgeStrength = edge ** 1.35;
-      const scale = reduced ? 0.76 + focus * 0.24 : 0.32 + focus * 1.36;
+      const lensScale = reduced ? 0.76 + focus * 0.24 : 0.32 + focus * 1.36;
+      const scale = Math.min(lensScale, maximumImageSide / Math.max(tile.width, tile.height));
       const rotation = reduced ? 0 : tile.rotationNoise * 7.65 * edgeStrength * chaos;
       const x = naturalX + tile.edgeNoiseX * state.unit * edgeStrength * chaos;
       const y =
@@ -360,6 +384,9 @@ export function createOrbitGrid(projects) {
         tile.opacity += (target.opacity - tile.opacity) * opacityResponse;
       }
 
+      // Springs can overshoot their targets, including during a resize.
+      // Clamp the displayed scale too, so the 800px limit holds in motion.
+      tile.scale = Math.min(tile.scale, maximumImageSide / Math.max(tile.width, tile.height));
       const bounds = rotatedBounds(tile.width, tile.height, tile.scale, tile.rotation);
       return {
         index: tile.index,
@@ -380,7 +407,7 @@ export function createOrbitGrid(projects) {
       tile.y = y;
       tile.element.style.setProperty("--x", `${(x - tile.width / 2).toFixed(2)}px`);
       tile.element.style.setProperty("--y", `${(y - tile.height / 2).toFixed(2)}px`);
-      tile.element.style.setProperty("--scale", tile.scale.toFixed(4));
+      tile.element.style.setProperty("--scale", (Math.floor(tile.scale * 10000) / 10000).toFixed(4));
       tile.element.style.setProperty("--rotation", `${tile.rotation.toFixed(2)}deg`);
       tile.element.style.setProperty("--opacity", tile.opacity.toFixed(3));
       tile.element.style.zIndex = String(Math.round(focus * 1000));

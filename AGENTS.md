@@ -47,6 +47,8 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   weight, uppercase type and line height. Button 2 (Index) opens the CMS-backed
   Orbit Grid V2 in `frontend/orbit.js`: a vertically wrapping center lens with
   Order–Chaos and viscosity controls, pointer/touch drag, wheel and Up/Down keys.
+  The seeded grid fits approximately 80% of the viewport width; displayed image
+  sides are capped at 800px, including during lens spring motion and resizing.
   Escape or another menu button returns to the preserved horizontal gallery.
   Gallery autoplay pauses in Index; reduced motion removes inertia and springs.
   Other buttons retain project navigation; additional buttons reveal project titles.

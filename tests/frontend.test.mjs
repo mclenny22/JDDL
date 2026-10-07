@@ -67,9 +67,10 @@ class Element {
   contains(element) { return element === this; }
 }
 
-async function mount(data = seed, reduced = false, step = 310) {
+async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1000) {
   const selectors = ['.rail', '.track', '#project-title', '#project-copy', '.stories', '.about', '.menu', '#status', '.project-context', '.portfolio', '#gallery', '#field', '#chaos', '#chaos-value', '#viscosity', '#viscosity-value', '.masthead'];
   const elements = Object.fromEntries(selectors.map(selector => [selector, new Element(step)]));
+  elements['#gallery'].getBoundingClientRect = () => ({ width: viewportWidth, height: 700 });
   const frames = new Map();
   let nextFrame = 0;
   let time = 0;
@@ -255,4 +256,29 @@ test('Index remains available with one project and reduced motion responds direc
   assert.equal(tile.style['--rotation'], '0.00deg');
   elements['.menu'].children[0].listeners.click();
   assert.equal(elements['.portfolio'].hidden, false);
+});
+
+
+test('Index grows with viewport width and keeps displayed image sides within 800px in motion', async () => {
+  const data = structuredClone(seed);
+  data.images[0].aspect_ratio = 0.08;
+  const sizes = [];
+  for (const width of [320, 1920, 7680]) {
+    const { elements, tick } = await mount(data, false, 310, width);
+    elements['.menu'].children[1].listeners.click();
+    sizes.push(parseFloat(elements['#field'].children[1].style['--width']));
+    const assertCap = () => {
+      for (const tile of elements['#field'].children) {
+        const longest = Math.max(parseFloat(tile.style['--width']), parseFloat(tile.style['--height']));
+        assert.ok(longest * Number(tile.style['--scale']) <= 800, `Image exceeds cap at viewport ${width}`);
+      }
+    };
+    tick(); assertCap();
+    elements['#chaos'].value = '100';
+    elements['#chaos'].listeners.input();
+    elements['#gallery'].listeners.wheel({ deltaY: 400, deltaMode: 0, preventDefault() {} });
+    for (let frame = 0; frame < 60; frame++) { tick(16); assertCap(); }
+  }
+  assert.ok(sizes[1] > sizes[0] * 5);
+  assert.ok(sizes[2] > sizes[1] * 3);
 });
