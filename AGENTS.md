@@ -49,6 +49,9 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   an Order–Chaos control, pointer/touch drag, wheel and Up/Down keys.
   The seeded grid fits approximately 80% of the viewport width; displayed image
   sides are capped at 800px, including during lens motion and resizing.
+  URL fragments `#index` and `#index/field` open the vertical Index and Infinite
+  field directly. Menu/toggle changes update the URL; browser Back/Forward and
+  hash changes restore the selected view without reloading CMS content.
   A bottom-left Vertical / Infinite field toggle switches to a field wrapping on
   both axes with a radial center lens. Field mode supports two-axis pointer/touch
   drag, trackpad scrolling, Shift-wheel horizontally and all four arrow keys.

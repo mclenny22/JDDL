@@ -1,5 +1,5 @@
 // Adapted from the archived Orbit Grid V2 center-lens motion study.
-export function createOrbitGrid(projects) {
+export function createOrbitGrid(projects, onModeChange = () => {}) {
   const gallery = document.querySelector("#gallery");
   const field = document.querySelector("#field");
   const chaosControl = document.querySelector("#chaos");
@@ -524,10 +524,11 @@ export function createOrbitGrid(projects) {
     interact();
   });
 
-  modeButton.addEventListener("click", () => {
+  function setFieldMode(visible) {
+    if (visible === fieldMode) return;
     cameras.set(fieldMode, { x: state.cameraX, y: state.cameraY });
     if (state.pointerId !== null) endPointer({ pointerId: state.pointerId, type: "pointercancel" });
-    fieldMode = !fieldMode;
+    fieldMode = visible;
     modeButton.textContent = fieldMode ? "Infinite field" : "Vertical";
     modeButton.setAttribute("aria-pressed", String(fieldMode));
     gallery.setAttribute("aria-label", fieldMode
@@ -537,6 +538,10 @@ export function createOrbitGrid(projects) {
     const saved = cameras.get(fieldMode);
     if (saved) { state.cameraX = saved.x; state.cameraY = saved.y; }
     requestFrame();
+  }
+  modeButton.addEventListener("click", () => {
+    setFieldMode(!fieldMode);
+    onModeChange(fieldMode);
   });
 
   chaosControl.addEventListener("input", () => {
@@ -562,6 +567,8 @@ export function createOrbitGrid(projects) {
     requestFrame();
   });
   return {
+    setFieldMode,
+    get fieldMode() { return fieldMode; },
     setVisible(visible) {
       enabled = visible;
       state.lastFrameTime = null;

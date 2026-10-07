@@ -70,7 +70,7 @@ class Element {
   contains(element) { return element === this; }
 }
 
-async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1000) {
+async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1000, initialHash = '') {
   const selectors = ['.rail', '.track', '#project-title', '#project-copy', '.stories', '.about', '.menu', '#status', '.project-context', '.portfolio', '#gallery', '#field', '#chaos', '#chaos-value', '#orbit-mode', '.masthead'];
   const elements = Object.fromEntries(selectors.map(selector => [selector, new Element(step)]));
   elements['#chaos'].value = '80';
@@ -85,7 +85,10 @@ async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1
     createElement: () => new Element(step), createTextNode: text => ({ textContent: text }),
     addEventListener: (key, callback) => { listeners[key] = callback; }, hidden: false,
   };
+  const location = { pathname: '/', search: '', hash: initialHash };
+  const history = { pushState(_state, _title, url) { location.hash = url.includes('#') ? url.slice(url.indexOf('#')) : ''; } };
   const context = vm.createContext({
+    location, history, addEventListener: (key, callback) => { listeners[key] = callback; },
     getComputedStyle: () => ({ opacity: '.5', transform: 'matrix(1, 0, 0, 1, 12, 0)' }),
     console, document, performance: { now: () => time },
     loadPortfolio: async () => ({ projects: normalizePortfolio(data), settings: data.settings || {} }),
@@ -100,7 +103,7 @@ async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1
     .replace("import { createOrbitGrid } from './orbit.js';", '');
   vm.runInContext(source, context);
   await new Promise(resolve => setImmediate(resolve));
-  return { elements, listeners, tick: (delta = 100) => { time += delta; const pending = [...frames.values()]; frames.clear(); pending.forEach(frame => frame(time)); }, document };
+  return { elements, listeners, tick: (delta = 100) => { time += delta; const pending = [...frames.values()]; frames.clear(); pending.forEach(frame => frame(time)); }, document, location };
 }
 
 test('only left project advances, CMS descriptions and bars follow selection', async () => {
@@ -451,4 +454,37 @@ test('stationary Index frames keep identical tile styles without repeated DOM wr
   for (let frame = 0; frame < 10; frame++) tick(16);
   assert.deepEqual(tiles.map(tile => tile.style.writes), before);
   gallery.listeners.pointercancel({ pointerId: 1, type: 'pointercancel' });
+});
+
+
+test('direct Index field URL opens the requested mode and follows view hash changes', async () => {
+  const { elements, listeners, location, tick } = await mount(seed, false, 310, 1000, '#index/field');
+  assert.equal(elements['.portfolio'].hidden, true);
+  assert.equal(elements['#gallery'].hidden, false);
+  assert.equal(elements['#orbit-mode'].attrs['aria-pressed'], 'true');
+  assert.equal(elements['.menu'].children[1].attrs['aria-current'], 'true');
+  assert.ok(!elements['#gallery'].classes.has('page-in'));
+  elements['#orbit-mode'].listeners.click();
+  assert.equal(location.hash, '#index');
+  location.hash = '#index/field'; listeners.hashchange(); tick();
+  assert.equal(elements['#orbit-mode'].attrs['aria-pressed'], 'true');
+  elements['.menu'].children[0].listeners.click(); tick(400);
+  assert.equal(location.hash, '');
+  assert.equal(elements['.portfolio'].hidden, false);
+  // Browser Back dispatches hashchange for the previous Index URL.
+  location.hash = '#index/field'; listeners.hashchange();
+  assert.equal(elements['#gallery'].hidden, false);
+  assert.equal(elements['#orbit-mode'].attrs['aria-pressed'], 'true');
+  location.hash = '#index'; listeners.hashchange();
+  assert.equal(elements['#orbit-mode'].attrs['aria-pressed'], 'false');
+});
+
+test('vertical deep links, unknown fragments and empty CMS content stay usable', async () => {
+  const vertical = await mount(seed, true, 310, 1000, '#index');
+  assert.equal(vertical.elements['#gallery'].hidden, false);
+  assert.notEqual(vertical.elements['#orbit-mode'].attrs['aria-pressed'], 'true');
+  const unknown = await mount(seed, false, 310, 1000, '#unknown');
+  assert.notEqual(unknown.elements['.portfolio'].hidden, true);
+  const empty = await mount({ projects: [], images: [], settings: {} }, false, 310, 1000, '#index/field');
+  assert.equal(empty.elements['#status'].textContent, 'No published projects yet.');
 });

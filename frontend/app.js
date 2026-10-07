@@ -63,7 +63,7 @@ async function start() {
     stopWheel();
     portfolio.hidden = visible;
     indexView.hidden = !visible;
-    if (visible && !orbit) orbit = createOrbitGrid(projects);
+    if (visible && !orbit) orbit = createOrbitGrid(projects, updateViewURL);
     orbit?.setVisible(visible);
     if (returning) rail.scrollLeft = savedRailPosition;
     if (!visible) measure();
@@ -87,9 +87,22 @@ async function start() {
       view.style.setProperty('--page-exit-transform', 'none');
     }
   }
+  function updateViewURL() {
+    const hash = showingIndex ? (orbit?.fieldMode ? '#index/field' : '#index') : '';
+    if (location.hash !== hash) history.pushState(null, '', `${location.pathname}${location.search}${hash}`);
+  }
+  function openURLView() {
+    if (!['', '#index', '#index/field'].includes(location.hash)) return;
+    clearPageMotion();
+    pageTransition = null;
+    const index = location.hash.startsWith('#index');
+    showIndex(index);
+    if (index) orbit.setFieldMode(location.hash === '#index/field');
+  }
   function applyDestination(destination) {
     showIndex(destination.indexView);
     if (!destination.indexView) navigate(destination.project, true);
+    updateViewURL();
     (destination.focus || (destination.indexView ? indexView : rail)).focus({ preventScroll: true });
   }
   function transitionTo(project, index = false, focus = null) {
@@ -358,6 +371,8 @@ async function start() {
   new ResizeObserver(measure).observe(rail);
   measure();
   renderProgress();
+  openURLView();
+  window.addEventListener('hashchange', openURLView);
   requestAnimationFrame(animate);
 
 }
