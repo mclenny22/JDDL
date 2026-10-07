@@ -71,6 +71,8 @@ button:focus-visible, .rail:focus-visible { outline: 2px solid #838383; outline-
 .orbit-tile { position: absolute; top: 0; left: 0; width: var(--width); height: var(--height); margin: 0; opacity: var(--opacity, 0); transform: translate3d(var(--x, 0), var(--y, 0), 0) rotate(var(--rotation, 0deg)) scale(var(--scale, .4)); transform-origin: center; will-change: transform, opacity; }
 .orbit-tile img { display: block; width: 100%; height: 100%; border-radius: clamp(10px, 2.2vw, 20px); object-fit: cover; }
 .orbit-controls { position: absolute; z-index: 5000; bottom: var(--inset); left: var(--inset); right: var(--inset); display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; cursor: default; text-transform: uppercase; }
+.orbit-mode { color: #1d1d1d; background: #dfdfdf; border-radius: 4.5px; padding: 8px 10px; text-transform: uppercase; }
+.orbit-mode[aria-pressed="true"] { background: #d6d6d6; }
 .orbit-controls label { display: flex; align-items: center; gap: 6px; }
 .orbit-controls input { width: clamp(40px, 8vw, 100px); accent-color: #838383; }
 .orbit-controls output { min-width: 3em; }

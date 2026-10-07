@@ -6,10 +6,13 @@ export function createOrbitGrid(projects) {
   const chaosOutput = document.querySelector("#chaos-value");
   const viscosityControl = document.querySelector("#viscosity");
   const viscosityOutput = document.querySelector("#viscosity-value");
+  const modeButton = document.querySelector("#orbit-mode");
   let enabled = false;
+  let fieldMode = false;
+  const cameras = new Map();
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-  const columns = 3;
+  let columns = 3;
   const gridWidthFraction = 0.8;
   const maximumImageSide = 800;
   const maximumLensScale = 1.68;
@@ -18,7 +21,7 @@ export function createOrbitGrid(projects) {
 
   const sources = projects.flatMap(project => project.images.map(image => ({ ...image, projectTitle: project.title })));
 
-  const rows = Math.max(16, Math.ceil(sources.length / columns));
+  let rows = Math.max(16, Math.ceil(sources.length / columns));
   const state = {
     seed: 28117,
     width: 0,
@@ -26,12 +29,15 @@ export function createOrbitGrid(projects) {
     planeWidth: 0,
     planeHeight: 0,
     cycleHeight: 0,
+    cycleWidth: 0,
     unit: 0,
     cameraX: 0,
     cameraY: 0,
     velocityY: 0,
+    velocityX: 0,
     pointerId: null,
     pointerY: 0,
+    pointerX: 0,
     frame: 0,
     tiles: [],
   };
@@ -113,9 +119,18 @@ export function createOrbitGrid(projects) {
     const rect = gallery.getBoundingClientRect();
     state.width = rect.width;
     state.height = rect.height;
-    // Measure the seeded layout in unit coordinates, then fit its widest
-    // possible lens silhouette to 80% of the viewport on every screen size.
-    state.unit = 1;
+    // Vertical mode fits its widest lens silhouette to 80% of the viewport.
+    // Field mode adds offscreen rows and columns so both seams stay out of view.
+    state.unit = fieldMode ? clamp(Math.min(rect.width, rect.height) * 0.22, 64, 220) : 1;
+    const nextColumns = fieldMode ? Math.max(6, Math.ceil(rect.width / (state.unit * 1.44)) + 4) : 3;
+    const nextRows = fieldMode
+      ? Math.ceil(Math.max(6, Math.ceil(rect.height / (state.unit * 1.32)) + 4, sources.length / nextColumns) / 2) * 2
+      : Math.max(16, Math.ceil(sources.length / nextColumns));
+    if (columns !== nextColumns || rows !== nextRows) {
+      columns = nextColumns;
+      rows = nextRows;
+      createTiles();
+    }
 
     const columnStep = state.unit * 1.44;
     const rowStep = state.unit * 1.32;
@@ -126,6 +141,7 @@ export function createOrbitGrid(projects) {
     state.planeWidth = padding * 2 + columnStep * (columns - 0.5) + state.unit * 1.5;
     state.planeHeight = padding * 2 + rowStep * (rows - 1) + state.unit * 1.75;
     state.cycleHeight = rowStep * rows;
+    state.cycleWidth = columnStep * columns;
 
     state.tiles.forEach((tile) => {
       const wide = tile.aspect > 1.2;
@@ -157,11 +173,12 @@ export function createOrbitGrid(projects) {
       tile.baseX - tile.width * maximumLensScale / 2 - Math.abs(tile.edgeNoiseX) * chaos));
     const right = Math.max(...state.tiles.map(tile =>
       tile.baseX + tile.width * maximumLensScale / 2 + Math.abs(tile.edgeNoiseX) * chaos));
-    const fit = rect.width * gridWidthFraction / (right - left);
-    state.unit = fit;
+    const fit = fieldMode ? 1 : rect.width * gridWidthFraction / (right - left);
+    state.unit *= fit;
     state.planeWidth *= fit;
     state.planeHeight *= fit;
     state.cycleHeight *= fit;
+    state.cycleWidth *= fit;
     state.tiles.forEach(tile => {
       tile.width *= fit;
       tile.height *= fit;
@@ -170,11 +187,12 @@ export function createOrbitGrid(projects) {
       tile.element.style.setProperty("--width", `${tile.width}px`);
       tile.element.style.setProperty("--height", `${tile.height}px`);
     });
-    state.cameraX = rect.width / 2 - (left + right) * fit / 2;
+    if (!fieldMode || recenter) state.cameraX = rect.width / 2 - (left + right) * fit / 2;
 
     if (recenter) {
       state.cameraY = (state.height - state.planeHeight) / 2;
       state.velocityY = 0;
+      state.velocityX = 0;
       state.tiles.forEach((tile) => {
         tile.x = Number.NaN;
         tile.y = Number.NaN;
@@ -249,18 +267,22 @@ export function createOrbitGrid(projects) {
 
   function targetLayout() {
     const centerY = state.height / 2;
+    const centerX = state.width / 2;
     const reduced = reducedMotion.matches;
     const chaos = chaosLevel();
 
     const targets = state.tiles.map((tile) => {
-      const naturalX = state.cameraX + tile.baseX;
+      const naturalX = fieldMode
+        ? wrapAround(state.cameraX + tile.baseX, centerX, state.cycleWidth)
+        : state.cameraX + tile.baseX;
       const naturalY = wrapAround(
         state.cameraY + tile.baseY,
         centerY,
         state.cycleHeight,
       );
       const normalizedY = (naturalY - centerY) / (state.height * 0.62);
-      const focus = Math.exp(-(normalizedY ** 2) * 2.7);
+      const normalizedX = fieldMode ? (naturalX - centerX) / (state.width * 0.62) : 0;
+      const focus = Math.exp(-(normalizedY ** 2 + normalizedX ** 2) * 2.7);
       const edge = 1 - focus;
       const edgeStrength = edge ** 1.35;
       const lensScale = reduced ? 0.76 + focus * 0.24 : 0.32 + focus * 1.36;
@@ -274,7 +296,10 @@ export function createOrbitGrid(projects) {
         state.height * 0.7,
         Math.abs(y - centerY),
       );
-      const opacity = clamp(verticalFade, 0, 1);
+      const horizontalFade = fieldMode ? 1 - smoothstep(
+        state.width * 0.5, state.width * 0.7, Math.abs(x - centerX),
+      ) : 1;
+      const opacity = clamp(verticalFade * horizontalFade, 0, 1);
       const bounds = rotatedBounds(tile.width, tile.height, scale, rotation);
 
       return {
@@ -326,10 +351,15 @@ export function createOrbitGrid(projects) {
         tile.motionY = 0;
         tile.motionScale = 0;
         tile.motionRotation = 0;
-      } else if (Math.abs(target.y - tile.y) > state.cycleHeight / 2) {
+      } else if (Math.abs(target.y - tile.y) > state.cycleHeight / 2 ||
+        (fieldMode && Math.abs(target.x - tile.x) > state.cycleWidth / 2)) {
+        // A recycled tile reappears offscreen instead of flying across the lens.
+        tile.x = target.x;
         tile.y = target.y;
+        tile.scale = target.scale;
+        tile.rotation = target.rotation;
         tile.opacity = target.opacity;
-        tile.motionY = 0;
+        tile.motionX = tile.motionY = tile.motionScale = tile.motionRotation = 0;
       } else if (reduced) {
         tile.x = target.x;
         tile.y = target.y;
@@ -419,6 +449,7 @@ export function createOrbitGrid(projects) {
   function normalizeCamera() {
     if (!state.cycleHeight) return;
     state.cameraY = wrapAround(state.cameraY, 0, state.cycleHeight);
+    if (fieldMode) state.cameraX = wrapAround(state.cameraX, 0, state.cycleWidth);
   }
 
   function animate() {
@@ -428,14 +459,17 @@ export function createOrbitGrid(projects) {
 
     if (state.pointerId === null) {
       state.cameraY += state.velocityY;
-      state.velocityY *= reduced ? 0 : mix(0.92, 0.76, viscosityLevel());
+      if (fieldMode) state.cameraX += state.velocityX;
+      const damping = reduced ? 0 : mix(0.92, 0.76, viscosityLevel());
+      state.velocityY *= damping;
+      state.velocityX *= damping;
     }
 
     normalizeCamera();
     const unsettled = render();
     const moving =
       state.pointerId !== null ||
-      Math.abs(state.velocityY) > 0.015;
+      Math.abs(state.velocityY) > 0.015 || Math.abs(state.velocityX) > 0.015;
 
     if (moving || unsettled) requestFrame();
   }
@@ -451,11 +485,14 @@ export function createOrbitGrid(projects) {
   }
 
   gallery.addEventListener("pointerdown", (event) => {
+    if (state.pointerId !== null) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
     if (event.target.closest("a, button, input, label")) return;
     state.pointerId = event.pointerId;
     state.pointerY = event.clientY;
-    state.velocityY = 0;
+    state.pointerX = event.clientX;
+    state.velocityX = state.velocityY = 0;
+    gallery.focus({ preventScroll: true });
     gallery.setPointerCapture(event.pointerId);
     gallery.classList.add("is-dragging");
     interact();
@@ -464,15 +501,22 @@ export function createOrbitGrid(projects) {
   gallery.addEventListener("pointermove", (event) => {
     if (event.pointerId !== state.pointerId) return;
     const deltaY = event.clientY - state.pointerY;
+    const deltaX = event.clientX - state.pointerX;
     state.pointerY = event.clientY;
+    state.pointerX = event.clientX;
+    if (fieldMode) {
+      state.cameraX += deltaX;
+      state.velocityX = reducedMotion.matches ? 0 : deltaX;
+    }
     state.cameraY += deltaY;
-    state.velocityY = deltaY;
+    state.velocityY = reducedMotion.matches ? 0 : deltaY;
     requestFrame();
   });
 
   function endPointer(event) {
     if (event.pointerId !== state.pointerId) return;
     state.pointerId = null;
+    if (event.type === "pointercancel") state.velocityX = state.velocityY = 0;
     gallery.classList.remove("is-dragging");
     if (gallery.hasPointerCapture(event.pointerId)) {
       gallery.releasePointerCapture(event.pointerId);
@@ -489,12 +533,16 @@ export function createOrbitGrid(projects) {
       if (event.ctrlKey) return;
       event.preventDefault();
       const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? state.height : 1;
-      const vertical = (event.deltaY || event.deltaX) * unit;
+      const vertical = (fieldMode ? (event.shiftKey ? 0 : event.deltaY) : (event.deltaY || event.deltaX)) * unit;
+      const horizontal = fieldMode ? ((event.deltaX || 0) + (event.shiftKey ? event.deltaY : 0)) * unit : 0;
 
       if (reducedMotion.matches) {
         state.cameraY -= vertical * 0.8;
+        state.cameraX -= horizontal * 0.8;
       } else {
-        state.velocityY -= vertical * mix(0.09, 0.04, viscosityLevel());
+        const response = mix(0.09, 0.04, viscosityLevel());
+        state.velocityY -= vertical * response;
+        state.velocityX -= horizontal * response;
       }
       interact();
     },
@@ -505,15 +553,34 @@ export function createOrbitGrid(projects) {
     if (event.target.closest("a, button, input, label")) return;
     const distance = event.shiftKey ? 42 : 20;
     const direction = {
-      ArrowUp: distance,
-      ArrowDown: -distance,
+      ArrowUp: [0, distance], ArrowDown: [0, -distance],
+      ...(fieldMode ? { ArrowLeft: [distance, 0], ArrowRight: [-distance, 0] } : {}),
     }[event.key];
-
     if (!direction) return;
     event.preventDefault();
-    if (reducedMotion.matches) state.cameraY += direction * 5;
-    else state.velocityY += direction;
+    if (reducedMotion.matches) {
+      state.cameraX += direction[0] * 5;
+      state.cameraY += direction[1] * 5;
+    } else {
+      state.velocityX += direction[0];
+      state.velocityY += direction[1];
+    }
     interact();
+  });
+
+  modeButton.addEventListener("click", () => {
+    cameras.set(fieldMode, { x: state.cameraX, y: state.cameraY });
+    if (state.pointerId !== null) endPointer({ pointerId: state.pointerId, type: "pointercancel" });
+    fieldMode = !fieldMode;
+    modeButton.textContent = fieldMode ? "Infinite field" : "Vertical";
+    modeButton.setAttribute("aria-pressed", String(fieldMode));
+    gallery.setAttribute("aria-label", fieldMode
+      ? "Image index. Drag in any direction, scroll, or use all four arrow keys. Shift-scroll moves horizontally. Escape returns to Highlights."
+      : "Image index. Drag, scroll, or use up and down arrow keys to move vertically. Escape returns to Highlights.");
+    layout({ recenter: true });
+    const saved = cameras.get(fieldMode);
+    if (saved) { state.cameraX = saved.x; state.cameraY = saved.y; }
+    requestFrame();
   });
 
   chaosControl.addEventListener("input", () => {
@@ -530,7 +597,7 @@ export function createOrbitGrid(projects) {
     if (enabled) layout({ recenter: true });
   }).observe(gallery);
   reducedMotion.addEventListener("change", () => {
-    state.velocityY = 0;
+    state.velocityX = state.velocityY = 0;
     requestFrame();
   });
 
@@ -540,13 +607,13 @@ export function createOrbitGrid(projects) {
   layout({ recenter: true });
 
   document.addEventListener("visibilitychange", () => {
-    state.velocityY = 0;
+    state.velocityX = state.velocityY = 0;
     requestFrame();
   });
   return {
     setVisible(visible) {
       enabled = visible;
-      state.velocityY = 0;
+      state.velocityX = state.velocityY = 0;
       if (visible) layout({ recenter: !state.width });
       else {
         cancelAnimationFrame(state.frame);

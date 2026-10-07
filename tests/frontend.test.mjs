@@ -51,6 +51,9 @@ class Element {
   append(...elements) { elements.forEach(element => { element.parent = this; this.children.push(element); }); }
   focus() { this.focused = true; }
   closest() { return null; }
+  setPointerCapture(id) { this.capturedPointer = id; }
+  hasPointerCapture(id) { return this.capturedPointer === id; }
+  releasePointerCapture() { this.capturedPointer = null; }
   replaceChildren(...elements) { this.children = []; elements.forEach(element => this.append(element)); }
   setAttribute(key, value) { this.attrs[key] = value; }
   removeAttribute(key) { delete this.attrs[key]; }
@@ -68,7 +71,7 @@ class Element {
 }
 
 async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1000) {
-  const selectors = ['.rail', '.track', '#project-title', '#project-copy', '.stories', '.about', '.menu', '#status', '.project-context', '.portfolio', '#gallery', '#field', '#chaos', '#chaos-value', '#viscosity', '#viscosity-value', '.masthead'];
+  const selectors = ['.rail', '.track', '#project-title', '#project-copy', '.stories', '.about', '.menu', '#status', '.project-context', '.portfolio', '#gallery', '#field', '#chaos', '#chaos-value', '#viscosity', '#viscosity-value', '#orbit-mode', '.masthead'];
   const elements = Object.fromEntries(selectors.map(selector => [selector, new Element(step)]));
   elements['#gallery'].getBoundingClientRect = () => ({ width: viewportWidth, height: 700 });
   const frames = new Map();
@@ -327,4 +330,68 @@ test('menu transitions defer the switch, accept the latest choice, and clear mot
   tick(800);
   assert.ok(!portfolio.classes.has('page-in-back'));
   assert.equal(rail.scrollLeft % 310, 0);
+});
+
+test('Infinite field toggles two-axis input and restores the vertical camera', async () => {
+  const { elements, tick } = await mount(seed, true);
+  elements['.menu'].children[1].listeners.click();
+  tick();
+  const gallery = elements['#gallery'];
+  const mode = elements['#orbit-mode'];
+  const snapshot = () => elements['#field'].children.map(tile => [tile.style['--x'], tile.style['--y']]);
+  const vertical = snapshot();
+  mode.listeners.click(); tick();
+  assert.equal(mode.attrs['aria-pressed'], 'true');
+  assert.equal(mode.textContent, 'Infinite field');
+  assert.match(gallery.attrs['aria-label'], /all four arrow keys/);
+  const initial = snapshot();
+  gallery.listeners.wheel({ deltaX: 75, deltaY: 0, deltaMode: 0, preventDefault() {} });
+  tick();
+  assert.notDeepEqual(snapshot().map(tile => tile[0]), initial.map(tile => tile[0]));
+  let before = snapshot();
+  gallery.listeners.wheel({ shiftKey: true, deltaX: 0, deltaY: 100, deltaMode: 0, preventDefault() {} });
+  tick();
+  assert.notDeepEqual(snapshot().map(tile => tile[0]), before.map(tile => tile[0]));
+  before = snapshot();
+  gallery.listeners.keydown({ key: 'ArrowLeft', target: gallery, preventDefault() {} }); tick();
+  assert.notDeepEqual(snapshot().map(tile => tile[0]), before.map(tile => tile[0]));
+  before = snapshot();
+  gallery.listeners.pointerdown({ pointerType: 'touch', pointerId: 1, target: gallery, clientX: 50, clientY: 50 });
+  gallery.listeners.pointermove({ pointerId: 1, clientX: 150, clientY: 120 }); tick();
+  assert.notDeepEqual(snapshot().map(tile => tile[0]), before.map(tile => tile[0]));
+  assert.notDeepEqual(snapshot().map(tile => tile[1]), before.map(tile => tile[1]));
+  gallery.listeners.pointercancel({ pointerId: 1, type: 'pointercancel' });
+  assert.equal(gallery.capturedPointer, null);
+  mode.listeners.click(); tick();
+  assert.equal(mode.attrs['aria-pressed'], 'false');
+  assert.deepEqual(snapshot(), vertical);
+  gallery.listeners.keydown({ key: 'ArrowRight', target: gallery,
+    preventDefault() { assert.fail('Vertical mode must leave horizontal keys alone'); } });
+});
+
+test('Infinite field recycles in every direction, fills the viewport and keeps the image cap', async () => {
+  const data = structuredClone(seed);
+  data.images[0].aspect_ratio = 0.08;
+  for (const reduced of [true, false]) {
+    const { elements, tick } = await mount(data, reduced, 310, 1920);
+    elements['.menu'].children[1].listeners.click(); tick(400);
+    elements['#orbit-mode'].listeners.click(); tick();
+    const gallery = elements['#gallery'];
+    for (const sign of [-1, 1]) {
+      gallery.listeners.wheel({ deltaX: sign * 1000000, deltaY: sign * 1000000, deltaMode: 0, preventDefault() {} });
+      for (let frame = 0; frame < 20; frame++) {
+        tick(16);
+        for (const tile of elements['#field'].children) {
+          const longest = Math.max(parseFloat(tile.style['--width']), parseFloat(tile.style['--height']));
+          assert.ok(longest * Number(tile.style['--scale']) <= 800);
+          assert.ok(Number.isFinite(parseFloat(tile.style['--x'])));
+          assert.ok(Number.isFinite(parseFloat(tile.style['--y'])));
+        }
+      }
+      const visible = elements['#field'].children.filter(tile => Number(tile.style['--opacity']) > 0.05);
+      assert.ok(visible.length > 6, 'Field stays populated after crossing many cycles');
+      assert.ok(new Set(visible.map(tile => tile.style['--scale'])).size > 3, 'Center lens varies image scale');
+    }
+    gallery.listeners.wheel({ ctrlKey: true, preventDefault() { assert.fail('Pinch zoom intercepted'); } });
+  }
 });

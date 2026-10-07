@@ -49,6 +49,11 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   Order–Chaos and viscosity controls, pointer/touch drag, wheel and Up/Down keys.
   The seeded grid fits approximately 80% of the viewport width; displayed image
   sides are capped at 800px, including during lens spring motion and resizing.
+  A bottom-left Vertical / Infinite field toggle switches to a field wrapping on
+  both axes with a radial center lens. Field mode supports two-axis pointer/touch
+  drag, trackpad scrolling, Shift-wheel horizontally and all four arrow keys.
+  Each mode retains its camera while toggling; both keep the 800px image cap
+  and the image layer's top/bottom fade.
   Escape or another menu button returns to the preserved horizontal gallery.
   Gallery autoplay pauses in Index; reduced motion removes inertia and springs.
   Other buttons retain project navigation; additional buttons reveal project titles.
