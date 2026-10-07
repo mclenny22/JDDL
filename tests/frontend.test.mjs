@@ -73,6 +73,8 @@ class Element {
 async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1000) {
   const selectors = ['.rail', '.track', '#project-title', '#project-copy', '.stories', '.about', '.menu', '#status', '.project-context', '.portfolio', '#gallery', '#field', '#chaos', '#chaos-value', '#viscosity', '#viscosity-value', '#orbit-mode', '.masthead'];
   const elements = Object.fromEntries(selectors.map(selector => [selector, new Element(step)]));
+  elements['#chaos'].value = '70';
+  elements['#viscosity'].value = '15';
   elements['#gallery'].getBoundingClientRect = () => ({ width: viewportWidth, height: 700 });
   const frames = new Map();
   let nextFrame = 0;
@@ -393,5 +395,47 @@ test('Infinite field recycles in every direction, fills the viewport and keeps t
       assert.ok(new Set(visible.map(tile => tile.style['--scale'])).size > 3, 'Center lens varies image scale');
     }
     gallery.listeners.wheel({ ctrlKey: true, preventDefault() { assert.fail('Pinch zoom intercepted'); } });
+  }
+});
+
+test('lens scale settles toward its new resting size without overshooting', async () => {
+  const { elements, tick } = await mount();
+  elements['.menu'].children[1].listeners.click(); tick(400); tick(800);
+  for (let frame = 0; frame < 60; frame++) tick(16);
+  const scale = () => elements['#field'].children.map(tile => Number(tile.style['--scale']));
+  const samples = [scale()];
+  elements['#chaos'].value = '0'; elements['#chaos'].listeners.input();
+  for (let frame = 0; frame < 120; frame++) { tick(16); samples.push(scale()); }
+  const final = samples.at(-1);
+  assert.ok(samples[0].some((value, index) => Math.abs(value - final[index]) > .05));
+  for (let index = 0; index < final.length; index++) {
+    const start = samples[0][index];
+    const direction = Math.sign(final[index] - start);
+    for (let frame = 1; frame < samples.length; frame++) {
+      const value = samples[frame][index];
+      assert.ok(value >= Math.min(start, final[index]) - .0002);
+      assert.ok(value <= Math.max(start, final[index]) + .0002);
+      assert.ok((value - samples[frame - 1][index]) * direction >= -.0002);
+    }
+  }
+});
+
+test('field coasting and settling remain consistent at 60Hz and 120Hz', async () => {
+  const runs = [];
+  for (const interval of [1000 / 60, 1000 / 120]) {
+    const { elements, tick } = await mount();
+    elements['.menu'].children[1].listeners.click(); tick(400); tick(800);
+    elements['#orbit-mode'].listeners.click();
+    for (let elapsed = 0; elapsed < 1000; elapsed += interval) tick(interval);
+    elements['#gallery'].listeners.wheel({ deltaX: 80, deltaY: 60, deltaMode: 0, preventDefault() {} });
+    for (let frame = 0; frame < Math.round(1500 / interval); frame++) tick(interval);
+    runs.push(elements['#field'].children.map(tile => ({
+      x: parseFloat(tile.style['--x']), y: parseFloat(tile.style['--y']), scale: Number(tile.style['--scale']),
+    })));
+  }
+  for (let index = 0; index < runs[0].length; index++) {
+    assert.ok(Math.abs(runs[0][index].x - runs[1][index].x) < 1);
+    assert.ok(Math.abs(runs[0][index].y - runs[1][index].y) < 1);
+    assert.ok(Math.abs(runs[0][index].scale - runs[1][index].scale) < .002);
   }
 });

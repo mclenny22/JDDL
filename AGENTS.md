@@ -48,14 +48,18 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   Orbit Grid V2 in `frontend/orbit.js`: a vertically wrapping center lens with
   Order–Chaos and viscosity controls, pointer/touch drag, wheel and Up/Down keys.
   The seeded grid fits approximately 80% of the viewport width; displayed image
-  sides are capped at 800px, including during lens spring motion and resizing.
+  sides are capped at 800px, including during lens motion and resizing.
   A bottom-left Vertical / Infinite field toggle switches to a field wrapping on
   both axes with a radial center lens. Field mode supports two-axis pointer/touch
   drag, trackpad scrolling, Shift-wheel horizontally and all four arrow keys.
   Each mode retains its camera while toggling; both keep the 800px image cap
   and the image layer's top/bottom fade.
   Escape or another menu button returns to the preserved horizontal gallery.
-  Gallery autoplay pauses in Index; reduced motion removes inertia and springs.
+  Gallery autoplay pauses in Index; reduced motion removes inertia and easing.
+  Grid controls default to Order–Chaos 70 and Thin–Thick 15. Images settle with
+  elapsed-time exponential easing without spring overshoot. Spacing is resolved
+  once in target geometry with blended separation axes; displayed cards ease
+  toward those positions. Drag velocity and coasting account for elapsed time.
   Other buttons retain project navigation; additional buttons reveal project titles.
   Buttons ease to the measured label width over 320ms while number and label
   fade; reduced motion disables these transitions.

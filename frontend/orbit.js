@@ -10,6 +10,7 @@ export function createOrbitGrid(projects) {
   let enabled = false;
   let fieldMode = false;
   const cameras = new Map();
+  let cachedLayout = null;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   let columns = 3;
@@ -39,6 +40,8 @@ export function createOrbitGrid(projects) {
     pointerY: 0,
     pointerX: 0,
     frame: 0,
+    lastFrameTime: null,
+    pointerTime: 0,
     tiles: [],
   };
 
@@ -109,13 +112,13 @@ export function createOrbitGrid(projects) {
           edgeNoiseX: noise(index, 5), edgeNoiseY: noise(index, 6),
           x: Number.NaN, y: Number.NaN, scale: Number.NaN,
           rotation: Number.NaN, opacity: Number.NaN,
-          motionX: 0, motionY: 0, motionScale: 0, motionRotation: 0,
         });
       }
     }
   }
 
   function layout({ recenter = false } = {}) {
+    cachedLayout = null;
     const rect = gallery.getBoundingClientRect();
     state.width = rect.width;
     state.height = rect.height;
@@ -197,10 +200,6 @@ export function createOrbitGrid(projects) {
         tile.x = Number.NaN;
         tile.y = Number.NaN;
         tile.scale = Number.NaN;
-        tile.motionX = 0;
-        tile.motionY = 0;
-        tile.motionScale = 0;
-        tile.motionRotation = 0;
       });
     }
 
@@ -245,19 +244,17 @@ export function createOrbitGrid(projects) {
           const firstShare = firstMobility / totalMobility;
           const secondShare = secondMobility / totalMobility;
 
-          if (overlapX < overlapY) {
-            const direction = deltaX === 0
-              ? first.index < second.index ? -1 : 1
-              : Math.sign(deltaX);
-            first.x += direction * overlapX * firstShare;
-            second.x -= direction * overlapX * secondShare;
-          } else {
-            const direction = deltaY === 0
-              ? first.index < second.index ? -1 : 1
-              : Math.sign(deltaY);
-            first.y += direction * overlapY * firstShare;
-            second.y -= direction * overlapY * secondShare;
-          }
+          // Blend the two separation axes instead of abruptly flipping the
+          // preferred axis as two cards move through the lens.
+          const sum = overlapX ** 2 + overlapY ** 2;
+          const shareX = overlapY ** 2 / sum;
+          const shareY = 1 - shareX;
+          const directionX = deltaX === 0 ? (first.index < second.index ? -1 : 1) : Math.sign(deltaX);
+          const directionY = deltaY === 0 ? (first.index < second.index ? -1 : 1) : Math.sign(deltaY);
+          first.x += directionX * overlapX * shareX * firstShare;
+          second.x -= directionX * overlapX * shareX * secondShare;
+          first.y += directionY * overlapY * shareY * firstShare;
+          second.y -= directionY * overlapY * shareY * secondShare;
         }
       }
 
@@ -266,6 +263,11 @@ export function createOrbitGrid(projects) {
   }
 
   function targetLayout() {
+    // Once panning stops, settling needs only easing, not another collision solve.
+    if (cachedLayout && cachedLayout.cameraX === state.cameraX &&
+      cachedLayout.cameraY === state.cameraY && cachedLayout.reduced === reducedMotion.matches) {
+      return cachedLayout.targets;
+    }
     const centerY = state.height / 2;
     const centerX = state.width / 2;
     const reduced = reducedMotion.matches;
@@ -317,25 +319,19 @@ export function createOrbitGrid(projects) {
     });
 
     separate(targets, targetGap, 14);
+    cachedLayout = { cameraX: state.cameraX, cameraY: state.cameraY, reduced, targets };
     return targets;
   }
 
-  function viscousStep(tile, property, motionProperty, target, stiffness, friction) {
-    tile[motionProperty] =
-      (tile[motionProperty] + (target - tile[property]) * stiffness) * friction;
-    tile[property] += tile[motionProperty];
-  }
-
-  function render() {
+  function render(elapsed) {
     const targets = targetLayout();
     const reduced = reducedMotion.matches;
     const viscosity = viscosityLevel();
-    const interactionBoost = state.pointerId === null ? 1 : 1.35;
-    const positionStiffness = mix(0.18, 0.025, viscosity) * interactionBoost;
-    const positionFriction = mix(0.68, 0.48, viscosity);
-    const transformStiffness = mix(0.13, 0.018, viscosity) * interactionBoost;
-    const transformFriction = mix(0.66, 0.5, viscosity);
-    const opacityResponse = mix(0.3, 0.08, viscosity);
+    // Exponential settling approaches the target without overshooting. Lens
+    // changes trail position slightly, letting images grow and settle gently.
+    const positionResponse = 1 - Math.exp(-elapsed / mix(100, 320, viscosity));
+    const transformResponse = 1 - Math.exp(-elapsed / mix(180, 420, viscosity));
+    const opacityResponse = 1 - Math.exp(-elapsed / mix(110, 260, viscosity));
     let unsettled = false;
 
     const visible = targets.map((target) => {
@@ -347,10 +343,6 @@ export function createOrbitGrid(projects) {
         tile.scale = target.scale;
         tile.rotation = target.rotation;
         tile.opacity = target.opacity;
-        tile.motionX = 0;
-        tile.motionY = 0;
-        tile.motionScale = 0;
-        tile.motionRotation = 0;
       } else if (Math.abs(target.y - tile.y) > state.cycleHeight / 2 ||
         (fieldMode && Math.abs(target.x - tile.x) > state.cycleWidth / 2)) {
         // A recycled tile reappears offscreen instead of flying across the lens.
@@ -359,78 +351,32 @@ export function createOrbitGrid(projects) {
         tile.scale = target.scale;
         tile.rotation = target.rotation;
         tile.opacity = target.opacity;
-        tile.motionX = tile.motionY = tile.motionScale = tile.motionRotation = 0;
       } else if (reduced) {
         tile.x = target.x;
         tile.y = target.y;
         tile.scale = target.scale;
         tile.rotation = target.rotation;
         tile.opacity = target.opacity;
-        tile.motionX = 0;
-        tile.motionY = 0;
-        tile.motionScale = 0;
-        tile.motionRotation = 0;
       } else {
         unsettled ||= Math.abs(target.x - tile.x) > 0.08;
         unsettled ||= Math.abs(target.y - tile.y) > 0.08;
         unsettled ||= Math.abs(target.scale - tile.scale) > 0.0008;
         unsettled ||= Math.abs(target.rotation - tile.rotation) > 0.005;
-        unsettled ||= Math.abs(tile.motionX) > 0.01;
-        unsettled ||= Math.abs(tile.motionY) > 0.01;
-        unsettled ||= Math.abs(tile.motionScale) > 0.0001;
-        unsettled ||= Math.abs(tile.motionRotation) > 0.001;
-        viscousStep(
-          tile,
-          "x",
-          "motionX",
-          target.x,
-          positionStiffness,
-          positionFriction,
-        );
-        viscousStep(
-          tile,
-          "y",
-          "motionY",
-          target.y,
-          positionStiffness,
-          positionFriction,
-        );
-        viscousStep(
-          tile,
-          "scale",
-          "motionScale",
-          target.scale,
-          transformStiffness,
-          transformFriction,
-        );
-        viscousStep(
-          tile,
-          "rotation",
-          "motionRotation",
-          target.rotation,
-          transformStiffness,
-          transformFriction,
-        );
+        unsettled ||= Math.abs(target.opacity - tile.opacity) > 0.001;
+        tile.x += (target.x - tile.x) * positionResponse;
+        tile.y += (target.y - tile.y) * positionResponse;
+        tile.scale += (target.scale - tile.scale) * transformResponse;
+        tile.rotation += (target.rotation - tile.rotation) * transformResponse;
         tile.opacity += (target.opacity - tile.opacity) * opacityResponse;
       }
 
-      // Springs can overshoot their targets, including during a resize.
-      // Clamp the displayed scale too, so the 800px limit holds in motion.
+      // Keep the displayed size capped while dimensions change on resize.
       tile.scale = Math.min(tile.scale, maximumImageSide / Math.max(tile.width, tile.height));
-      const bounds = rotatedBounds(tile.width, tile.height, tile.scale, tile.rotation);
-      return {
-        index: tile.index,
-        tile,
-        x: tile.x,
-        y: tile.y,
-        width: bounds.width,
-        height: bounds.height,
-        opacity: tile.opacity,
-        focus: target.focus,
-      };
+      return { tile, x: tile.x, y: tile.y, focus: target.focus };
     });
 
-    separate(visible, minimumGap + 0.15, 8);
+    // Targets already resolve spacing. Re-solving displayed positions here
+    // would fight their easing and make neighboring images keep pushing back.
 
     visible.forEach(({ tile, x, y, focus }) => {
       tile.x = x;
@@ -452,30 +398,39 @@ export function createOrbitGrid(projects) {
     if (fieldMode) state.cameraX = wrapAround(state.cameraX, 0, state.cycleWidth);
   }
 
-  function animate() {
+  function animate(now) {
     state.frame = 0;
     if (!enabled || document.hidden) return;
     const reduced = reducedMotion.matches;
+    const elapsed = state.lastFrameTime === null ? 1000 / 60 : clamp(now - state.lastFrameTime, 1, 64);
+    state.lastFrameTime = now;
 
     if (state.pointerId === null) {
-      state.cameraY += state.velocityY;
-      if (fieldMode) state.cameraX += state.velocityX;
-      const damping = reduced ? 0 : mix(0.92, 0.76, viscosityLevel());
+      const coastTime = mix(160, 65, viscosityLevel());
+      const damping = reduced ? 0 : Math.exp(-elapsed / coastTime);
+      const nominalDamping = Math.exp(-(1000 / 60) / coastTime);
+      const travel = reduced ? 0 : (1 - damping) / (1 - nominalDamping);
+      state.cameraY += state.velocityY * travel;
+      if (fieldMode) state.cameraX += state.velocityX * travel;
       state.velocityY *= damping;
       state.velocityX *= damping;
+      if (Math.abs(state.velocityX) < 0.015) state.velocityX = 0;
+      if (Math.abs(state.velocityY) < 0.015) state.velocityY = 0;
     }
 
     normalizeCamera();
-    const unsettled = render();
+    const unsettled = render(elapsed);
     const moving =
       state.pointerId !== null ||
       Math.abs(state.velocityY) > 0.015 || Math.abs(state.velocityX) > 0.015;
 
     if (moving || unsettled) requestFrame();
+    else state.lastFrameTime = null;
   }
 
   function requestFrame() {
     if (!enabled || document.hidden || state.frame) return;
+    if (state.lastFrameTime === null) state.lastFrameTime = performance.now();
     state.frame = requestAnimationFrame(animate);
   }
 
@@ -491,6 +446,7 @@ export function createOrbitGrid(projects) {
     state.pointerId = event.pointerId;
     state.pointerY = event.clientY;
     state.pointerX = event.clientX;
+    state.pointerTime = performance.now();
     state.velocityX = state.velocityY = 0;
     gallery.focus({ preventScroll: true });
     gallery.setPointerCapture(event.pointerId);
@@ -500,23 +456,29 @@ export function createOrbitGrid(projects) {
 
   gallery.addEventListener("pointermove", (event) => {
     if (event.pointerId !== state.pointerId) return;
+    const now = performance.now();
+    const elapsed = Math.max(8, now - state.pointerTime);
+    state.pointerTime = now;
+    const response = 1 - Math.exp(-elapsed / 45);
     const deltaY = event.clientY - state.pointerY;
     const deltaX = event.clientX - state.pointerX;
     state.pointerY = event.clientY;
     state.pointerX = event.clientX;
     if (fieldMode) {
       state.cameraX += deltaX;
-      state.velocityX = reducedMotion.matches ? 0 : deltaX;
+      const speed = deltaX * (1000 / 60) / elapsed;
+      state.velocityX = reducedMotion.matches ? 0 : mix(state.velocityX, speed, response);
     }
     state.cameraY += deltaY;
-    state.velocityY = reducedMotion.matches ? 0 : deltaY;
+    const speed = deltaY * (1000 / 60) / elapsed;
+    state.velocityY = reducedMotion.matches ? 0 : mix(state.velocityY, speed, response);
     requestFrame();
   });
 
   function endPointer(event) {
     if (event.pointerId !== state.pointerId) return;
     state.pointerId = null;
-    if (event.type === "pointercancel") state.velocityX = state.velocityY = 0;
+    if (event.type === "pointercancel" || performance.now() - state.pointerTime > 80) state.velocityX = state.velocityY = 0;
     gallery.classList.remove("is-dragging");
     if (gallery.hasPointerCapture(event.pointerId)) {
       gallery.releasePointerCapture(event.pointerId);
@@ -607,12 +569,14 @@ export function createOrbitGrid(projects) {
   layout({ recenter: true });
 
   document.addEventListener("visibilitychange", () => {
+    state.lastFrameTime = null;
     state.velocityX = state.velocityY = 0;
     requestFrame();
   });
   return {
     setVisible(visible) {
       enabled = visible;
+      state.lastFrameTime = null;
       state.velocityX = state.velocityY = 0;
       if (visible) layout({ recenter: !state.width });
       else {
