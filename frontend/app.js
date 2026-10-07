@@ -351,7 +351,7 @@ async function start() {
       }
     }
     if (changed) renderSlides();
-    renderProgress();
+    if (!showingIndex && !document.hidden) renderProgress();
     requestAnimationFrame(animate);
   }
   renderDescription();

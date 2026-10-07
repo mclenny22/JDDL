@@ -4,8 +4,6 @@ export function createOrbitGrid(projects) {
   const field = document.querySelector("#field");
   const chaosControl = document.querySelector("#chaos");
   const chaosOutput = document.querySelector("#chaos-value");
-  const viscosityControl = document.querySelector("#viscosity");
-  const viscosityOutput = document.querySelector("#viscosity-value");
   const modeButton = document.querySelector("#orbit-mode");
   let enabled = false;
   let fieldMode = false;
@@ -71,15 +69,6 @@ export function createOrbitGrid(projects) {
     chaosControl.style.setProperty("--progress", `${chaosControl.value}%`);
   }
 
-  function viscosityLevel() {
-    return Number(viscosityControl.value) / 100;
-  }
-
-  function updateViscosityControl() {
-    viscosityOutput.value = `${viscosityControl.value}%`;
-    viscosityControl.style.setProperty("--progress", `${viscosityControl.value}%`);
-  }
-
   function noise(index, channel = 0) {
     const raw = Math.sin(state.seed * 0.019 + index * 91.73 + channel * 37.11) * 43758.5453;
     return (raw - Math.floor(raw)) * 2 - 1;
@@ -106,7 +95,7 @@ export function createOrbitGrid(projects) {
         field.append(figure);
         state.tiles.push({
           index, row, column, aspect: Number(source.aspect_ratio) || 1,
-          element: figure,
+          element: figure, paint: {},
           offsetX: noise(index, 1), offsetY: noise(index, 2),
           sizeNoise: noise(index, 3), rotationNoise: noise(index, 4),
           edgeNoiseX: noise(index, 5), edgeNoiseY: noise(index, 6),
@@ -168,8 +157,6 @@ export function createOrbitGrid(projects) {
         tile.offsetX * state.unit * 0.31 * chaos;
       tile.baseY =
         padding + tile.row * rowStep + tile.offsetY * state.unit * 0.25 * chaos;
-      tile.element.style.setProperty("--width", `${width}px`);
-      tile.element.style.setProperty("--height", `${height}px`);
     });
 
     const left = Math.min(...state.tiles.map(tile =>
@@ -187,8 +174,8 @@ export function createOrbitGrid(projects) {
       tile.height *= fit;
       tile.baseX *= fit;
       tile.baseY *= fit;
-      tile.element.style.setProperty("--width", `${tile.width}px`);
-      tile.element.style.setProperty("--height", `${tile.height}px`);
+      paint(tile, "--width", `${tile.width}px`);
+      paint(tile, "--height", `${tile.height}px`);
     });
     if (!fieldMode || recenter) state.cameraX = rect.width / 2 - (left + right) * fit / 2;
 
@@ -323,15 +310,22 @@ export function createOrbitGrid(projects) {
     return targets;
   }
 
+  function paint(tile, property, value) {
+    // Quantized values often stay unchanged across frames, especially at the
+    // edges. Keep identical pixels without repeating style mutations.
+    if (tile.paint[property] === value) return;
+    tile.paint[property] = value;
+    tile.element.style.setProperty(property, value);
+  }
+
   function render(elapsed) {
     const targets = targetLayout();
     const reduced = reducedMotion.matches;
-    const viscosity = viscosityLevel();
     // Exponential settling approaches the target without overshooting. Lens
     // changes trail position slightly, letting images grow and settle gently.
-    const positionResponse = 1 - Math.exp(-elapsed / mix(100, 320, viscosity));
-    const transformResponse = 1 - Math.exp(-elapsed / mix(180, 420, viscosity));
-    const opacityResponse = 1 - Math.exp(-elapsed / mix(110, 260, viscosity));
+    const positionResponse = 1 - Math.exp(-elapsed / 100);
+    const transformResponse = 1 - Math.exp(-elapsed / 180);
+    const opacityResponse = 1 - Math.exp(-elapsed / 110);
     let unsettled = false;
 
     const visible = targets.map((target) => {
@@ -381,12 +375,12 @@ export function createOrbitGrid(projects) {
     visible.forEach(({ tile, x, y, focus }) => {
       tile.x = x;
       tile.y = y;
-      tile.element.style.setProperty("--x", `${(x - tile.width / 2).toFixed(2)}px`);
-      tile.element.style.setProperty("--y", `${(y - tile.height / 2).toFixed(2)}px`);
-      tile.element.style.setProperty("--scale", (Math.floor(tile.scale * 10000) / 10000).toFixed(4));
-      tile.element.style.setProperty("--rotation", `${tile.rotation.toFixed(2)}deg`);
-      tile.element.style.setProperty("--opacity", tile.opacity.toFixed(3));
-      tile.element.style.zIndex = String(Math.round(focus * 1000));
+      paint(tile, "--x", `${(x - tile.width / 2).toFixed(2)}px`);
+      paint(tile, "--y", `${(y - tile.height / 2).toFixed(2)}px`);
+      paint(tile, "--scale", (Math.floor(tile.scale * 10000) / 10000).toFixed(4));
+      paint(tile, "--rotation", `${tile.rotation.toFixed(2)}deg`);
+      paint(tile, "--opacity", tile.opacity.toFixed(3));
+      paint(tile, "z-index", String(Math.round(focus * 1000)));
     });
 
     return unsettled;
@@ -406,7 +400,7 @@ export function createOrbitGrid(projects) {
     state.lastFrameTime = now;
 
     if (state.pointerId === null) {
-      const coastTime = mix(160, 65, viscosityLevel());
+      const coastTime = 160;
       const damping = reduced ? 0 : Math.exp(-elapsed / coastTime);
       const nominalDamping = Math.exp(-(1000 / 60) / coastTime);
       const travel = reduced ? 0 : (1 - damping) / (1 - nominalDamping);
@@ -502,7 +496,7 @@ export function createOrbitGrid(projects) {
         state.cameraY -= vertical * 0.8;
         state.cameraX -= horizontal * 0.8;
       } else {
-        const response = mix(0.09, 0.04, viscosityLevel());
+        const response = 0.09;
         state.velocityY -= vertical * response;
         state.velocityX -= horizontal * response;
       }
@@ -550,11 +544,6 @@ export function createOrbitGrid(projects) {
     layout();
   });
 
-  viscosityControl.addEventListener("input", () => {
-    updateViscosityControl();
-    requestFrame();
-  });
-
   new ResizeObserver(() => {
     if (enabled) layout({ recenter: true });
   }).observe(gallery);
@@ -564,7 +553,6 @@ export function createOrbitGrid(projects) {
   });
 
   updateChaosControl();
-  updateViscosityControl();
   createTiles();
   layout({ recenter: true });
 

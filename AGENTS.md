@@ -46,7 +46,7 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   random on hover or keyboard focus. Labels match the studio copy's regular
   weight, uppercase type and line height. Button 2 (Index) opens the CMS-backed
   Orbit Grid V2 in `frontend/orbit.js`: a vertically wrapping center lens with
-  Order–Chaos and viscosity controls, pointer/touch drag, wheel and Up/Down keys.
+  an Order–Chaos control, pointer/touch drag, wheel and Up/Down keys.
   The seeded grid fits approximately 80% of the viewport width; displayed image
   sides are capped at 800px, including during lens motion and resizing.
   A bottom-left Vertical / Infinite field toggle switches to a field wrapping on
@@ -56,7 +56,9 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   and the image layer's top/bottom fade.
   Escape or another menu button returns to the preserved horizontal gallery.
   Gallery autoplay pauses in Index; reduced motion removes inertia and easing.
-  Grid controls default to Order–Chaos 70 and Thin–Thick 15. Images settle with
+  Order–Chaos defaults to 80; motion stays at the thinnest setting with no
+  Thin–Thick control. Unchanged tile styles and hidden gallery progress skip
+  redundant DOM writes. Images settle with
   elapsed-time exponential easing without spring overshoot. Spacing is resolved
   once in target geometry with blended separation axes; displayed cards ease
   toward those positions. Drag velocity and coasting account for elapsed time.

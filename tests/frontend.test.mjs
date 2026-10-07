@@ -40,7 +40,7 @@ test('loads fresh CMS content and reports API failures', async () => {
 class Element {
   constructor(step = 310) {
     this.step = step;
-    this.children = []; this.dataset = {}; this.style = { setProperty(name, value) { this[name] = value; } }; this.attrs = {};
+    this.children = []; this.dataset = {}; this.style = { writes: 0, setProperty(name, value) { this.writes++; this[name] = value; } }; this.attrs = {};
     this.value = '72'; this.hidden = false;
     this.listeners = {}; this.scrollLeft = 0; this.classes = new Set();
     this.classList = {
@@ -71,10 +71,9 @@ class Element {
 }
 
 async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1000) {
-  const selectors = ['.rail', '.track', '#project-title', '#project-copy', '.stories', '.about', '.menu', '#status', '.project-context', '.portfolio', '#gallery', '#field', '#chaos', '#chaos-value', '#viscosity', '#viscosity-value', '#orbit-mode', '.masthead'];
+  const selectors = ['.rail', '.track', '#project-title', '#project-copy', '.stories', '.about', '.menu', '#status', '.project-context', '.portfolio', '#gallery', '#field', '#chaos', '#chaos-value', '#orbit-mode', '.masthead'];
   const elements = Object.fromEntries(selectors.map(selector => [selector, new Element(step)]));
-  elements['#chaos'].value = '70';
-  elements['#viscosity'].value = '15';
+  elements['#chaos'].value = '80';
   elements['#gallery'].getBoundingClientRect = () => ({ width: viewportWidth, height: 700 });
   const frames = new Map();
   let nextFrame = 0;
@@ -438,4 +437,18 @@ test('field coasting and settling remain consistent at 60Hz and 120Hz', async ()
     assert.ok(Math.abs(runs[0][index].y - runs[1][index].y) < 1);
     assert.ok(Math.abs(runs[0][index].scale - runs[1][index].scale) < .002);
   }
+});
+
+
+test('stationary Index frames keep identical tile styles without repeated DOM writes', async () => {
+  const { elements, tick } = await mount(seed, true);
+  elements['.menu'].children[1].listeners.click(); tick();
+  assert.equal(elements['#chaos-value'].value, '80%');
+  const tiles = elements['#field'].children;
+  const before = tiles.map(tile => tile.style.writes);
+  const gallery = elements['#gallery'];
+  gallery.listeners.pointerdown({ pointerType: 'touch', pointerId: 1, target: gallery, clientX: 50, clientY: 50 });
+  for (let frame = 0; frame < 10; frame++) tick(16);
+  assert.deepEqual(tiles.map(tile => tile.style.writes), before);
+  gallery.listeners.pointercancel({ pointerId: 1, type: 'pointercancel' });
 });
