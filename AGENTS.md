@@ -59,6 +59,8 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   and the image layer's top/bottom fade.
   Escape or another menu button returns to the preserved horizontal gallery.
   Gallery autoplay pauses in Index; reduced motion removes inertia and easing.
+  A Radius slider sets image corners from 0px to 20px (default 20px) in both
+  grid modes without recalculating layout; its value survives mode switches.
   Order–Chaos defaults to 80; motion stays at the thinnest setting with no
   Thin–Thick control. Unchanged tile styles and hidden gallery progress skip
   redundant DOM writes. Images settle with

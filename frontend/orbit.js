@@ -4,6 +4,8 @@ export function createOrbitGrid(projects, onModeChange = () => {}) {
   const field = document.querySelector("#field");
   const chaosControl = document.querySelector("#chaos");
   const chaosOutput = document.querySelector("#chaos-value");
+  const radiusControl = document.querySelector("#orbit-radius");
+  const radiusOutput = document.querySelector("#orbit-radius-value");
   const modeButton = document.querySelector("#orbit-mode");
   let enabled = false;
   let fieldMode = false;
@@ -67,6 +69,13 @@ export function createOrbitGrid(projects, onModeChange = () => {}) {
   function updateChaosControl() {
     chaosOutput.value = `${chaosControl.value}%`;
     chaosControl.style.setProperty("--progress", `${chaosControl.value}%`);
+  }
+
+  function updateRadius() {
+    const radius = clamp(Number(radiusControl.value), 0, 20);
+    field.style.setProperty("--orbit-radius", `${radius}px`);
+    radiusOutput.value = `${radius}px`;
+    radiusControl.setAttribute("aria-valuetext", `${radius} pixels`);
   }
 
   function noise(index, channel = 0) {
@@ -552,6 +561,8 @@ export function createOrbitGrid(projects, onModeChange = () => {}) {
     layout();
   });
 
+  radiusControl.addEventListener("input", updateRadius);
+
   new ResizeObserver(() => {
     if (enabled) layout({ recenter: true });
   }).observe(gallery);
@@ -561,6 +572,7 @@ export function createOrbitGrid(projects, onModeChange = () => {}) {
   });
 
   updateChaosControl();
+  updateRadius();
   createTiles();
   layout({ recenter: true });
 

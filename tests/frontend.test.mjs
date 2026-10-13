@@ -71,9 +71,10 @@ class Element {
 }
 
 async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1000, initialHash = '') {
-  const selectors = ['.rail', '.track', '#project-title', '#project-copy', '.stories', '.about', '.menu', '#status', '.project-context', '.portfolio', '#gallery', '#field', '#chaos', '#chaos-value', '#orbit-mode', '.masthead'];
+  const selectors = ['.rail', '.track', '#project-title', '#project-copy', '.stories', '.about', '.menu', '#status', '.project-context', '.portfolio', '#gallery', '#field', '#chaos', '#chaos-value', '#orbit-radius', '#orbit-radius-value', '#orbit-mode', '.masthead'];
   const elements = Object.fromEntries(selectors.map(selector => [selector, new Element(step)]));
   elements['#chaos'].value = '80';
+  elements['#orbit-radius'].value = '20';
   elements['#gallery'].getBoundingClientRect = () => ({ width: viewportWidth, height: 700 });
   const frames = new Map();
   let nextFrame = 0;
