@@ -473,8 +473,23 @@ class Handler(SimpleHTTPRequestHandler):
         self.json_response({"deleted": True})
 
     def save_settings(self, payload: dict) -> None:
-        allowed = {"eyebrow", "about", "clients"}
+        allowed = {"eyebrow", "about", "clients", "footer_contact", "footer_address", "footer_email"}
+        placement = payload.get("image_layout")
+        if placement is not None:
+            if not isinstance(placement, dict) or not re.fullmatch(r"[a-zA-Z0-9-]+", str(placement.get("id", ""))):
+                raise ValueError("Ungültige Bildplatzierung")
+            for key, maximum in (("column", 7), ("span", 7), ("row", 1000)):
+                value = placement.get(key)
+                if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= maximum:
+                    raise ValueError("Spalte und Breite: 1–7; Zeile: 1–1000")
+            if placement["column"] + placement["span"] > 8:
+                raise ValueError("Das Bild muss innerhalb der sieben Spalten bleiben")
         with connect(PROJECTS_DB) as db:
+            if placement is not None:
+                record = db.execute("SELECT value FROM settings WHERE key = 'project_layout'").fetchone()
+                layout = json.loads(record["value"]) if record else {}
+                layout[placement["id"]] = {key: placement[key] for key in ("column", "span", "row")}
+                db.execute("INSERT INTO settings VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ("project_layout", json.dumps(layout)))
             for key, value in payload.items():
                 if key in allowed:
                     db.execute("INSERT INTO settings VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, str(value)))

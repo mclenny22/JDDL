@@ -63,7 +63,7 @@ The response contains four top-level fields:
 | `projects` | Published projects, ordered by `sort_order`, then title. Fields include `id`, `slug`, `title`, `client`, `description`, `published`, `sort_order`, `created_at`, and `updated_at`. |
 | `images` | Published, unarchived images. Fields include `id`, `url`, `alt_text`, `aspect_ratio` (width / height), `original_name`, `filename`, `remote_url`, `mime_type`, `published`, `archived`, timestamps, `project_ids`, and `tag_ids`. |
 | `tags` | Tags with `id`, `slug`, `name`, and `sort_order`. |
-| `settings` | Studio settings as a key/value object, including `about`. |
+| `settings` | Studio settings as a key/value object, including `about`, `footer_contact`, `footer_address`, `footer_email` and optional `project_layout` (a JSON string mapping image IDs to `{column, span, row}` placements in the seven-column detail grid). |
 
 IDs are strings. Publication/archive flags are SQLite integers (`0` / `1`).
 Each image has at most one project assignment; `project_ids` is still an array

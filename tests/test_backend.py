@@ -53,6 +53,22 @@ class BackendIntegrationTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.cookie = headers['Set-Cookie'].split(';')[0]
 
+    def test_footer_and_seven_column_layout_are_saved_and_validated(self):
+        self.login()
+        first = {"id": "showcase-01", "column": 2, "span": 3, "row": 8}
+        second = {"id": "showcase-02", "column": 5, "span": 3, "row": 1}
+        self.assertEqual(self.request('POST', '/api/settings', {"footer_address": "Berlin", "image_layout": first})[0], 200)
+        self.assertEqual(self.request('POST', '/api/settings', {"image_layout": second})[0], 200)
+        settings = json.loads(self.request('GET', '/api/public')[2])["settings"]
+        self.assertEqual(settings["footer_address"], "Berlin")
+        layout = json.loads(settings["project_layout"])
+        self.assertEqual(layout[first["id"]], {"column": 2, "span": 3, "row": 8})
+        self.assertEqual(layout[second["id"]], {"column": 5, "span": 3, "row": 1})
+        for invalid in ({**first, "column": 6}, {**first, "span": 0}, {**first, "row": 1001}, {**first, "column": True}):
+            self.assertEqual(self.request('POST', '/api/settings', {"image_layout": invalid})[0], 400)
+        unchanged = json.loads(self.request('GET', '/api/public')[2])["settings"]
+        self.assertEqual(unchanged, settings)
+
     def test_new_site_and_admin_assets_do_not_conflict(self):
         status, _, page = self.request('GET', '/')
         self.assertEqual(status, 200)

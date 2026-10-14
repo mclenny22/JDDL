@@ -9,9 +9,13 @@
   <script type="module" src="app.js"></script>
 </head>
 <body>
+  <svg class="menu-shape-definitions" width="0" height="0" aria-hidden="true" focusable="false">
+    <defs><clipPath id="menu-scalloped-pill" clipPathUnits="objectBoundingBox"><path d="M .12 0 H .88 C .92 0 .90 .16 .96 .20 C 1 .23 1 .35 .97 .50 C 1 .65 1 .77 .96 .80 C .90 .84 .92 1 .88 1 H .12 C .08 1 .10 .84 .04 .80 C 0 .77 0 .65 .03 .50 C 0 .35 0 .23 .04 .20 C .10 .16 .08 0 .12 0 Z"/></clipPath></defs>
+  </svg>
   <header class="masthead">
-    <p class="about"></p>
-    <nav class="menu" aria-label="Projects"></nav>
+    <div class="studio"><a class="studio-logo" href="#" aria-label="Selected projects"><img class="logo-dark" src="assets/logo.svg" alt="Studio logo"><img class="logo-light" src="assets/logo-light.svg" alt="" aria-hidden="true"></a><p class="about"></p></div>
+    <button class="mobile-menu-trigger" type="button" aria-controls="studio-menu" aria-expanded="false">MENU</button>
+    <nav id="studio-menu" class="menu" aria-label="Projects"></nav>
   </header>
   <main class="portfolio" aria-label="Selected projects">
     <p id="status" role="status">Loading projects…</p>
@@ -23,14 +27,18 @@
       <div class="track"></div>
     </div>
   </main>
-  <section id="gallery" class="orbit-gallery" hidden tabindex="0" role="region" aria-label="Image index. Drag, scroll, or use up and down arrow keys to move vertically. Escape returns to Highlights.">
+  <section id="gallery" class="orbit-gallery" hidden tabindex="0" role="region" aria-label="Image index. Drag in any direction, scroll, or use all four arrow keys. Shift-scroll moves horizontally. Escape returns to Selected.">
     <div id="field" class="orbit-field"></div>
-    <div class="orbit-controls">
-      <button id="orbit-mode" class="orbit-mode" type="button" aria-label="Infinite field mode" aria-pressed="false">Vertical</button>
-      <label>Order <input id="chaos" type="range" min="0" max="100" value="80" aria-label="Order to chaos"> Chaos <output id="chaos-value" for="chaos">80%</output></label>
-      <label>Radius <input id="orbit-radius" type="range" min="0" max="20" step="1" value="20" aria-label="Image corner radius"> <output id="orbit-radius-value" for="orbit-radius">20px</output></label>
-      <span>Drag or scroll · Esc to Highlights</span>
+
+  </section>
+  <section id="project-detail" class="project-detail" hidden tabindex="-1" aria-label="Project detail">
+    <button class="project-close" type="button" aria-label="Return to selected projects">Back to selected ↗</button>
+    <div class="project-detail-content">
+      <div class="project-detail-info"></div>
+      <img class="project-hero" alt="">
+      <div class="project-grid"></div>
     </div>
   </section>
+  <footer class="site-footer"><p id="footer-contact"></p><p id="footer-address"></p><p id="footer-email"></p></footer>
 </body>
 </html>

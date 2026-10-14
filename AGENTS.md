@@ -15,9 +15,15 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
 
 ## Frontend
 
-- `frontend/index.html`, `styles.css`, and `app.js` implement the white horizontal
-  portfolio based on Figma node `563:1020`: fixed studio copy at top left, menu
-  at top right, descriptions and story bars above bottom-aligned portrait tiles.
+- `frontend/index.html`, `styles.css`, and `app.js` implement the light horizontal
+  portfolio based on Figma section `703:3051` (landing `701:2931`, detail
+  `701:2989`): fixed SVG wordmark and CMS studio copy at top left, menu at top
+  right, captions above bottom-aligned portrait tiles and a three-column footer.
+  On desktop the wordmark is 47.04px tall (three 14px body lines); below 600px
+  it fits beside a single MENU disclosure button, with studio copy underneath.
+  The mobile menu closes on selection, outside click or Escape.
+  `frontend/assets/` contains the exported dark/light wordmarks. Footer text
+  uses the shared body copy and is editable under Studio-Informationen.
 - `frontend/projects.js` fetches `/api/public` with caching disabled and groups
   public images by their single project assignment. Only published projects
   with published, unarchived assigned images appear. Menu items and story bars
@@ -26,8 +32,10 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   asset fallback or hardcoded project content belongs in the active frontend.
 - Seven repeated project sets rebase by whole cycles for an endless rail. Only
   the active project nearest the left edge advances every 4.5 seconds. Inactive
-  galleries retain slide/progress and resume when active again. There is no
-  pause button or hover pause. Reduced motion disables autoplay and crossfades;
+  galleries retain slide/progress and resume when active again. The rail also drifts continuously at 18px/s, easing to .35px/s on hover
+  or keyboard focus. Gallery image autoplay slows on hover as well. Manual
+  wheel, touch and keyboard input suspends drift for 3.5 seconds. There is no
+  pause button. Reduced motion disables autoplay and crossfades;
   manual slide selection remains available.
 - Mouse-wheel input anywhere on the page eases into the native horizontal rail
   and settles onto a project after a 140ms input pause. Short intentional wheel
@@ -36,44 +44,50 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   temporarily disables native snapping and rebases its target with the rail.
   Reduced motion skips easing; browser pinch-to-zoom is preserved. The focused
   rail supports Left/Right/Home/End. Resize preserves the active project.
-- About, project text and menu share a fixed 12px root font size and 1.12 line
+- About, project text and menu share a fixed 14px root font size and 1.12 line
   height across all viewport sizes. Story fills animate their actual width with fixed round
   caps, rather than scaling their shape. Rail spacing uses fractional bounding
   rectangles to match native snapping exactly; the context/progress width follows
   the measured tile width. Story selection also aligns the active tile, and
   native scroll completion corrects residual misalignment.
-- Menu buttons show numbers by default and reveal Highlights, Index, About and
-  random on hover or keyboard focus. Labels match the studio copy's regular
-  weight, uppercase type and line height. Button 2 (Index) opens the CMS-backed
-  Orbit Grid V2 in `frontend/orbit.js`: a vertically wrapping center lens with
-  an Order–Chaos control, pointer/touch drag, wheel and Up/Down keys.
-  The seeded grid fits approximately 80% of the viewport width; displayed image
-  sides are capped at 800px, including during lens motion and resizing.
-  URL fragments `#index` and `#index/field` open the vertical Index and Infinite
-  field directly. Menu/toggle changes update the URL; browser Back/Forward and
-  hash changes restore the selected view without reloading CMS content.
-  A bottom-left Vertical / Infinite field toggle switches to a field wrapping on
-  both axes with a radial center lens. Field mode supports two-axis pointer/touch
-  drag, trackpad scrolling, Shift-wheel horizontally and all four arrow keys.
-  Each mode retains its camera while toggling; both keep the 800px image cap
-  and the image layer's top/bottom fade.
+- Menu buttons show numbers by default; the selected item always shows its
+  label in a pill. Each selection chooses rounded, 45-degree beveled, scalloped
+  or asymmetric curved ends; it keeps that shape until another selection.
+  Hover or keyboard focus on unselected desktop numbers randomly chooses a
+  triangle, square or circle background, keeping the number visible. Background
+  geometry uses a pseudo-element so labels and focus rings are not clipped and
+  hit areas remain rectangular. Mobile retains its MENU disclosure and text list.
+  Projects opens the active project detail. Labels use the shared regular-weight,
+  uppercase 14px copy. Reduced motion disables label transitions.
+- Button 2 (Index) opens the CMS-backed Infinite field in `frontend/orbit.js`,
+  wrapping on both axes with a radial center lens. It has no controls overlay:
+  Order–Chaos is fixed at 80% and image corners are fixed at 2px. The field supports
+  two-axis pointer/touch drag, trackpad scrolling, Shift-wheel horizontally and
+  all four arrow keys. Both `#index` and `#index/field` open the field; the legacy
+  URL is replaced with `#index/field` without adding a history entry. Browser
+  Back/Forward restores the view without reloading CMS content. The image layer
+  keeps its top/bottom fade and 800px cap during motion and resizing.
   Escape or another menu button returns to the preserved horizontal gallery.
-  Gallery autoplay pauses in Index; reduced motion removes inertia and easing.
-  A Radius slider sets image corners from 0px to 20px (default 20px) in both
-  grid modes without recalculating layout; its value survives mode switches.
-  Order–Chaos defaults to 80; motion stays at the thinnest setting with no
-  Thin–Thick control. Unchanged tile styles and hidden gallery progress skip
-  redundant DOM writes. Images settle with
-  elapsed-time exponential easing without spring overshoot. Spacing is resolved
-  once in target geometry with blended separation axes; displayed cards ease
-  toward those positions. Drag velocity and coasting account for elapsed time.
-  Other buttons retain project navigation; additional buttons reveal project titles.
-  Buttons ease to the measured label width over 320ms while number and label
-  fade; reduced motion disables these transitions.
+  Gallery autoplay and rail drift pause in Index and project detail; reduced
+  motion removes inertia and easing. Unchanged tile styles and hidden gallery
+  progress skip redundant DOM writes. Images settle with elapsed-time exponential
+  easing without spring overshoot. Spacing is resolved once in target geometry
+  with blended separation axes; displayed cards ease toward those positions.
+  Drag velocity and coasting account for elapsed time.
 - Menu navigation fades the outgoing view over 400ms, switches at opacity zero,
   then eases the incoming view over 800ms with a small directional horizontal
   offset. The masthead stays fixed. Exit clicks replace the pending destination;
   autoplay pauses during transitions. Reduced motion switches immediately.
+- `frontend/project-view.js` opens a dark, vertically scrolling project detail
+  from a clicked rail image, animating its crop into the hero. Escape, the back
+  button and browser history restore the gallery. Deep links use
+  `#project/<slug>/<image-id>`. The detail content is at most 70vw wide on all
+  viewports, with seven columns; client, description and services (image tags)
+  come from the CMS. Reduced motion skips the expansion animation. The image
+  drawer exposes start column, column span and row; blank fields retain the
+  automatic staggered composition. Placements are stored by image ID in the
+  `project_layout` JSON studio setting through validated `image_layout` patches
+  to `/api/settings`. No database schema migration is needed.
 - No frontend framework or package dependencies are needed. Haffer uses a system
   sans-serif fallback until licensed font files are supplied.
 

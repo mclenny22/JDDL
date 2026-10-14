@@ -1,5 +1,6 @@
 import { loadPortfolio } from './projects.js';
 import { createOrbitGrid } from './orbit.js';
+import { createProjectView } from './project-view.js';
 
 async function start() {
   const { projects, settings } = await loadPortfolio();
@@ -9,15 +10,49 @@ async function start() {
   const studioName = document.createElement('strong');
   studioName.textContent = name;
   about.replaceChildren(studioName, document.createTextNode(rest.length ? ` ${rest.join(' ')}` : ''));
+  for (const [key, fallback] of [['contact', 'Contact'], ['address', 'Orbitstreet 666, Berlin'], ['email', 'Info (at) orbit.com']]) {
+    document.querySelector(`#footer-${key}`).textContent = settings[`footer_${key}`] ?? fallback;
+  }
   document.title = `${name || 'JDDL'} — Independent design studio`;
   const nav = document.querySelector('.menu');
+  const menuTrigger = document.querySelector('.mobile-menu-trigger');
+  const mobileViewport = matchMedia('(max-width: 600px)');
+  let menuOpen = false;
+  function setMobileMenu(open, restoreFocus = false) {
+    menuOpen = open;
+    nav.classList.toggle('mobile-menu-open', open);
+    menuTrigger.setAttribute('aria-expanded', String(open));
+    if (restoreFocus) menuTrigger.focus({ preventScroll: true });
+  }
+  menuTrigger.addEventListener('click', () => setMobileMenu(!menuOpen));
+  nav.addEventListener('click', () => setMobileMenu(false));
+  document.addEventListener('click', event => {
+    if (menuOpen && !nav.contains(event.target) && !menuTrigger.contains(event.target)) setMobileMenu(false);
+  });
+  document.addEventListener('keydown', event => {
+    if (menuOpen && event.key === 'Escape') { event.preventDefault(); setMobileMenu(false, true); }
+  });
+  mobileViewport.addEventListener('change', () => setMobileMenu(false));
+  const logo = document.querySelector('.studio-logo');
+  function sizeLogo() {
+    logo.style.setProperty('--logo-scale', String(logo.getBoundingClientRect().width / 287.999));
+  }
+  new ResizeObserver(sizeLogo).observe(logo);
+  sizeLogo();
   const masthead = document.querySelector('.masthead');
   new ResizeObserver(() => {
     document.documentElement.style.setProperty('--index-top', `${masthead.getBoundingClientRect().bottom + 24}px`);
   }).observe(masthead);
+  new ResizeObserver(() => {
+    document.documentElement.style.setProperty('--footer-height', `${document.querySelector('.site-footer').getBoundingClientRect().height}px`);
+  }).observe(document.querySelector('.site-footer'));
   nav.replaceChildren();
-  const menuLabels = ['Highlights', 'Index', 'About', 'random'];
-  const menu = Array.from({ length: Math.max(2, projects.length) }, (_, index) => {
+  function randomShape(choices, previous) {
+    const candidates = choices.filter(value => value !== previous);
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+  const menuLabels = ['Selected', 'Index', 'Projects', 'random'];
+  const menu = Array.from({ length: Math.max(4, projects.length) }, (_, index) => {
     const project = projects[index];
     const button = document.createElement('button');
     const number = document.createElement('span');
@@ -28,7 +63,12 @@ async function start() {
     label.textContent = menuLabels[index] || project?.title || '';
     button.append(number, label);
     button.dataset.project = String(index);
-    button.setAttribute('aria-label', index === 1 ? 'Index — Explore all images' : `${menuLabels[index] || project?.title || ''}${project ? ` — Show ${project.title}` : ''}`);
+    function varyHoverShape() {
+      if (!button.classList.contains('selected')) button.dataset.hoverShape = randomShape(['triangle', 'square', 'circle'], button.dataset.hoverShape);
+    }
+    button.addEventListener('pointerenter', varyHoverShape);
+    button.addEventListener('focus', varyHoverShape);
+    button.setAttribute('aria-label', index === 1 ? 'Index — Explore all images' : index === 2 ? 'Projects — Open active project' : `${menuLabels[index] || project?.title || ''}${project ? ` — Show ${project.title}` : ''}`);
     nav.append(button);
     button.style.setProperty('--menu-label-width', `${label.scrollWidth}px`);
     return button;
@@ -54,6 +94,35 @@ async function start() {
   const indexView = document.querySelector('#gallery');
   let orbit;
   let showingIndex = false;
+  let detailProject = null;
+  let returnHash = '';
+  const detail = createProjectView(projects, settings, matchMedia('(prefers-reduced-motion: reduce)'), closeProject);
+  function closeProject(updateURL = true) {
+    if (!detailProject) return;
+    const source = detail.close();
+    detailProject = null;
+    portfolio.hidden = showingIndex;
+    indexView.hidden = !showingIndex;
+    orbit?.setVisible(showingIndex);
+    source?.focus({ preventScroll: true });
+    updateMenu();
+    if (updateURL) history.pushState(null, '', `${location.pathname}${location.search}${returnHash}`);
+    previous = performance.now();
+  }
+  function openProject(project, image, source = null) {
+    if (!detailProject) returnHash = showingIndex ? '#index/field' : '';
+    clearPageMotion();
+    pageTransition = null;
+    stopWheel();
+    detailProject = project;
+    updateMenu();
+    detail.open(project, image, source);
+    portfolio.hidden = true;
+    indexView.hidden = true;
+    orbit?.setVisible(false);
+    const hash = `#project/${encodeURIComponent(project.slug || project.id)}/${encodeURIComponent(image.id)}`;
+    if (location.hash !== hash) history.pushState(null, '', `${location.pathname}${location.search}${hash}`);
+  }
   let savedRailPosition = 0;
   function showIndex(visible) {
     if (visible === showingIndex) return;
@@ -63,10 +132,10 @@ async function start() {
     stopWheel();
     portfolio.hidden = visible;
     indexView.hidden = !visible;
-    if (visible && !orbit) orbit = createOrbitGrid(projects, updateViewURL);
+    if (visible && !orbit) orbit = createOrbitGrid(projects);
     orbit?.setVisible(visible);
     if (returning) rail.scrollLeft = savedRailPosition;
-    if (!visible) measure();
+    if (!visible) measure(returning);
     updateMenu();
     (visible ? indexView : rail).focus({ preventScroll: true });
   }
@@ -88,24 +157,33 @@ async function start() {
     }
   }
   function updateViewURL() {
-    const hash = showingIndex ? (orbit?.fieldMode ? '#index/field' : '#index') : '';
+    const hash = showingIndex ? '#index/field' : '';
     if (location.hash !== hash) history.pushState(null, '', `${location.pathname}${location.search}${hash}`);
   }
   function openURLView() {
+    const parts = location.hash.match(/^#project\/([^/]+)(?:\/([^/]+))?$/);
+    if (parts) {
+      const project = projects.find(item => encodeURIComponent(item.slug || item.id) === parts[1]);
+      if (project) openProject(project, project.images.find(item => encodeURIComponent(item.id) === parts[2]) || project.images[0]);
+      return;
+    }
     if (!['', '#index', '#index/field'].includes(location.hash)) return;
+    closeProject(false);
     clearPageMotion();
     pageTransition = null;
     const index = location.hash.startsWith('#index');
     showIndex(index);
-    if (index) orbit.setFieldMode(location.hash === '#index/field');
+    if (index && location.hash !== '#index/field') history.replaceState(null, '', `${location.pathname}${location.search}#index/field`);
   }
   function applyDestination(destination) {
+    const returningToGallery = showingIndex && !destination.indexView && destination.project === active;
     showIndex(destination.indexView);
-    if (!destination.indexView) navigate(destination.project, true);
+    if (!destination.indexView && !returningToGallery) navigate(destination.project, true);
     updateViewURL();
     (destination.focus || (destination.indexView ? indexView : rail)).focus({ preventScroll: true });
   }
   function transitionTo(project, index = false, focus = null) {
+    closeProject();
     const destination = { project, indexView: index, focus };
     if (reducedMotion.matches) {
       clearPageMotion();
@@ -171,6 +249,17 @@ async function start() {
   let wheelOrigin = 0;
   let lastWheel = 0;
   let settling = false;
+  let hovering = false;
+  let railSpeed = 18;
+  let manualUntil = 0;
+  let pointerDown = false;
+  function manualInteraction() { manualUntil = performance.now() + 3500; rail.classList.remove('drifting'); }
+  rail.addEventListener('pointerenter', event => { if (event.pointerType !== 'touch') hovering = true; });
+  rail.addEventListener('pointerleave', () => { hovering = false; });
+  rail.addEventListener('focusin', () => { hovering = true; });
+  rail.addEventListener('focusout', () => { hovering = false; });
+  window.addEventListener('pointerup', () => { pointerDown = false; });
+  window.addEventListener('pointercancel', () => { pointerDown = false; });
 
   function stopWheel() {
     wheelTarget = null;
@@ -185,6 +274,11 @@ async function start() {
       tile.dataset.project = index;
       tile.setAttribute('aria-label', project.title);
       tile.setAttribute('aria-hidden', 'true');
+      tile.tabIndex = -1;
+      tile.setAttribute('role', 'link');
+      const open = () => openProject(project, project.images[state[index].slide], tile);
+      tile.addEventListener('click', open);
+      tile.addEventListener('keydown', event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); open(); } });
       project.images.forEach((image, slide) => {
         const img = new Image();
         img.src = image.url;
@@ -193,6 +287,14 @@ async function start() {
         img.classList.toggle('visible', slide === 0);
         tile.append(img);
       });
+      const caption = document.createElement('div');
+      caption.className = 'tile-caption';
+      const heading = document.createElement('p');
+      heading.textContent = project.title;
+      const copy = document.createElement('p');
+      copy.textContent = project.description;
+      caption.append(heading, copy);
+      tile.append(caption);
       track.append(tile);
       tiles.push(tile);
     });
@@ -207,6 +309,7 @@ async function start() {
       button.setAttribute('aria-label', `Show image ${index + 1}`);
       button.innerHTML = '<span class="story-fill"></span>';
       button.addEventListener('click', () => {
+        manualInteraction();
         navigate(active);
         state[active].slide = index;
         state[active].elapsed = 0;
@@ -219,10 +322,10 @@ async function start() {
   }
   buildProgress();
 
-  function measure() {
+  function measure(preservePosition = false) {
     stopWheel();
-    if (showingIndex) return;
-    const savedProject = step ? Math.round(rail.scrollLeft / step) % projects.length : active;
+    if (showingIndex || detailProject) return;
+    const savedProject = step ? (preservePosition === true ? rail.scrollLeft / step : Math.round(rail.scrollLeft / step)) % projects.length : active;
     // offsetLeft rounds to whole pixels; repeated tiles amplify that rounding
     // into a visible mismatch with CSS snapping. Keep the live fractional geometry.
     const first = tiles[0].getBoundingClientRect();
@@ -234,7 +337,7 @@ async function start() {
   }
 
   function onScroll() {
-    if (showingIndex) return;
+    if (showingIndex || detailProject) return;
     // Rebase by exact whole cycles, keeping identical pixels under the viewport.
     const shift = rail.scrollLeft < cycle * 2 ? cycle * 2 : rail.scrollLeft >= cycle * 5 ? -cycle * 2 : 0;
     if (shift) {
@@ -249,14 +352,21 @@ async function start() {
       buildProgress();
       renderProgress();
     }
-    tiles.forEach((tile, index) => tile.setAttribute('aria-hidden', String(index !== nearest)));
+    tiles.forEach((tile, index) => {
+      const visible = index >= Math.floor(rail.scrollLeft / step) && index < Math.ceil((rail.scrollLeft + rail.clientWidth) / step);
+      tile.setAttribute('aria-hidden', String(!visible));
+      tile.tabIndex = visible ? 0 : -1;
+    });
     updateMenu();
   }
 
   function updateMenu() {
     menu.forEach(button => {
       const index = Number(button.dataset.project);
-      const selected = showingIndex ? index === 1 : index === (active === 1 ? 0 : active);
+      const selected = detailProject ? index === 2 : showingIndex ? index === 1 : index === 0;
+      if (selected && !button.classList.contains('selected')) {
+        button.dataset.selectedShape = randomShape(['rounded', 'beveled', 'scalloped', 'curved'], button.dataset.selectedShape);
+      }
       button.classList.toggle('selected', selected);
       if (selected) button.setAttribute('aria-current', 'true');
       else button.removeAttribute('aria-current');
@@ -264,6 +374,7 @@ async function start() {
   }
 
   function navigate(index, immediate = false) {
+    manualInteraction();
     stopWheel();
     const base = Math.floor(rail.scrollLeft / cycle) * cycle;
     const options = [base - cycle, base, base + cycle].map(offset => offset + index * step);
@@ -272,11 +383,16 @@ async function start() {
   }
   menu.forEach(button => button.addEventListener('click', () => {
     const index = Number(button.dataset.project);
-    transitionTo(index, index === 1);
+    if (index === 2) {
+      const project = detailProject || projects[active];
+      openProject(project, project.images[state[projects.indexOf(project)].slide]);
+      return;
+    }
+    transitionTo(Math.min(index, projects.length - 1), index === 1);
   }));
   rail.addEventListener('scroll', onScroll, { passive: true });
   rail.addEventListener('scrollend', () => {
-    if (wheelTarget !== null) return;
+    if (wheelTarget !== null || rail.classList.contains('drifting') || detailProject) return;
     const target = Math.round(rail.scrollLeft / step) * step;
     if (Math.abs(rail.scrollLeft - target) > .5) {
       rail.scrollTo({ left: target, behavior: reducedMotion.matches ? 'instant' : 'smooth' });
@@ -285,6 +401,7 @@ async function start() {
   rail.addEventListener('keydown', event => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
+    manualInteraction();
     stopWheel();
     if (event.key === 'Home' || event.key === 'End') return navigate(event.key === 'Home' ? 0 : projects.length - 1);
     const direction = event.key === 'ArrowRight' ? 1 : -1;
@@ -293,7 +410,8 @@ async function start() {
   // Keep horizontal gestures native inside the rail. Route ordinary mouse-wheel
   // input (and gestures over the fixed header) into that same scroll container.
   document.addEventListener('wheel', event => {
-    if (showingIndex || pageTransition || event.ctrlKey) return; // Preserve browser pinch-to-zoom.
+    if (showingIndex || detailProject || pageTransition || event.ctrlKey) return; // Preserve browser pinch-to-zoom.
+    manualInteraction();
     const horizontal = Math.abs(event.deltaX) > Math.abs(event.deltaY);
     if (rail.contains(event.target) && (horizontal || event.shiftKey)) { stopWheel(); return; }
     const delta = horizontal ? event.deltaX : event.deltaY;
@@ -306,7 +424,7 @@ async function start() {
     settling = false;
     rail.classList.add('gliding');
   }, { passive: false });
-  rail.addEventListener('pointerdown', stopWheel, { passive: true });
+  rail.addEventListener('pointerdown', () => { pointerDown = true; manualInteraction(); stopWheel(); }, { passive: true });
 
   function glide(now, elapsed) {
     if (wheelTarget === null) return;
@@ -333,7 +451,7 @@ async function start() {
   function renderSlides() {
     tiles.forEach(tile => {
       const current = state[Number(tile.dataset.project)].slide;
-      [...tile.children].forEach((img, index) => img.classList.toggle('visible', index === current));
+      [...tile.children].slice(0, projects[Number(tile.dataset.project)].images.length).forEach((img, index) => img.classList.toggle('visible', index === current));
     });
   }
   function renderProgress() {
@@ -352,11 +470,18 @@ async function start() {
     const transitioning = Boolean(pageTransition);
     advancePageTransition(now);
     glide(now, delta);
+    const drifting = !menuOpen && !showingIndex && !detailProject && !transitioning && !pageTransition && !reducedMotion.matches && !document.hidden && !pointerDown && wheelTarget === null && now >= manualUntil;
+    rail.classList.toggle('drifting', drifting);
+    if (drifting) {
+      railSpeed += ((hovering ? .35 : 18) - railSpeed) * (1 - Math.exp(-delta / 350));
+      rail.scrollLeft += railSpeed * delta / 1000;
+      onScroll();
+    }
     let changed = false;
     // Inactive projects retain their slide and progress until they return left.
-    if (!showingIndex && !transitioning && !pageTransition && !reducedMotion.matches && !document.hidden) {
+    if (!menuOpen && !showingIndex && !detailProject && !transitioning && !pageTransition && !reducedMotion.matches && !document.hidden) {
       const gallery = state[active];
-      gallery.elapsed += delta;
+      gallery.elapsed += delta * (hovering ? .02 : 1);
       if (gallery.elapsed >= duration) {
         gallery.elapsed %= duration;
         gallery.slide = (gallery.slide + 1) % projects[active].images.length;
@@ -364,7 +489,7 @@ async function start() {
       }
     }
     if (changed) renderSlides();
-    if (!showingIndex && !document.hidden) renderProgress();
+    if (!showingIndex && !detailProject && !document.hidden) renderProgress();
     requestAnimationFrame(animate);
   }
   renderDescription();
@@ -373,6 +498,7 @@ async function start() {
   renderProgress();
   openURLView();
   window.addEventListener('hashchange', openURLView);
+  document.querySelector('.studio-logo').addEventListener('click', event => { event.preventDefault(); transitionTo(0); });
   requestAnimationFrame(animate);
 
 }

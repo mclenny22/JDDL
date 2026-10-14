@@ -88,6 +88,9 @@
             <label class="field" for="setting-eyebrow"><span>Abschnittsüberschrift</span><input id="setting-eyebrow" /></label>
             <label class="field" for="setting-about"><span>Über das Studio</span><textarea id="setting-about"></textarea></label>
             <label class="field" for="setting-clients"><span>Ausgewählte Kunden</span><textarea id="setting-clients"></textarea><small>Ein Kunde pro Zeile.</small></label>
+            <label class="field" for="setting-footer-contact"><span>Footer · Kontakt</span><input id="setting-footer-contact" /></label>
+            <label class="field" for="setting-footer-address"><span>Footer · Adresse</span><input id="setting-footer-address" /></label>
+            <label class="field" for="setting-footer-email"><span>Footer · E-Mail</span><input id="setting-footer-email" /></label>
             <div class="dialog-actions"><button class="button primary" type="submit">Informationen speichern</button></div>
           </form>
         </section>
@@ -167,6 +170,14 @@
             <p class="project-combobox-empty" id="image-project-empty" hidden>Kein Projekt gefunden.</p>
           </div>
         </div>
+        <fieldset class="field" id="image-layout-fields"><legend>Projektseite · Sieben-Spalten-Raster</legend>
+          <small>Das Hero-Bild füllt die gesamte Breite. Diese Platzierung gilt für die weiteren Bilder. Bilder in derselben Zeile werden nebeneinander angeordnet.</small>
+          <div class="field-grid">
+            <label class="field" for="image-column"><span>Startspalte</span><input id="image-column" type="number" min="1" max="7" placeholder="Automatisch" /></label>
+            <label class="field" for="image-span"><span>Breite in Spalten</span><input id="image-span" type="number" min="1" max="7" placeholder="Automatisch" /></label>
+            <label class="field" for="image-row"><span>Zeile</span><input id="image-row" type="number" min="1" max="1000" placeholder="Automatisch" /></label>
+          </div>
+        </fieldset>
         <p class="form-error" id="image-error" role="alert"></p>
         </div>
         <div class="dialog-actions drawer-footer"><button class="button" type="button" data-close-dialog>Abbrechen</button><button class="button primary" type="submit">Bild speichern</button></div>

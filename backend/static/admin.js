@@ -292,6 +292,9 @@ function renderSettings() {
   $("#setting-eyebrow").value = state.data.settings.eyebrow || "";
   $("#setting-about").value = state.data.settings.about || "";
   $("#setting-clients").value = state.data.settings.clients || "";
+  for (const [key, fallback] of [["contact", "Contact"], ["address", "Orbitstreet 666, Berlin"], ["email", "Info (at) orbit.com"]]) {
+    $("#setting-footer-" + key).value = state.data.settings["footer_" + key] ?? fallback;
+  }
 }
 
 function exportFilteredImages() {
@@ -585,6 +588,11 @@ $("#image-project-field").addEventListener("focusout", (event) => {
 
 function openImage(image = null, field = "name") {
   el.imageForm.reset();
+  let layout = {};
+  try { layout = JSON.parse(state.data.settings.project_layout || "{}")[image?.id] || {}; } catch {}
+  $("#image-column").value = layout.column || "";
+  $("#image-span").value = layout.span || "";
+  $("#image-row").value = layout.row || "";
   $("#image-error").textContent = "";
   $("#image-id").value = image?.id || "";
   $("#image-dialog-title").textContent = image ? "Bild bearbeiten" : "Bild hinzufügen";
@@ -848,6 +856,9 @@ el.imageForm.addEventListener("submit", async (event) => {
       catch { throw new Error("Das Bild konnte nicht gelesen werden. Wähle eine gültige Bilddatei aus."); }
       aspectRatio = el.imagePreview.naturalWidth / el.imagePreview.naturalHeight || 1;
     }
+    const placement = { column: Number($("#image-column").value), span: Number($("#image-span").value), row: Number($("#image-row").value) };
+    const customLayout = Object.values(placement).some(value => value !== 0);
+    if (customLayout && (!Object.values(placement).every(value => Number.isInteger(value) && value >= 1) || placement.column + placement.span > 8 || placement.row > 1000)) throw new Error("Das Bild muss innerhalb der sieben Spalten bleiben.");
     const shared = {
       original_name: $("#image-name").value,
       alt_text: $("#image-alt").value,
@@ -857,14 +868,17 @@ el.imageForm.addEventListener("submit", async (event) => {
       tag_names: tagIds.map((tagId) => tagFor(tagId)?.name).filter(Boolean).join(", "),
       project_ids: projectIds,
     };
+    let savedId = id;
     if (id) {
       await api(`/api/images/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(shared) });
     } else {
       const form = new FormData();
       form.append("image", state.selectedFile);
       Object.entries(shared).forEach(([key, value]) => form.append(key, Array.isArray(value) ? JSON.stringify(value) : String(value)));
-      await api("/api/images", { method: "POST", body: form });
+      const result = await api("/api/images", { method: "POST", body: form });
+      savedId = result.image;
     }
+    if (customLayout) await api("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image_layout: { id: savedId, ...placement } }) });
     el.imageDialog.close();
     await refresh();
     notify(id ? "Bild aktualisiert" : "Bild hinzugefügt");
@@ -946,7 +960,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
   await api("/api/settings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ eyebrow: $("#setting-eyebrow").value, about: $("#setting-about").value, clients: $("#setting-clients").value }),
+    body: JSON.stringify({ eyebrow: $("#setting-eyebrow").value, about: $("#setting-about").value, clients: $("#setting-clients").value, footer_contact: $("#setting-footer-contact").value, footer_address: $("#setting-footer-address").value, footer_email: $("#setting-footer-email").value }),
   });
   await refresh();
   notify("Studio-Informationen gespeichert");

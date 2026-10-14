@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { normalizePortfolio, loadPortfolio } from '../frontend/projects.js';
+import { imagePlacement } from '../frontend/project-view.js';
 
 const seed = JSON.parse(fs.readFileSync(new URL('../backend/seed/content.json', import.meta.url)));
 
@@ -45,12 +46,13 @@ class Element {
     this.listeners = {}; this.scrollLeft = 0; this.classes = new Set();
     this.classList = {
       toggle: (name, enabled) => enabled ? this.classes.add(name) : this.classes.delete(name),
-      add: name => this.classes.add(name), remove: name => this.classes.delete(name),
+      contains: name => this.classes.has(name), add: name => this.classes.add(name), remove: name => this.classes.delete(name),
     };
   }
   append(...elements) { elements.forEach(element => { element.parent = this; this.children.push(element); }); }
   focus() { this.focused = true; }
   closest() { return null; }
+  querySelector() { return this.children.find(child => child.classes?.has('visible')) || this.children[0] || null; }
   setPointerCapture(id) { this.capturedPointer = id; }
   hasPointerCapture(id) { return this.capturedPointer === id; }
   releasePointerCapture() { this.capturedPointer = null; }
@@ -71,10 +73,8 @@ class Element {
 }
 
 async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1000, initialHash = '') {
-  const selectors = ['.rail', '.track', '#project-title', '#project-copy', '.stories', '.about', '.menu', '#status', '.project-context', '.portfolio', '#gallery', '#field', '#chaos', '#chaos-value', '#orbit-radius', '#orbit-radius-value', '#orbit-mode', '.masthead'];
+  const selectors = ['.rail', '.track', '#project-title', '#project-copy', '.stories', '.about', '.menu', '#status', '.project-context', '.portfolio', '#gallery', '#field', '.masthead', '.studio-logo', '.mobile-menu-trigger', '.site-footer', '#footer-contact', '#footer-address', '#footer-email', '#project-detail', '.project-detail-content', '.project-detail-info', '.project-hero', '.project-grid', '.project-close'];
   const elements = Object.fromEntries(selectors.map(selector => [selector, new Element(step)]));
-  elements['#chaos'].value = '80';
-  elements['#orbit-radius'].value = '20';
   elements['#gallery'].getBoundingClientRect = () => ({ width: viewportWidth, height: 700 });
   const frames = new Map();
   let nextFrame = 0;
@@ -84,10 +84,11 @@ async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1
     documentElement: new Element(step),
     querySelector: selector => elements[selector],
     createElement: () => new Element(step), createTextNode: text => ({ textContent: text }),
-    addEventListener: (key, callback) => { listeners[key] = callback; }, hidden: false,
+    addEventListener: (key, callback) => { const previous = listeners[key]; listeners[key] = previous ? event => { previous(event); callback(event); } : callback; }, hidden: false,
   };
   const location = { pathname: '/', search: '', hash: initialHash };
   const history = { pushState(_state, _title, url) { location.hash = url.includes('#') ? url.slice(url.indexOf('#')) : ''; } };
+  history.replaceState = history.pushState;
   const context = vm.createContext({
     location, history, addEventListener: (key, callback) => { listeners[key] = callback; },
     getComputedStyle: () => ({ opacity: '.5', transform: 'matrix(1, 0, 0, 1, 12, 0)' }),
@@ -98,10 +99,12 @@ async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1
     cancelAnimationFrame: id => frames.delete(id),
   });
   context.window = context;
+  vm.runInContext(fs.readFileSync(new URL('../frontend/project-view.js', import.meta.url), 'utf8').replaceAll('export function', 'function'), context);
   vm.runInContext(fs.readFileSync(new URL('../frontend/orbit.js', import.meta.url), 'utf8').replace('export function', 'function'), context);
   const source = fs.readFileSync(new URL('../frontend/app.js', import.meta.url), 'utf8')
     .replace("import { loadPortfolio } from './projects.js';", '')
-    .replace("import { createOrbitGrid } from './orbit.js';", '');
+    .replace("import { createOrbitGrid } from './orbit.js';", '')
+    .replace("import { createProjectView } from './project-view.js';", '');
   vm.runInContext(source, context);
   await new Promise(resolve => setImmediate(resolve));
   return { elements, listeners, tick: (delta = 100) => { time += delta; const pending = [...frames.values()]; frames.clear(); pending.forEach(frame => frame(time)); }, document, location };
@@ -279,7 +282,7 @@ test('Index grows with viewport width and keeps displayed image sides within 800
     const { elements, tick } = await mount(data, false, 310, width);
     elements['.menu'].children[1].listeners.click();
     tick(400);
-    sizes.push(parseFloat(elements['#field'].children[1].style['--width']));
+    sizes.push(elements['#field'].children.length);
     const assertCap = () => {
       for (const tile of elements['#field'].children) {
         const longest = Math.max(parseFloat(tile.style['--width']), parseFloat(tile.style['--height']));
@@ -287,13 +290,11 @@ test('Index grows with viewport width and keeps displayed image sides within 800
       }
     };
     tick(); assertCap();
-    elements['#chaos'].value = '100';
-    elements['#chaos'].listeners.input();
     elements['#gallery'].listeners.wheel({ deltaY: 400, deltaMode: 0, preventDefault() {} });
     for (let frame = 0; frame < 60; frame++) { tick(16); assertCap(); }
   }
-  assert.ok(sizes[1] > sizes[0] * 5);
-  assert.ok(sizes[2] > sizes[1] * 3);
+  assert.ok(sizes[1] > sizes[0]);
+  assert.ok(sizes[2] > sizes[1]);
 });
 
 
@@ -312,9 +313,9 @@ test('menu transitions defer the switch, accept the latest choice, and clear mot
   assert.equal(rail.scrollLeft, position);
   assert.equal(elements['.stories'].children[0].firstElementChild.style.width, fill);
   // A quick second click wins without briefly opening Index.
-  menu.children[2].listeners.click();
+  menu.children[3].listeners.click();
   tick(100);
-  assert.equal(elements['#project-title'].textContent, seed.projects[2].title);
+  assert.equal(elements['#project-title'].textContent, seed.projects[3].title);
   assert.equal(portfolio.hidden, false);
   assert.ok(portfolio.classes.has('page-in'));
   assert.equal(portfolio.inert, false);
@@ -337,18 +338,13 @@ test('menu transitions defer the switch, accept the latest choice, and clear mot
   assert.equal(rail.scrollLeft % 310, 0);
 });
 
-test('Infinite field toggles two-axis input and restores the vertical camera', async () => {
+test('Index always opens the two-axis field with fixed 2px corners', async () => {
   const { elements, tick } = await mount(seed, true);
   elements['.menu'].children[1].listeners.click();
   tick();
   const gallery = elements['#gallery'];
-  const mode = elements['#orbit-mode'];
   const snapshot = () => elements['#field'].children.map(tile => [tile.style['--x'], tile.style['--y']]);
-  const vertical = snapshot();
-  mode.listeners.click(); tick();
-  assert.equal(mode.attrs['aria-pressed'], 'true');
-  assert.equal(mode.textContent, 'Infinite field');
-  assert.match(gallery.attrs['aria-label'], /all four arrow keys/);
+  assert.equal(elements['#field'].style['--orbit-radius'], '2px');
   const initial = snapshot();
   gallery.listeners.wheel({ deltaX: 75, deltaY: 0, deltaMode: 0, preventDefault() {} });
   tick();
@@ -367,11 +363,6 @@ test('Infinite field toggles two-axis input and restores the vertical camera', a
   assert.notDeepEqual(snapshot().map(tile => tile[1]), before.map(tile => tile[1]));
   gallery.listeners.pointercancel({ pointerId: 1, type: 'pointercancel' });
   assert.equal(gallery.capturedPointer, null);
-  mode.listeners.click(); tick();
-  assert.equal(mode.attrs['aria-pressed'], 'false');
-  assert.deepEqual(snapshot(), vertical);
-  gallery.listeners.keydown({ key: 'ArrowRight', target: gallery,
-    preventDefault() { assert.fail('Vertical mode must leave horizontal keys alone'); } });
 });
 
 test('Infinite field recycles in every direction, fills the viewport and keeps the image cap', async () => {
@@ -380,7 +371,6 @@ test('Infinite field recycles in every direction, fills the viewport and keeps t
   for (const reduced of [true, false]) {
     const { elements, tick } = await mount(data, reduced, 310, 1920);
     elements['.menu'].children[1].listeners.click(); tick(400);
-    elements['#orbit-mode'].listeners.click(); tick();
     const gallery = elements['#gallery'];
     for (const sign of [-1, 1]) {
       gallery.listeners.wheel({ deltaX: sign * 1000000, deltaY: sign * 1000000, deltaMode: 0, preventDefault() {} });
@@ -401,26 +391,15 @@ test('Infinite field recycles in every direction, fills the viewport and keeps t
   }
 });
 
-test('lens scale settles toward its new resting size without overshooting', async () => {
+test('field settles after input and stops rewriting stationary styles', async () => {
   const { elements, tick } = await mount();
   elements['.menu'].children[1].listeners.click(); tick(400); tick(800);
-  for (let frame = 0; frame < 60; frame++) tick(16);
-  const scale = () => elements['#field'].children.map(tile => Number(tile.style['--scale']));
-  const samples = [scale()];
-  elements['#chaos'].value = '0'; elements['#chaos'].listeners.input();
-  for (let frame = 0; frame < 120; frame++) { tick(16); samples.push(scale()); }
-  const final = samples.at(-1);
-  assert.ok(samples[0].some((value, index) => Math.abs(value - final[index]) > .05));
-  for (let index = 0; index < final.length; index++) {
-    const start = samples[0][index];
-    const direction = Math.sign(final[index] - start);
-    for (let frame = 1; frame < samples.length; frame++) {
-      const value = samples[frame][index];
-      assert.ok(value >= Math.min(start, final[index]) - .0002);
-      assert.ok(value <= Math.max(start, final[index]) + .0002);
-      assert.ok((value - samples[frame - 1][index]) * direction >= -.0002);
-    }
-  }
+  elements['#gallery'].listeners.wheel({ deltaX: 60, deltaY: 40, deltaMode: 0, preventDefault() {} });
+  for (let frame = 0; frame < 900; frame++) tick(16);
+  const tiles = elements['#field'].children;
+  const writes = tiles.map(tile => tile.style.writes);
+  for (let frame = 0; frame < 120; frame++) tick(16);
+  assert.deepEqual(tiles.map(tile => tile.style.writes), writes);
 });
 
 test('field coasting and settling remain consistent at 60Hz and 120Hz', async () => {
@@ -428,7 +407,6 @@ test('field coasting and settling remain consistent at 60Hz and 120Hz', async ()
   for (const interval of [1000 / 60, 1000 / 120]) {
     const { elements, tick } = await mount();
     elements['.menu'].children[1].listeners.click(); tick(400); tick(800);
-    elements['#orbit-mode'].listeners.click();
     for (let elapsed = 0; elapsed < 1000; elapsed += interval) tick(interval);
     elements['#gallery'].listeners.wheel({ deltaX: 80, deltaY: 60, deltaMode: 0, preventDefault() {} });
     for (let frame = 0; frame < Math.round(1500 / interval); frame++) tick(interval);
@@ -447,7 +425,7 @@ test('field coasting and settling remain consistent at 60Hz and 120Hz', async ()
 test('stationary Index frames keep identical tile styles without repeated DOM writes', async () => {
   const { elements, tick } = await mount(seed, true);
   elements['.menu'].children[1].listeners.click(); tick();
-  assert.equal(elements['#chaos-value'].value, '80%');
+  assert.equal(elements['#field'].style['--orbit-radius'], '2px');
   const tiles = elements['#field'].children;
   const before = tiles.map(tile => tile.style.writes);
   const gallery = elements['#gallery'];
@@ -458,34 +436,129 @@ test('stationary Index frames keep identical tile styles without repeated DOM wr
 });
 
 
-test('direct Index field URL opens the requested mode and follows view hash changes', async () => {
+test('both Index URLs open the field and browser history restores the view', async () => {
   const { elements, listeners, location, tick } = await mount(seed, false, 310, 1000, '#index/field');
   assert.equal(elements['.portfolio'].hidden, true);
   assert.equal(elements['#gallery'].hidden, false);
-  assert.equal(elements['#orbit-mode'].attrs['aria-pressed'], 'true');
+  assert.equal(elements['#field'].style['--orbit-radius'], '2px');
   assert.equal(elements['.menu'].children[1].attrs['aria-current'], 'true');
-  assert.ok(!elements['#gallery'].classes.has('page-in'));
-  elements['#orbit-mode'].listeners.click();
-  assert.equal(location.hash, '#index');
-  location.hash = '#index/field'; listeners.hashchange(); tick();
-  assert.equal(elements['#orbit-mode'].attrs['aria-pressed'], 'true');
   elements['.menu'].children[0].listeners.click(); tick(400);
   assert.equal(location.hash, '');
   assert.equal(elements['.portfolio'].hidden, false);
-  // Browser Back dispatches hashchange for the previous Index URL.
   location.hash = '#index/field'; listeners.hashchange();
   assert.equal(elements['#gallery'].hidden, false);
-  assert.equal(elements['#orbit-mode'].attrs['aria-pressed'], 'true');
   location.hash = '#index'; listeners.hashchange();
-  assert.equal(elements['#orbit-mode'].attrs['aria-pressed'], 'false');
+  assert.equal(elements['#gallery'].hidden, false);
+  assert.equal(location.hash, '#index/field');
 });
 
-test('vertical deep links, unknown fragments and empty CMS content stay usable', async () => {
+test('legacy Index links, unknown fragments and empty CMS content stay usable', async () => {
   const vertical = await mount(seed, true, 310, 1000, '#index');
   assert.equal(vertical.elements['#gallery'].hidden, false);
-  assert.notEqual(vertical.elements['#orbit-mode'].attrs['aria-pressed'], 'true');
+  assert.equal(vertical.location.hash, '#index/field');
   const unknown = await mount(seed, false, 310, 1000, '#unknown');
   assert.notEqual(unknown.elements['.portfolio'].hidden, true);
   const empty = await mount({ projects: [], images: [], settings: {} }, false, 310, 1000, '#index/field');
   assert.equal(empty.elements['#status'].textContent, 'No published projects yet.');
+});
+
+
+test('rail drifts continuously, hover approaches stillness, and reduced motion disables drift', async () => {
+  const { elements, tick } = await mount();
+  const rail = elements['.rail'];
+  const initial = rail.scrollLeft;
+  for (let frame = 0; frame < 10; frame++) tick();
+  assert.ok(rail.scrollLeft > initial + 15);
+  rail.listeners.pointerenter({ pointerType: 'mouse' });
+  for (let frame = 0; frame < 25; frame++) tick();
+  const hovered = rail.scrollLeft;
+  for (let frame = 0; frame < 10; frame++) tick();
+  assert.ok(rail.scrollLeft - hovered < 1);
+  rail.listeners.pointerleave();
+  for (let frame = 0; frame < 10; frame++) tick();
+  assert.ok(rail.scrollLeft - hovered > 10);
+  const reduced = await mount(seed, true);
+  const stationary = reduced.elements['.rail'].scrollLeft;
+  for (let frame = 0; frame < 100; frame++) reduced.tick();
+  assert.equal(reduced.elements['.rail'].scrollLeft, stationary);
+});
+
+test('clicked slide becomes project hero; detail pauses the rail and Escape restores it', async () => {
+  const { elements, tick, location } = await mount(seed, true);
+  const rail = elements['.rail'];
+  const position = rail.scrollLeft;
+  elements['.stories'].children[1].listeners.click();
+  const tile = elements['.track'].children[12];
+  tile.listeners.click();
+  assert.equal(elements['#project-detail'].hidden, false);
+  assert.equal(elements['.portfolio'].hidden, true);
+  assert.equal(elements['.project-hero'].src, normalizePortfolio(seed)[0].images[1].url);
+  assert.equal(elements['.project-grid'].children.length, 2);
+  assert.match(location.hash, /^#project\//);
+  tick(5000);
+  assert.equal(rail.scrollLeft, position);
+  elements['#project-detail'].listeners.keydown({ key: 'Escape', preventDefault() {} });
+  assert.equal(elements['#project-detail'].hidden, true);
+  assert.equal(elements['.portfolio'].hidden, false);
+  assert.equal(location.hash, '');
+  assert.equal(rail.scrollLeft, position);
+  assert.equal(tile.focused, true);
+});
+
+test('project links reload the selected image and browser Back restores the gallery', async () => {
+  const project = normalizePortfolio(seed)[0];
+  const hash = `#project/${project.slug}/${project.images[2].id}`;
+  const { elements, location, listeners } = await mount(seed, true, 310, 1000, hash);
+  assert.equal(elements['.project-hero'].src, project.images[2].url);
+  assert.equal(elements['.portfolio'].hidden, true);
+  location.hash = ''; listeners.hashchange();
+  assert.equal(elements['.portfolio'].hidden, false);
+  assert.equal(elements['#project-detail'].hidden, true);
+});
+
+test('saved image positions use seven columns and invalid placements fall back inside the grid', () => {
+  assert.deepEqual(imagePlacement({ id: 'one' }, 0, { one: { column: 2, span: 5, row: 12 } }), { column: 2, span: 5, row: 12 });
+  for (const placement of [{ column: 7, span: 7, row: -10 }, { column: 0, span: 99, row: 2000 }]) {
+    const value = imagePlacement({ id: 'one' }, 0, { one: placement });
+    assert.ok(value.column >= 1 && value.column + value.span <= 8 && value.row >= 1 && value.row <= 1000);
+  }
+});
+
+
+test('mobile menu opens on demand, dismisses with Escape and collapses after navigation', async () => {
+  const { elements, listeners } = await mount(seed, true);
+  const trigger = elements['.mobile-menu-trigger'];
+  const menu = elements['.menu'];
+  trigger.listeners.click();
+  assert.equal(trigger.attrs['aria-expanded'], 'true');
+  assert.ok(menu.classes.has('mobile-menu-open'));
+  listeners.keydown({ key: 'Escape', preventDefault() {} });
+  assert.equal(trigger.attrs['aria-expanded'], 'false');
+  assert.equal(trigger.focused, true);
+  trigger.listeners.click();
+  menu.children[1].listeners.click();
+  menu.listeners.click();
+  assert.equal(trigger.attrs['aria-expanded'], 'false');
+  assert.equal(elements['#gallery'].hidden, false);
+});
+
+
+test('selected navigation retains its pill variant, and number hover chooses varying shapes', async () => {
+  const { elements, tick } = await mount(seed, true);
+  const menu = elements['.menu'].children;
+  const first = menu[0].dataset.selectedShape;
+  assert.ok(['rounded', 'beveled', 'scalloped', 'curved'].includes(first));
+  for (let frame = 0; frame < 60; frame++) tick();
+  assert.equal(menu[0].dataset.selectedShape, first);
+  menu[1].listeners.pointerenter();
+  const shape = menu[1].dataset.hoverShape;
+  assert.ok(['triangle', 'square', 'circle'].includes(shape));
+  menu[1].listeners.pointerenter();
+  assert.notEqual(menu[1].dataset.hoverShape, shape);
+  menu[1].listeners.click();
+  const selected = menu[1].dataset.selectedShape;
+  menu[1].listeners.pointerenter();
+  assert.equal(menu[1].dataset.selectedShape, selected);
+  menu[0].listeners.click();
+  assert.notEqual(menu[0].dataset.selectedShape, first);
 });

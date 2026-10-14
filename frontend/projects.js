@@ -6,7 +6,9 @@ export function normalizePortfolio(data) {
     .sort((a, b) => a.sort_order - b.sort_order || a.title.localeCompare(b.title))
     .map(project => ({
       ...project,
-      images: publicImages.filter(image => (image.project_ids || []).includes(project.id)),
+      images: publicImages.filter(image => (image.project_ids || []).includes(project.id)).map(image => ({
+        ...image, tags: (image.tag_ids || []).map(id => (data.tags || []).find(tag => tag.id === id)?.name).filter(Boolean),
+      })),
     }))
     .filter(project => project.images.length);
 }
