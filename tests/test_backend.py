@@ -72,7 +72,7 @@ class BackendIntegrationTests(unittest.TestCase):
     def test_new_site_and_admin_assets_do_not_conflict(self):
         status, _, page = self.request('GET', '/')
         self.assertEqual(status, 200)
-        self.assertIn(b'project-copy', page)
+        self.assertIn(b'class="track"', page)
         self.assertNotIn(b'RIN TOUR', page)
         self.assertIn(b'scroll-snap-type', self.request('GET', '/styles.css')[2])
         admin = self.request('GET', '/admin')[2]

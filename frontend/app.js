@@ -76,20 +76,12 @@ async function start() {
   const status = document.querySelector('#status');
   if (!projects.length) {
     status.textContent = 'No published projects yet.';
-    document.querySelector('.project-context').hidden = true;
     return;
   }
   status.hidden = true;
 
   const rail = document.querySelector('.rail');
   const track = document.querySelector('.track');
-  const title = document.querySelector('#project-title');
-  const description = document.querySelector('#project-copy');
-  function renderDescription() {
-    title.textContent = projects[active].title;
-    description.textContent = projects[active].description;
-  }
-  const stories = document.querySelector('.stories');
   const portfolio = document.querySelector('.portfolio');
   const indexView = document.querySelector('#gallery');
   let orbit;
@@ -135,7 +127,7 @@ async function start() {
     if (visible && !orbit) orbit = createOrbitGrid(projects);
     orbit?.setVisible(visible);
     if (returning) rail.scrollLeft = savedRailPosition;
-    if (!visible) measure(returning);
+    if (!visible) measure();
     updateMenu();
     (visible ? indexView : rail).focus({ preventScroll: true });
   }
@@ -236,24 +228,21 @@ async function start() {
       pageTransition = null;
     }
   }
-  const duration = 4500;
   const copies = 7;
   const middle = Math.floor(copies / 2);
-  const state = projects.map(() => ({ slide: 0, elapsed: 0 }));
   const tiles = [];
   let active = 0;
   let step = 0;
   let cycle = 0;
   let previous = performance.now();
   let wheelTarget = null;
-  let wheelOrigin = 0;
-  let lastWheel = 0;
-  let settling = false;
   let hovering = false;
-  let railSpeed = 18;
+  const idleRailSpeed = 10;
+  let railSpeed = idleRailSpeed;
+  let driftPosition = null;
   let manualUntil = 0;
   let pointerDown = false;
-  function manualInteraction() { manualUntil = performance.now() + 3500; rail.classList.remove('drifting'); }
+  function manualInteraction() { driftPosition = null; manualUntil = performance.now() + 3500; rail.classList.remove('drifting'); }
   rail.addEventListener('pointerenter', event => { if (event.pointerType !== 'touch') hovering = true; });
   rail.addEventListener('pointerleave', () => { hovering = false; });
   rail.addEventListener('focusin', () => { hovering = true; });
@@ -263,7 +252,6 @@ async function start() {
 
   function stopWheel() {
     wheelTarget = null;
-    settling = false;
     rail.classList.remove('gliding');
   }
 
@@ -276,17 +264,16 @@ async function start() {
       tile.setAttribute('aria-hidden', 'true');
       tile.tabIndex = -1;
       tile.setAttribute('role', 'link');
-      const open = () => openProject(project, project.images[state[index].slide], tile);
+      const open = () => openProject(project, project.images[0], tile);
       tile.addEventListener('click', open);
       tile.addEventListener('keydown', event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); open(); } });
-      project.images.forEach((image, slide) => {
-        const img = new Image();
-        img.src = image.url;
-        img.alt = image.alt_text || `${project.title} — image ${slide + 1} of ${project.images.length}`;
-        img.draggable = false;
-        img.classList.toggle('visible', slide === 0);
-        tile.append(img);
-      });
+      const image = project.images[0];
+      const img = new Image();
+      img.src = image.url;
+      img.alt = image.alt_text || project.title;
+      img.draggable = false;
+      img.classList.add('visible');
+      tile.append(img);
       const caption = document.createElement('div');
       caption.className = 'tile-caption';
       const heading = document.createElement('p');
@@ -300,39 +287,18 @@ async function start() {
     });
   }
 
-  let bars = [];
-  function buildProgress() {
-    stories.replaceChildren();
-    bars = Array.from({ length: projects[active].images.length }, (_, index) => {
-      const button = document.createElement('button');
-      button.className = 'story';
-      button.setAttribute('aria-label', `Show image ${index + 1}`);
-      button.innerHTML = '<span class="story-fill"></span>';
-      button.addEventListener('click', () => {
-        manualInteraction();
-        navigate(active);
-        state[active].slide = index;
-        state[active].elapsed = 0;
-        renderSlides();
-        renderProgress();
-      });
-      stories.append(button);
-      return button;
-    });
-  }
-  buildProgress();
-
-  function measure(preservePosition = false) {
+  function measure() {
+    const oldStep = step;
+    const oldPosition = rail.scrollLeft;
+    driftPosition = null;
     stopWheel();
     if (showingIndex || detailProject) return;
-    const savedProject = step ? (preservePosition === true ? rail.scrollLeft / step : Math.round(rail.scrollLeft / step)) % projects.length : active;
-    // offsetLeft rounds to whole pixels; repeated tiles amplify that rounding
-    // into a visible mismatch with CSS snapping. Keep the live fractional geometry.
+    const savedProject = step ? (rail.scrollLeft / step) % projects.length : active;
+    // Preserve the fractional position through resizing and whole-cycle rebasing.
     const first = tiles[0].getBoundingClientRect();
     step = tiles[1].getBoundingClientRect().left - first.left;
-    document.querySelector('.project-context').style.width = `${first.width}px`;
     cycle = step * projects.length;
-    rail.scrollLeft = middle * cycle + savedProject * step;
+    rail.scrollLeft = oldStep === step ? oldPosition : middle * cycle + savedProject * step;
     onScroll();
   }
 
@@ -342,16 +308,12 @@ async function start() {
     const shift = rail.scrollLeft < cycle * 2 ? cycle * 2 : rail.scrollLeft >= cycle * 5 ? -cycle * 2 : 0;
     if (shift) {
       rail.scrollLeft += shift;
-      if (wheelTarget !== null) { wheelTarget += shift; wheelOrigin += shift; }
+      if (wheelTarget !== null) wheelTarget += shift;
+      if (driftPosition !== null) driftPosition += shift;
     }
     const nearest = Math.round(rail.scrollLeft / step);
     const next = nearest % projects.length;
-    if (active !== next) {
-      active = next;
-      renderDescription();
-      buildProgress();
-      renderProgress();
-    }
+    active = next;
     tiles.forEach((tile, index) => {
       const visible = index >= Math.floor(rail.scrollLeft / step) && index < Math.ceil((rail.scrollLeft + rail.clientWidth) / step);
       tile.setAttribute('aria-hidden', String(!visible));
@@ -385,19 +347,12 @@ async function start() {
     const index = Number(button.dataset.project);
     if (index === 2) {
       const project = detailProject || projects[active];
-      openProject(project, project.images[state[projects.indexOf(project)].slide]);
+      openProject(project, project.images[0]);
       return;
     }
     transitionTo(Math.min(index, projects.length - 1), index === 1);
   }));
   rail.addEventListener('scroll', onScroll, { passive: true });
-  rail.addEventListener('scrollend', () => {
-    if (wheelTarget !== null || rail.classList.contains('drifting') || detailProject) return;
-    const target = Math.round(rail.scrollLeft / step) * step;
-    if (Math.abs(rail.scrollLeft - target) > .5) {
-      rail.scrollTo({ left: target, behavior: reducedMotion.matches ? 'instant' : 'smooth' });
-    }
-  });
   rail.addEventListener('keydown', event => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
@@ -405,7 +360,7 @@ async function start() {
     stopWheel();
     if (event.key === 'Home' || event.key === 'End') return navigate(event.key === 'Home' ? 0 : projects.length - 1);
     const direction = event.key === 'ArrowRight' ? 1 : -1;
-    rail.scrollTo({ left: (Math.round(rail.scrollLeft / step) + direction) * step, behavior: reducedMotion.matches ? 'instant' : 'smooth' });
+    rail.scrollTo({ left: rail.scrollLeft + direction * step, behavior: reducedMotion.matches ? 'instant' : 'smooth' });
   });
   // Keep horizontal gestures native inside the rail. Route ordinary mouse-wheel
   // input (and gestures over the fixed header) into that same scroll container.
@@ -418,84 +373,44 @@ async function start() {
     if (!delta) return;
     event.preventDefault();
     const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rail.clientWidth : 1;
-    if (wheelTarget === null) wheelOrigin = rail.scrollLeft;
     wheelTarget = (wheelTarget ?? rail.scrollLeft) + delta * unit;
-    lastWheel = performance.now();
-    settling = false;
     rail.classList.add('gliding');
   }, { passive: false });
   rail.addEventListener('pointerdown', () => { pointerDown = true; manualInteraction(); stopWheel(); }, { passive: true });
 
-  function glide(now, elapsed) {
+  function glide(elapsed) {
     if (wheelTarget === null) return;
-    if (!settling && now - lastWheel > 140) {
-      let destination = Math.round(wheelTarget / step);
-      const origin = Math.round(wheelOrigin / step);
-      // An intentional short wheel gesture still moves to the next project.
-      if (destination === origin && Math.abs(wheelTarget - wheelOrigin) > 24) {
-        destination += Math.sign(wheelTarget - wheelOrigin);
-      }
-      wheelTarget = destination * step;
-      settling = true;
-    }
     const distance = wheelTarget - rail.scrollLeft;
-    const ease = reducedMotion.matches ? 1 : 1 - Math.exp(-elapsed / (settling ? 95 : 65));
+    const ease = reducedMotion.matches ? 1 : 1 - Math.exp(-elapsed / 65);
     rail.scrollLeft += distance * ease;
     onScroll();
-    if (settling && Math.abs(wheelTarget - rail.scrollLeft) < .75) {
+    if (Math.abs(wheelTarget - rail.scrollLeft) < .05) {
       rail.scrollLeft = wheelTarget;
       stopWheel();
       onScroll();
     }
   }
-  function renderSlides() {
-    tiles.forEach(tile => {
-      const current = state[Number(tile.dataset.project)].slide;
-      [...tile.children].slice(0, projects[Number(tile.dataset.project)].images.length).forEach((img, index) => img.classList.toggle('visible', index === current));
-    });
-  }
-  function renderProgress() {
-    const current = state[active];
-    bars.forEach((bar, index) => {
-      const fill = index < current.slide ? 1 : index === current.slide ? current.elapsed / duration : 0;
-      // Change physical width rather than scaling (which distorts the end caps).
-      bar.firstElementChild.style.width = `${fill * 100}%`;
-      bar.setAttribute('aria-pressed', String(index === current.slide));
-    });
-  }
   document.addEventListener('visibilitychange', () => { previous = performance.now(); });
   function animate(now) {
-    const delta = Math.min(now - previous, 100);
+    const delta = Math.max(now - previous, 0);
     previous = now;
     const transitioning = Boolean(pageTransition);
     advancePageTransition(now);
-    glide(now, delta);
+    glide(delta);
     const drifting = !menuOpen && !showingIndex && !detailProject && !transitioning && !pageTransition && !reducedMotion.matches && !document.hidden && !pointerDown && wheelTarget === null && now >= manualUntil;
     rail.classList.toggle('drifting', drifting);
     if (drifting) {
-      railSpeed += ((hovering ? .35 : 18) - railSpeed) * (1 - Math.exp(-delta / 350));
-      rail.scrollLeft += railSpeed * delta / 1000;
+      railSpeed += ((hovering ? .35 : idleRailSpeed) - railSpeed) * (1 - Math.exp(-delta / 350));
+      driftPosition = (driftPosition ?? rail.scrollLeft) + railSpeed * delta / 1000;
+      rail.scrollLeft = driftPosition;
       onScroll();
+    } else {
+      driftPosition = null;
     }
-    let changed = false;
-    // Inactive projects retain their slide and progress until they return left.
-    if (!menuOpen && !showingIndex && !detailProject && !transitioning && !pageTransition && !reducedMotion.matches && !document.hidden) {
-      const gallery = state[active];
-      gallery.elapsed += delta * (hovering ? .02 : 1);
-      if (gallery.elapsed >= duration) {
-        gallery.elapsed %= duration;
-        gallery.slide = (gallery.slide + 1) % projects[active].images.length;
-        changed = true;
-      }
-    }
-    if (changed) renderSlides();
-    if (!showingIndex && !detailProject && !document.hidden) renderProgress();
     requestAnimationFrame(animate);
   }
-  renderDescription();
   new ResizeObserver(measure).observe(rail);
   measure();
-  renderProgress();
   openURLView();
   window.addEventListener('hashchange', openURLView);
   document.querySelector('.studio-logo').addEventListener('click', event => { event.preventDefault(); transitionTo(0); });
@@ -507,5 +422,4 @@ start().catch(error => {
   const status = document.querySelector('#status');
   status.hidden = false;
   status.textContent = 'The portfolio could not be loaded. Please refresh to try again.';
-  document.querySelector('.project-context').hidden = true;
 });

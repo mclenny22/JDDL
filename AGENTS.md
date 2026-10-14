@@ -26,30 +26,29 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   uses the shared body copy and is editable under Studio-Informationen.
 - `frontend/projects.js` fetches `/api/public` with caching disabled and groups
   public images by their single project assignment. Only published projects
-  with published, unarchived assigned images appear. Menu items and story bars
-  use actual project/image counts; empty/error states are explicit. Studio copy,
+  with published, unarchived assigned images appear. Menu items use actual
+  project counts; empty/error states are explicit. Studio copy,
   project titles, descriptions and image alt text come from the CMS. No demo
   asset fallback or hardcoded project content belongs in the active frontend.
-- Seven repeated project sets rebase by whole cycles for an endless rail. Only
-  the active project nearest the left edge advances every 4.5 seconds. Inactive
-  galleries retain slide/progress and resume when active again. The rail also drifts continuously at 18px/s, easing to .35px/s on hover
-  or keyboard focus. Gallery image autoplay slows on hover as well. Manual
-  wheel, touch and keyboard input suspends drift for 3.5 seconds. There is no
-  pause button. Reduced motion disables autoplay and crossfades;
-  manual slide selection remains available.
-- Mouse-wheel input anywhere on the page eases into the native horizontal rail
-  and settles onto a project after a 140ms input pause. Short intentional wheel
-  gestures advance a project. Native CSS snapping handles horizontal trackpad
-  gestures and touch, aligning tiles with the left inset. Wheel animation
-  temporarily disables native snapping and rebases its target with the rail.
-  Reduced motion skips easing; browser pinch-to-zoom is preserved. The focused
-  rail supports Left/Right/Home/End. Resize preserves the active project.
+- Seven repeated project sets rebase by whole cycles for an endless rail. Each
+  project shows one stable thumbnail: its first published, unarchived assigned
+  image. There is no image cycling, story bar or thumbnail indicator. All other
+  published project images remain available in Index and on the project page.
+  The rail drifts continuously at 10px/s, easing to .35px/s on hover or keyboard
+  focus. Manual wheel, touch and keyboard input suspends drift for 3.5 seconds.
+  Drift uses elapsed time and a fractional accumulator to maintain its speed
+  across frame rates without rounding away small movements. Reduced motion
+  disables drift and easing; manual navigation remains available.
+- The horizontal rail flows freely without CSS snapping, wheel target rounding,
+  minimum project jumps or scroll-end corrections. Mouse-wheel input anywhere
+  on the gallery eases to the exact requested offset. Horizontal trackpad
+  gestures and touch inside the rail remain native. Wheel targets rebase with
+  the rail by whole cycles. Browser pinch-to-zoom is preserved. Left/Right moves
+  relative to the current offset; Home/End and explicit menu choices navigate
+  to the requested project. Resize preserves the fractional position.
 - About, project text and menu share a fixed 14px root font size and 1.12 line
-  height across all viewport sizes. Story fills animate their actual width with fixed round
-  caps, rather than scaling their shape. Rail spacing uses fractional bounding
-  rectangles to match native snapping exactly; the context/progress width follows
-  the measured tile width. Story selection also aligns the active tile, and
-  native scroll completion corrects residual misalignment.
+  height across viewport sizes. Rail spacing uses fractional bounding rectangles
+  to keep whole-cycle wrapping seamless.
 - Menu buttons show numbers by default; the selected item always shows its
   label in a pill. Each selection chooses rounded, 45-degree beveled, scalloped
   or asymmetric curved ends; it keeps that shape until another selection.
@@ -68,16 +67,15 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   Back/Forward restores the view without reloading CMS content. The image layer
   keeps its top/bottom fade and 800px cap during motion and resizing.
   Escape or another menu button returns to the preserved horizontal gallery.
-  Gallery autoplay and rail drift pause in Index and project detail; reduced
-  motion removes inertia and easing. Unchanged tile styles and hidden gallery
-  progress skip redundant DOM writes. Images settle with elapsed-time exponential
+  Rail drift pauses in Index and project detail; reduced
+  motion removes inertia and easing. Unchanged Index tile styles skip redundant DOM writes. Images settle with elapsed-time exponential
   easing without spring overshoot. Spacing is resolved once in target geometry
   with blended separation axes; displayed cards ease toward those positions.
   Drag velocity and coasting account for elapsed time.
 - Menu navigation fades the outgoing view over 400ms, switches at opacity zero,
   then eases the incoming view over 800ms with a small directional horizontal
   offset. The masthead stays fixed. Exit clicks replace the pending destination;
-  autoplay pauses during transitions. Reduced motion switches immediately.
+  rail drift pauses during transitions. Reduced motion switches immediately.
 - `frontend/project-view.js` opens a dark, vertically scrolling project detail
   from a clicked rail image, animating its crop into the hero. Escape, the back
   button and browser history restore the gallery. Deep links use
@@ -204,6 +202,6 @@ they do not replace browser visual verification.
 - Update this file when application logic or the workspace layout changes substantially.
 - If a task requires Figma and its MCP is disconnected or failing, stop and tell
   the user rather than continuing without it.
-- Preserve horizontal scrolling, infinite wrapping, snapping and active-gallery
-  behavior unless the user explicitly requests a replacement. Account for touch,
+- Preserve free horizontal scrolling, infinite wrapping and stable project
+  thumbnails unless the user explicitly requests a replacement. Account for touch,
   mouse wheel, keyboard accessibility, reduced motion and narrow viewports.

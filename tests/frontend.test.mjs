@@ -73,7 +73,7 @@ class Element {
 }
 
 async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1000, initialHash = '') {
-  const selectors = ['.rail', '.track', '#project-title', '#project-copy', '.stories', '.about', '.menu', '#status', '.project-context', '.portfolio', '#gallery', '#field', '.masthead', '.studio-logo', '.mobile-menu-trigger', '.site-footer', '#footer-contact', '#footer-address', '#footer-email', '#project-detail', '.project-detail-content', '.project-detail-info', '.project-hero', '.project-grid', '.project-close'];
+  const selectors = ['.rail', '.track', '.about', '.menu', '#status', '.portfolio', '#gallery', '#field', '.masthead', '.studio-logo', '.mobile-menu-trigger', '.site-footer', '#footer-contact', '#footer-address', '#footer-email', '#project-detail', '.project-detail-content', '.project-detail-info', '.project-hero', '.project-grid', '.project-close'];
   const elements = Object.fromEntries(selectors.map(selector => [selector, new Element(step)]));
   elements['#gallery'].getBoundingClientRect = () => ({ width: viewportWidth, height: 700 });
   const frames = new Map();
@@ -110,30 +110,19 @@ async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1
   return { elements, listeners, tick: (delta = 100) => { time += delta; const pending = [...frames.values()]; frames.clear(); pending.forEach(frame => frame(time)); }, document, location };
 }
 
-test('only left project advances, CMS descriptions and bars follow selection', async () => {
+test('each project keeps exactly one CMS thumbnail while the rail moves', async () => {
   const { elements, tick } = await mount();
-  const track = elements['.track'];
-  const menu = elements['.menu'];
-  assert.equal(track.children.length, 28);
-  assert.equal(elements['#project-copy'].textContent, seed.projects[0].description);
-  assert.equal(elements['.stories'].children.length, 3);
-  assert.equal(elements['.about'].children[0].textContent, seed.settings.about.split(/\s+/)[0]);
-  for (let index = 0; index < 45; index++) tick();
-  assert.ok(track.children[0].children[1].classes.has('visible'));
-  assert.ok(track.children[1].children[0].classes.has('visible'));
-  elements['.rail'].listeners.keydown({ key: 'ArrowRight', preventDefault() {} });
-  assert.equal(elements['#project-title'].textContent, seed.projects[1].title);
-  assert.equal(elements['.stories'].children.length, 10);
-  for (let index = 0; index < 45; index++) tick();
-  assert.ok(track.children[1].children[1].classes.has('visible'));
-  assert.ok(track.children[0].children[1].classes.has('visible'));
-  elements['.stories'].children[9].listeners.click();
-  assert.ok(track.children[1].children[9].classes.has('visible'));
-  for (let index = 0; index < 45; index++) tick();
-  assert.ok(track.children[1].children[0].classes.has('visible'));
+  const tiles = elements['.track'].children;
+  assert.equal(tiles.length, 28);
+  const thumbnails = tiles.map(tile => tile.children[0].src);
+  assert.ok(tiles.every(tile => tile.children.length === 2));
+  assert.equal(tiles[0].children[1].children[1].textContent, seed.projects[0].description);
+  for (let frame = 0; frame < 1000; frame++) tick();
+  assert.deepEqual(tiles.map(tile => tile.children[0].src), thumbnails);
+  assert.ok(tiles.every(tile => tile.children[0].classes.has('visible')));
 });
 
-test('wheel glide snaps and loop rebase preserves project and motion', async () => {
+test('wheel glide stops at the requested offset and loop rebase preserves free motion', async () => {
   const { elements, listeners, tick } = await mount();
   const rail = elements['.rail'];
   let prevented = false;
@@ -143,13 +132,13 @@ test('wheel glide snaps and loop rebase preserves project and motion', async () 
   wheel(120); tick(16);
   assert.ok(rail.scrollLeft > initial && rail.scrollLeft < initial + 120);
   for (let index = 0; index < 120; index++) tick(16);
-  assert.equal(rail.scrollLeft, initial + 310);
+  assert.equal(rail.scrollLeft, initial + 120);
   assert.ok(prevented);
   assert.ok(!rail.classes.has('gliding'));
   rail.scrollLeft = 1240 * 5 - 10; rail.listeners.scroll();
   wheel(400);
   for (let index = 0; index < 120; index++) tick(16);
-  assert.equal(rail.scrollLeft % 310, 0);
+  assert.equal(rail.scrollLeft % 310, 80);
   assert.ok(rail.scrollLeft >= 1240 * 2 && rail.scrollLeft < 1240 * 5);
   rail.scrollLeft = 100; rail.listeners.scroll(); assert.equal(rail.scrollLeft, 2580);
   prevented = false;
@@ -159,52 +148,48 @@ test('wheel glide snaps and loop rebase preserves project and motion', async () 
   listeners.wheel({ ctrlKey: true, preventDefault: () => assert.fail('Zoom intercepted') });
 });
 
-test('reduced motion keeps manual galleries; empty data produces an empty state', async () => {
-  const { elements, tick } = await mount(seed, true);
-  for (let index = 0; index < 60; index++) tick();
-  assert.ok(elements['.track'].children[0].children[0].classes.has('visible'));
-  elements['.stories'].children[2].listeners.click();
-  assert.ok(elements['.track'].children[0].children[2].classes.has('visible'));
+test('reduced motion disables drift but retains free manual scrolling and empty states', async () => {
+  const { elements, listeners, tick } = await mount(seed, true);
+  const rail = elements['.rail'];
+  const initial = rail.scrollLeft;
+  for (let frame = 0; frame < 60; frame++) tick();
+  assert.equal(rail.scrollLeft, initial);
+  listeners.wheel({ deltaX: 0, deltaY: 53, deltaMode: 0, target: rail, preventDefault() {} });
+  tick();
+  assert.equal(rail.scrollLeft, initial + 53);
   const empty = await mount({ projects: [], images: [], settings: {} });
   assert.equal(empty.elements['#status'].textContent, 'No published projects yet.');
-  assert.equal(empty.elements['.project-context'].hidden, true);
 });
 
-
-test('fractional tile geometry aligns wheel, menu, story clicks and native settling', async () => {
+test('fractional offsets survive wheel, keyboard, native scroll completion and wrapping', async () => {
   const step = 310.375;
   const { elements, listeners, tick } = await mount(seed, false, step);
   const rail = elements['.rail'];
-  assert.equal(rail.scrollLeft, 12 * step);
-  assert.equal(elements['.project-context'].style.width, `${step - 10}px`);
+  const initial = 12 * step;
+  assert.equal(rail.scrollLeft, initial);
+  rail.scrollLeft += 27.25;
   rail.listeners.keydown({ key: 'ArrowRight', preventDefault() {} });
-  assert.equal(rail.scrollLeft, 13 * step);
-  listeners.wheel({ ctrlKey: false, deltaX: 0, deltaY: 120, deltaMode: 0,
-    target: rail, preventDefault() {} });
-  for (let index = 0; index < 120; index++) tick(16);
-  assert.equal(rail.scrollLeft, 14 * step);
-  rail.scrollLeft += 1.5;
-  rail.listeners.scrollend();
-  assert.equal(rail.scrollLeft, 14 * step);
-  rail.scrollLeft += 30;
-  elements['.stories'].children[1].listeners.click();
-  assert.equal(rail.scrollLeft, 14 * step);
-  rail.scrollLeft = 5 * 4 * step - 10; rail.listeners.scroll();
-  listeners.wheel({ ctrlKey: false, deltaX: 0, deltaY: 400, deltaMode: 0,
-    target: rail, preventDefault() {} });
-  for (let index = 0; index < 120; index++) tick(16);
-  assert.equal(rail.scrollLeft % step, 0);
+  assert.equal(rail.scrollLeft, initial + step + 27.25);
+  listeners.wheel({ ctrlKey: false, deltaX: 0, deltaY: 120, deltaMode: 0, target: rail, preventDefault() {} });
+  for (let frame = 0; frame < 120; frame++) tick(16);
+  assert.equal(rail.scrollLeft, initial + step + 147.25);
+  assert.equal(rail.listeners.scrollend, undefined);
+  const cycle = 4 * step;
+  rail.scrollLeft = 5 * cycle - 10; rail.listeners.scroll();
+  const before = rail.scrollLeft;
+  listeners.wheel({ ctrlKey: false, deltaX: 0, deltaY: 400, deltaMode: 0, target: rail, preventDefault() {} });
+  for (let frame = 0; frame < 120; frame++) tick(16);
+  assert.equal(rail.scrollLeft % cycle, (before + 400) % cycle);
 });
 
-test('story progress uses actual fill width without scaling its rounded ends', async () => {
-  const { elements, tick } = await mount();
-  for (let index = 0; index < 22; index++) tick();
-  tick(50);
-  const fill = elements['.stories'].children[0].firstElementChild;
-  assert.equal(fill.style.width, '50%');
-  assert.equal(fill.style.transform, undefined);
+test('rail has no story controls or CSS snapping', () => {
+  const markup = fs.readFileSync(new URL('../frontend/index.html', import.meta.url), 'utf8');
+  const styles = fs.readFileSync(new URL('../frontend/styles.css', import.meta.url), 'utf8');
+  assert.ok(!markup.includes('class="stories"'));
+  assert.ok(!markup.includes('class="project-context"'));
+  assert.ok(!styles.includes('scroll-snap-align: start'));
+  assert.ok(!styles.includes('scroll-snap-type: x mandatory'));
 });
-
 
 test('saved CMS project order determines the landing project and its first visible image', async () => {
   const data = structuredClone(seed);
@@ -212,25 +197,25 @@ test('saved CMS project order determines the landing project and its first visib
   featured.sort_order = -20;
   const firstImage = data.images.find(image => image.project_ids.includes(featured.id) && image.published && !image.archived);
   const { elements } = await mount(data);
-  assert.equal(elements['#project-title'].textContent, featured.title);
+  assert.equal(elements['.track'].children[0].children[1].children[0].textContent, featured.title);
   const activeTile = elements['.track'].children.find(tile => tile.attrs['aria-hidden'] === 'false');
   assert.equal(activeTile.children[0].src, firstImage.url);
   assert.equal(activeTile.children[0].classes.has('visible'), true);
   featured.published = 0;
   const hidden = await mount(data);
-  assert.equal(hidden.elements['#project-title'].textContent, normalizePortfolio(data)[0].title);
+  assert.equal(hidden.elements['.track'].children[0].children[1].children[0].textContent, normalizePortfolio(data)[0].title);
   featured.published = 1;
   data.images.filter(image => image.project_ids.includes(featured.id)).forEach(image => { image.archived = 1; });
   const empty = await mount(data);
-  assert.equal(empty.elements['#project-title'].textContent, normalizePortfolio(data)[0].title);
+  assert.equal(empty.elements['.track'].children[0].children[1].children[0].textContent, normalizePortfolio(data)[0].title);
 });
 
 
-test('Index opens the CMS-backed V2 grid, pauses galleries, and returns with progress intact', async () => {
+test('Index pauses the rail and returns to the exact free scrolling position', async () => {
   const { elements, listeners, tick } = await mount();
   const menu = elements['.menu'];
   for (let index = 0; index < 10; index++) tick();
-  const fill = elements['.stories'].children[0].firstElementChild.style.width;
+  const thumbnail = elements['.track'].children[0].children[0].src;
   const railPosition = elements['.rail'].scrollLeft;
   menu.children[1].listeners.click();
   tick(400);
@@ -243,7 +228,7 @@ test('Index opens the CMS-backed V2 grid, pauses galleries, and returns with pro
   assert.ok(images.length >= publicURLs.size);
   assert.ok(images.every(image => publicURLs.has(image.src)));
   for (let index = 0; index < 50; index++) tick();
-  assert.equal(elements['.stories'].children[0].firstElementChild.style.width, fill);
+  assert.equal(elements['.track'].children[0].children[0].src, thumbnail);
   listeners.wheel({ ctrlKey: false, deltaY: 100, preventDefault: () => assert.fail('Hidden rail intercepted wheel') });
   elements['#gallery'].listeners.wheel({ ctrlKey: true, preventDefault: () => assert.fail('Zoom intercepted') });
   elements['#gallery'].listeners.keydown({ key: 'Escape', target: elements['#gallery'], preventDefault() {} });
@@ -254,7 +239,7 @@ test('Index opens the CMS-backed V2 grid, pauses galleries, and returns with pro
   assert.equal(elements['.rail'].scrollLeft, railPosition);
   assert.equal(menu.children[1].focused, true);
   tick();
-  assert.notEqual(elements['.stories'].children[0].firstElementChild.style.width, fill);
+  assert.ok(elements['.rail'].scrollLeft > railPosition);
 });
 
 test('Index remains available with one project and reduced motion responds directly to keys', async () => {
@@ -305,17 +290,17 @@ test('menu transitions defer the switch, accept the latest choice, and clear mot
   const index = elements['#gallery'];
   const rail = elements['.rail'];
   const position = rail.scrollLeft;
-  const fill = elements['.stories'].children[0].firstElementChild.style.width;
+  const thumbnail = elements['.track'].children[0].children[0].src;
   menu.children[1].listeners.click();
   assert.ok(portfolio.classes.has('page-out'));
   assert.equal(portfolio.inert, true);
   tick(300);
   assert.equal(rail.scrollLeft, position);
-  assert.equal(elements['.stories'].children[0].firstElementChild.style.width, fill);
+  assert.equal(elements['.track'].children[0].children[0].src, thumbnail);
   // A quick second click wins without briefly opening Index.
   menu.children[3].listeners.click();
   tick(100);
-  assert.equal(elements['#project-title'].textContent, seed.projects[3].title);
+  assert.equal(rail.scrollLeft % (4 * 310), 3 * 310);
   assert.equal(portfolio.hidden, false);
   assert.ok(portfolio.classes.has('page-in'));
   assert.equal(portfolio.inert, false);
@@ -468,7 +453,7 @@ test('rail drifts continuously, hover approaches stillness, and reduced motion d
   const rail = elements['.rail'];
   const initial = rail.scrollLeft;
   for (let frame = 0; frame < 10; frame++) tick();
-  assert.ok(rail.scrollLeft > initial + 15);
+  assert.ok(Math.abs(rail.scrollLeft - initial - 10) < .01);
   rail.listeners.pointerenter({ pointerType: 'mouse' });
   for (let frame = 0; frame < 25; frame++) tick();
   const hovered = rail.scrollLeft;
@@ -476,23 +461,22 @@ test('rail drifts continuously, hover approaches stillness, and reduced motion d
   assert.ok(rail.scrollLeft - hovered < 1);
   rail.listeners.pointerleave();
   for (let frame = 0; frame < 10; frame++) tick();
-  assert.ok(rail.scrollLeft - hovered > 10);
+  assert.ok(rail.scrollLeft - hovered > 6 && rail.scrollLeft - hovered < 11);
   const reduced = await mount(seed, true);
   const stationary = reduced.elements['.rail'].scrollLeft;
   for (let frame = 0; frame < 100; frame++) reduced.tick();
   assert.equal(reduced.elements['.rail'].scrollLeft, stationary);
 });
 
-test('clicked slide becomes project hero; detail pauses the rail and Escape restores it', async () => {
+test('the fixed thumbnail becomes the hero; detail pauses the rail and Escape restores it', async () => {
   const { elements, tick, location } = await mount(seed, true);
   const rail = elements['.rail'];
   const position = rail.scrollLeft;
-  elements['.stories'].children[1].listeners.click();
   const tile = elements['.track'].children[12];
   tile.listeners.click();
   assert.equal(elements['#project-detail'].hidden, false);
   assert.equal(elements['.portfolio'].hidden, true);
-  assert.equal(elements['.project-hero'].src, normalizePortfolio(seed)[0].images[1].url);
+  assert.equal(elements['.project-hero'].src, normalizePortfolio(seed)[0].images[0].url);
   assert.equal(elements['.project-grid'].children.length, 2);
   assert.match(location.hash, /^#project\//);
   tick(5000);
@@ -561,4 +545,16 @@ test('selected navigation retains its pill variant, and number hover chooses var
   assert.equal(menu[1].dataset.selectedShape, selected);
   menu[0].listeners.click();
   assert.notEqual(menu[0].dataset.selectedShape, first);
+});
+
+
+test('idle rail moves at 10px per second across normal and sparse animation frames', async () => {
+  for (const interval of [1000 / 60, 100, 1000]) {
+    const { elements, tick } = await mount();
+    const rail = elements['.rail'];
+    const initial = rail.scrollLeft;
+    const frames = Math.round(10000 / interval);
+    for (let frame = 0; frame < frames; frame++) tick(interval);
+    assert.ok(Math.abs(rail.scrollLeft - initial - 100) < .01);
+  }
 });

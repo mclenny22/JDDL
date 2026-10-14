@@ -26,18 +26,11 @@ button:focus-visible, .rail:focus-visible { outline: 2px solid #838383; outline-
 .menu button:is(:hover, :focus-visible) .menu-number { opacity: 0; }
 .menu button:hover, .menu button.selected { background: #d6d6d6; }
 .portfolio { position: fixed; inset: auto 0 var(--inset); }
-.project-context { position: relative; width: var(--tile-width); margin-left: var(--inset); margin-bottom: clamp(9px, .911vw, 17px); }
-#description { margin: 0 0 clamp(8px, .8vw, 15px); min-height: 1.12em; font-size: inherit; line-height: inherit; text-transform: uppercase; }
-.stories { display: flex; gap: clamp(4px, .428vw, 8px); }
-.story { position: relative; flex: 1; height: 5px; padding: 0; border-radius: 999px; background: #dfdfdf; }
-.story::before { content: ''; position: absolute; inset: -9px 0; }
-.story-fill { display: block; height: 100%; width: 0; border-radius: 999px; background: #838383; }
-.rail { overflow-x: auto; overflow-y: hidden; width: 100%; scrollbar-width: none; overscroll-behavior-x: contain; touch-action: pan-x; scroll-snap-type: x mandatory; scroll-padding-inline-start: var(--inset); }
-.rail.gliding { scroll-snap-type: none; }
+.rail { overflow-x: auto; overflow-y: hidden; width: 100%; scrollbar-width: none; overscroll-behavior-x: contain; touch-action: pan-x; scroll-snap-type: none; }
 .rail::-webkit-scrollbar { display: none; }
 .track { display: flex; gap: var(--gap); width: max-content; padding-inline: var(--inset); }
-.tile { position: relative; flex: 0 0 var(--tile-width); width: var(--tile-width); height: var(--tile-height); overflow: hidden; background: #eee; scroll-snap-align: start; }
-.tile img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 450ms ease; }
+.tile { position: relative; flex: 0 0 var(--tile-width); width: var(--tile-width); height: var(--tile-height); overflow: hidden; background: #eee; }
+.tile img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; }
 .tile img.visible { opacity: 1; }
 
 @media (max-width: 600px) {
@@ -53,8 +46,6 @@ button:focus-visible, .rail:focus-visible { outline: 2px solid #838383; outline-
 }
 @media (prefers-reduced-motion: reduce) { .tile img, .menu button, .menu-number, .menu-label { transition: none; } }
 
-#project-copy { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-top: 0; font-size: inherit; line-height: inherit; text-transform: uppercase; }
-#project-copy:empty { display: none; }
 #status { margin: 0 var(--inset) 20px; font-size: inherit; }
 
 .masthead { z-index: 5000; }
@@ -122,17 +113,13 @@ button:focus-visible, .rail:focus-visible { outline: 2px solid #838383; outline-
 .menu button.selected .menu-label { max-width: var(--menu-label-width); opacity: 1; transform: none; }
 .menu button.selected .menu-number { opacity: 0; }
 .portfolio { bottom: var(--footer-height); }
-.rail.drifting { scroll-snap-type: none; }
-.tile { height: calc(var(--tile-height) + 90px); background: transparent; cursor: pointer; }
-.tile img { top: 90px; height: var(--tile-height); }
-.tile-caption { position: absolute; top: 0; left: 0; right: 0; text-transform: uppercase; }
+.tile { display: flex; flex-direction: column; justify-content: flex-end; gap: 15px; height: auto; background: transparent; cursor: pointer; }
+.tile img { position: static; flex: none; height: var(--tile-height); }
+.tile-caption { order: -1; flex: none; text-transform: uppercase; }
 .tile-caption p { margin: 0; }
 .tile-caption p:first-child { color: #000; }
 .tile-caption p:last-child { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .tile:focus-visible { outline: 2px solid #838383; outline-offset: -2px; }
-.project-context { position: absolute; z-index: 1; bottom: calc(var(--tile-height) + 10px); margin-bottom: 0; }
-#description { display: none; }
-.story { height: 3px; }
 .site-footer { position: fixed; z-index: 5001; bottom: 0; left: 0; right: 0; min-height: var(--footer-height); padding: 15px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; background: #f6f6f6; color: #000; text-transform: uppercase; font-size: inherit; line-height: inherit; }
 .site-footer p { margin: 0; overflow-wrap: anywhere; }
 .orbit-gallery { bottom: var(--footer-height); background: #f6f6f6; }
