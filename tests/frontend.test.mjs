@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { normalizePortfolio, loadPortfolio } from '../frontend/projects.js';
-import { imagePlacement, projectRows } from '../frontend/project-view.js';
+import { imagePlacement, projectRows, automaticPlacements } from '../frontend/project-view.js';
 
 const seed = JSON.parse(fs.readFileSync(new URL('../backend/seed/content.json', import.meta.url)));
 
@@ -753,4 +753,40 @@ test('project thumbnails use a chosen eligible image and fall back without reord
   }
   data.projects.find(project => project.id === original.id).thumbnail_id = '';
   assert.equal(normalizePortfolio(data)[0].thumbnail.id, original.images[0].id);
+});
+
+test('editable automatic placements retain row groupings, widths and crop ratios for every pattern', () => {
+  const images = Array.from({ length: 25 }, (_, index) => ({ id: String(index) }));
+  const placements = automaticPlacements(images);
+  const automatic = projectRows(images);
+  let used = 0, row = 1;
+  for (const { image, span, ratio } of automatic) {
+    const p = placements[image.id];
+    assert.equal(p.row, row);
+    assert.ok(Math.abs((p.column - 1) / 7 - used / 12) < 1e-9);
+    assert.ok(Math.abs(p.span / 7 - span / 12) < 1e-9);
+    assert.equal(p.ratio, ratio);
+    assert.deepEqual(imagePlacement(image, 0, placements), p);
+    used += span;
+    if (used === 12) { row++; used = 0; }
+  }
+});
+
+test('saved row count renders leading and trailing blank rows without duplicating project images', async () => {
+  const data = structuredClone(seed);
+  const project = normalizePortfolio(data)[0];
+  const remaining = project.images.slice(1);
+  const placements = automaticPlacements(remaining);
+  Object.values(placements).forEach(p => { p.row = 2; });
+  data.settings.project_layout = JSON.stringify(placements);
+  data.settings.project_layout_rows = JSON.stringify({ [project.id]: 3 });
+  const { elements } = await mount(data, true, 310, 1000, `#project/${project.slug}/${project.images[0].id}`);
+  const children = elements['.project-grid'].children;
+  const spaces = children.filter(child => child.className === 'project-grid-spacer');
+  assert.equal(spaces.length, 3);
+  assert.deepEqual(spaces.map(space => space.style.minHeight), ['10vw', '0', '10vw']);
+  const figures = children.filter(child => child.className !== 'project-grid-spacer');
+  assert.equal(figures.length, remaining.length);
+  assert.deepEqual(figures.map(figure => figure.children[0].src), remaining.map(image => image.url));
+  assert.ok(figures.every(figure => figure.style.gridRow === '2 / span 1'));
 });

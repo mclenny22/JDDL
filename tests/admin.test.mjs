@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import { imagePlacement, projectRows } from '../frontend/project-view.js';
+import { imagePlacement, projectRows, automaticPlacements } from '../frontend/project-view.js';
 
 function mount() {
   const elements = new Map();
@@ -38,7 +38,7 @@ function mount() {
   };
   const calls = [];
   const context = vm.createContext({
-    imagePlacement, projectRows, document, window: { addEventListener() {} }, Node: Element,
+    imagePlacement, projectRows, automaticPlacements, document, window: { addEventListener() {} }, Node: Element,
     fetch: async (url, options) => {
       calls.push({ url, options });
       return { ok: true, json: async () => ({ authenticated: false }) };
@@ -280,4 +280,48 @@ test('project editor replaces the main view, keeps Projects active and returns f
   assert.equal(run('layoutEditor.dirty'), false);
   elements.get('#project-cancel').listeners.click();
   assert.equal(run('state.view'), 'projects');
+});
+
+test('enabling the seven-column editor retains automatic composition without adding empty rows', () => {
+  const { run, elements } = mount();
+  run(`state.data.images[0].url = '/hero.jpg';
+    for (let i = 0; i < 7; i++) state.data.images.push({ id: 'layout-' + i, original_name: 'Image ' + i, url: '/image.jpg', published: 1, archived: 0, project_ids: ['alpha'] });
+    openProject(state.data.projects[0]);`);
+  const automatic = JSON.parse(run('JSON.stringify(layoutEditor.placements)'));
+  elements.get('#layout-mode').listeners.click();
+  assert.deepEqual(JSON.parse(run('JSON.stringify(layoutEditor.placements)')), automatic);
+  assert.equal(run('layoutEditor.rows'), 3);
+  const markup = elements.get('#layout-page').innerHTML;
+  assert.equal((markup.match(/data-layout-row=/g) || []).length, 3);
+  assert.equal((markup.match(/data-insert-row=/g) || []).length, 4);
+  assert.equal((markup.match(/class="layout-row is-empty"/g) || []).length, 0);
+});
+
+test('row insertion shifts later images once and persists a bottom empty row on save', async () => {
+  const { run, elements, calls } = mount();
+  run(`state.data.images[0].url = '/hero.jpg';
+    state.data.images.push({ id: 'second', url: '/second.jpg', original_name: 'Second', published: 1, archived: 0, project_ids: ['alpha'] });
+    openProject(state.data.projects[0]); refresh = async () => {};`);
+  elements.get('#layout-mode').listeners.click();
+  run('insertLayoutRow(1)');
+  assert.equal(run('layoutEditor.placements.second.row'), 2);
+  assert.equal(run('layoutEditor.rows'), 2);
+  run('insertLayoutRow(2)');
+  assert.equal(run('layoutEditor.placements.second.row'), 3);
+  assert.equal(run('layoutEditor.rows'), 3);
+  run('insertLayoutRow(4)');
+  assert.equal(run('layoutEditor.placements.second.row'), 3);
+  assert.equal(run('layoutEditor.rows'), 4);
+  await elements.get('#project-form').listeners.submit({ preventDefault() {}, submitter: { disabled: false } });
+  const payload = JSON.parse(calls.find(call => call.url === '/api/projects').options.body);
+  assert.equal(payload.layout_rows, 4);
+  assert.equal(payload.image_layouts.second.row, 3);
+  run('removeLayoutRow(2)');
+  assert.equal(run('layoutEditor.placements.second.row'), 2);
+  assert.equal(run('layoutEditor.rows'), 3);
+  run('removeLayoutRow(2)');
+  assert.equal(run('layoutEditor.rows'), 3); // Occupied rows cannot be deleted.
+  run('layoutEditor.rows = 1000; insertLayoutRow(1)');
+  assert.equal(run('layoutEditor.rows'), 1000);
+  assert.equal(run('layoutEditor.placements.second.row'), 2);
 });

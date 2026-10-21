@@ -120,6 +120,24 @@ class BackendIntegrationTests(unittest.TestCase):
         reset = json.loads(self.request('GET', '/api/admin/bootstrap')[2])
         self.assertEqual(next(p for p in reset['projects'] if p['id'] == project['id'])['thumbnail_id'], '')
 
+    def test_composed_layout_keeps_fractional_columns_crop_and_blank_row_count(self):
+        self.login()
+        data = json.loads(self.request('GET', '/api/admin/bootstrap')[2])
+        project = data['projects'][0]
+        assigned = [image['id'] for image in data['images'] if project['id'] in image['project_ids']]
+        placement = {"column": 1, "span": 7 / 3, "row": 2, "ratio": 0.8}
+        payload = {**project, 'image_layouts': {assigned[1]: placement}, 'layout_rows': 4}
+        self.assertEqual(self.request('POST', '/api/projects', payload)[0], 200)
+        saved = json.loads(self.request('GET', '/api/public')[2])
+        self.assertEqual(json.loads(saved['settings']['project_layout'])[assigned[1]], placement)
+        self.assertEqual(json.loads(saved['settings']['project_layout_rows'])[project['id']], 4)
+        for invalid in ({'layout_rows': 1001}, {'layout_rows': True}, {'layout_rows': -1}, {'image_layouts': {assigned[1]: {**placement, 'ratio': 0}}}, {'image_layouts': {assigned[1]: {**placement, 'span': 2.1}}}, {'image_layouts': {assigned[1]: {**placement, 'row': 1.5}}}):
+            self.assertEqual(self.request('POST', '/api/projects', {**payload, **invalid})[0], 400)
+            self.assertEqual(json.loads(self.request('GET', '/api/public')[2]), saved)
+        self.assertEqual(self.request('POST', '/api/projects', {**project, 'image_layouts': {}, 'layout_rows': 0})[0], 200)
+        reset = json.loads(self.request('GET', '/api/public')[2])
+        self.assertNotIn(project['id'], json.loads(reset['settings']['project_layout_rows']))
+
     def test_new_site_and_admin_assets_do_not_conflict(self):
         status, _, page = self.request('GET', '/')
         self.assertEqual(status, 200)

@@ -63,7 +63,7 @@ The response contains four top-level fields:
 | `projects` | Published projects, ordered by `sort_order`, then title. Fields include `id`, `slug`, `title`, `client`, `description`, `thumbnail_id`, `published`, `sort_order`, `created_at`, and `updated_at`. |
 | `images` | Published, unarchived images. Fields include `id`, `url`, `alt_text`, `aspect_ratio` (width / height), `original_name`, `filename`, `remote_url`, `mime_type`, `published`, `archived`, timestamps, `project_ids`, and `tag_ids`. |
 | `tags` | Tags with `id`, `slug`, `name`, and `sort_order`. |
-| `settings` | Studio settings as a key/value object, including `about`, `footer_contact`, `footer_address`, `footer_email` and optional `project_layout` (a JSON string mapping image IDs to `{column, span, row}` placements in the seven-column detail grid). |
+| `settings` | Studio settings as a key/value object, including `about`, `footer_contact`, `footer_address`, `footer_email` and optional `project_layout` (a JSON string mapping image IDs to `{column, span, row}` placements in the seven-column detail grid; composed layouts also store `ratio` and may use twelfth-column fractions), plus optional `project_layout_rows` (a JSON string mapping project IDs to their explicit row count, including empty rows). |
 
 A project’s `thumbnail_id` is its optional explicit thumbnail choice (empty means automatic).
 Use the matching published, unarchived image assigned to that project; if no eligible

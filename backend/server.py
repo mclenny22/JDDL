@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import json
 import mimetypes
+import math
 import os
 import re
 import secrets
@@ -424,7 +425,11 @@ class Handler(SimpleHTTPRequestHandler):
             if not set(placements).issubset(assigned_ids):
                 raise ValueError("Das Layout darf nur Bilder dieses Projekts enthalten")
             for placement in placements.values():
-                self.validate_placement(placement)
+                self.validate_placement(placement, composed=True)
+        row_count = payload.get("layout_rows")
+        if "layout_rows" in payload:
+            if placements is None or not isinstance(row_count, int) or isinstance(row_count, bool) or not 0 <= row_count <= 1000:
+                raise ValueError("Ungültige Zeilenanzahl")
         values = (
             project_id,
             slugify(str(payload.get("slug") or title)),
@@ -452,6 +457,15 @@ class Handler(SimpleHTTPRequestHandler):
                     thumbnails.pop(project_id, None)
                 db.execute("INSERT INTO settings VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                            ("project_thumbnails", json.dumps(thumbnails)))
+            if "layout_rows" in payload:
+                record = db.execute("SELECT value FROM settings WHERE key = 'project_layout_rows'").fetchone()
+                rows = json.loads(record["value"]) if record else {}
+                if row_count:
+                    rows[project_id] = row_count
+                else:
+                    rows.pop(project_id, None)
+                db.execute("INSERT INTO settings VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                           ("project_layout_rows", json.dumps(rows)))
             if placements is not None:
                 record = db.execute("SELECT value FROM settings WHERE key = 'project_layout'").fetchone()
                 layout = json.loads(record["value"]) if record else {}
@@ -517,16 +531,24 @@ class Handler(SimpleHTTPRequestHandler):
         self.json_response({"deleted": True})
 
     @staticmethod
-    def validate_placement(placement: dict) -> None:
+    def validate_placement(placement: dict, composed: bool = False) -> None:
         if not isinstance(placement, dict):
             raise ValueError("Ungültige Bildplatzierung")
-        if set(placement) - {"id", "column", "span", "row"}:
+        allowed = {"id", "column", "span", "row"} | ({"ratio"} if composed else set())
+        if set(placement) - allowed:
             raise ValueError("Ungültige Bildplatzierung")
         for key, maximum in (("column", 7), ("span", 7), ("row", 1000)):
             value = placement.get(key)
-            if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= maximum:
+            fractional = composed and key != "row" and "ratio" in placement
+            if not isinstance(value, (int, float) if fractional else int) or isinstance(value, bool) or not math.isfinite(value) or not 1 <= value <= maximum:
                 raise ValueError("Spalte und Breite: 1–7; Zeile: 1–1000")
-        if placement["column"] + placement["span"] > 8:
+            if fractional and abs(value * 12 - round(value * 12)) > 1e-6:
+                raise ValueError("Ungültiges Spaltenraster")
+        if "ratio" in placement:
+            ratio = placement["ratio"]
+            if not isinstance(ratio, (int, float)) or isinstance(ratio, bool) or not math.isfinite(ratio) or not 0 < ratio <= 100:
+                raise ValueError("Ungültiges Bildformat")
+        if placement["column"] + placement["span"] > 8 + 1e-6:
             raise ValueError("Das Bild muss innerhalb der sieben Spalten bleiben")
 
     def save_settings(self, payload: dict) -> None:

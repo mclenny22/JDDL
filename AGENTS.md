@@ -102,6 +102,14 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   Mobile reflows these images into two columns. Layout editing lives in the
   project editor: a scaled dark page preview, seven-column pointer/touch dragging,
   right-edge width resizing and arrow-key movement (Shift+Left/Right resizes).
+  Entering editing copies the automatic row groups, sizes and crop ratios without
+  adding empty rows. Seven visible guides use 84 internal subcolumns to preserve
+  thirds/halves/quarters exactly; saved composed placements may include twelfth-
+  column fractions and a `ratio`. Plus controls above, between and below rows
+  insert one empty row and shift later images; empty rows have a remove control.
+  Row count saves through `layout_rows` into `project_layout_rows`, preserving
+  leading/trailing blank rows. Legacy integer placements remain supported and
+  mobile still reflows into two columns. No rows are appended on drag or resize.
   Published assigned images appear after the thumbnail hero; unpublished
   assignments are counted separately. Automatic layouts remain until explicitly
   converted, and can be restored. Drafts save atomically with project metadata via

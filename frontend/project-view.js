@@ -7,8 +7,11 @@ export function imagePlacement(image, index, layout = {}) {
   const saved = layout?.[image.id] || {};
   const integer = (value, min, max, otherwise) => Number.isInteger(Number(value)) && Number(value) >= min && Number(value) <= max ? Number(value) : otherwise;
   const span = integer(saved.span, 1, 7, fallback.span);
-  return { span, column: integer(saved.column, 1, 8 - span, Math.min(fallback.column, 8 - span)),
-    row: integer(saved.row, 1, 1000, fallback.row + Math.floor(index / presets.length) * 60) };
+  const composed = Number.isFinite(saved.ratio) && saved.ratio > 0 && saved.ratio <= 100;
+  const fraction = (value, min, max, otherwise) => Number.isFinite(value) && value >= min && value <= max + 1e-6 ? value : otherwise;
+  const width = composed ? fraction(saved.span, 1, 7, span) : span;
+  return { span: width, column: composed ? fraction(saved.column, 1, 8 - width, 1) : integer(saved.column, 1, 8 - span, Math.min(fallback.column, 8 - span)),
+    row: integer(saved.row, 1, 1000, fallback.row + Math.floor(index / presets.length) * 60), ...(composed ? { ratio: saved.ratio } : {}) };
 }
 
 // Figma's full, paired, three/four-up and mixed rows, filled with CMS images.
@@ -32,6 +35,18 @@ export function projectRows(images) {
     }
   }
   return result;
+}
+
+// Seven visible guide columns, with subcolumns to retain automatic thirds/halves/quarters.
+export function automaticPlacements(images) {
+  let row = 1;
+  let used = 0;
+  return Object.fromEntries(projectRows(images).map(({ image, span, ratio }) => {
+    const placement = { column: 1 + used * 7 / 12, span: span * 7 / 12, row, ratio };
+    used += span;
+    if (used >= 12 - 1e-6) { used = 0; row++; }
+    return [image.id, placement];
+  }));
 }
 
 export function createProjectView(projects, settings, reducedMotion, onClose) {
@@ -177,11 +192,30 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
     const remaining = project.images.filter(item => item.id !== image.id);
     const custom = remaining.some(item => layout[item.id] && Object.keys(layout[item.id]).length);
     grid.classList.toggle('custom-layout', custom);
+    let rowCounts = {};
+    try { rowCounts = JSON.parse(settings.project_layout_rows || '{}') || {}; } catch {}
+    const composed = custom && (Number(rowCounts[project.id]) > 0 || remaining.some(item => layout[item.id]?.ratio));
+    grid.classList.toggle('composed-layout', Boolean(composed));
+    const automatic = automaticPlacements(remaining);
+    const placed = remaining.map((item, index) => composed && !layout[item.id] ? automatic[item.id] : imagePlacement(item, index, layout));
+    if (composed) {
+      const rows = Math.min(1000, Math.max(Number(rowCounts[project.id]) || 0, ...placed.map(p => p.row)));
+      const occupied = new Set(placed.map(p => p.row));
+      for (let row = 1; row <= rows; row++) {
+        const space = document.createElement('div');
+        space.className = 'project-grid-spacer';
+        space.style.gridRow = String(row);
+        space.style.minHeight = occupied.has(row) ? '0' : '10vw';
+        space.setAttribute('aria-hidden', 'true');
+        grid.append(space);
+      }
+    }
     projectRows(remaining).forEach(({ image: item, span, ratio, mobileSpan, mobileRatio }, index) => {
       const figure = document.createElement('figure');
       if (custom) {
-        const placement = imagePlacement(item, index, layout);
-        figure.style.gridColumn = `${placement.column} / span ${placement.span}`;
+        const placement = placed[index];
+        figure.style.gridColumn = composed ? `${Math.round((placement.column - 1) * 12) + 1} / span ${Math.round(placement.span * 12)}` : `${placement.column} / span ${placement.span}`;
+        if (composed && placement.ratio) figure.style.setProperty('--layout-ratio', String(placement.ratio));
         figure.style.gridRow = `${placement.row} / span 1`;
       }
       figure.style.setProperty('--columns', String(span));
