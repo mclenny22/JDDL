@@ -86,10 +86,13 @@ p { margin: 0; }
 .project-detail::-webkit-scrollbar { display: none; }
 .project-detail:focus, .studio-detail:focus { outline: none; }
 .project-detail-content { width: auto; margin: 0 15px; padding-top: max(247px, calc(var(--index-top, 89px) + 40px)); }
-.project-detail-info { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; align-items: baseline; padding-block: 15px; }
+.project-detail-info { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 15px; align-items: baseline; padding-block: 15px; }
 .project-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; min-width: 0; }
 .project-info-toggle { display: flex; justify-content: flex-end; gap: 4px; padding: 0; background: transparent; color: var(--muted); text-transform: uppercase; }
-.project-description { grid-column: 1 / -1; max-width: 70ch; padding-block: 15px; white-space: pre-line; }
+.project-description-panel { grid-column: 1 / -1; display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 450ms cubic-bezier(.22, 1, .36, 1), opacity 300ms ease; }
+.project-description-panel.is-open { grid-template-rows: 1fr; opacity: 1; }
+.project-description-clip { min-height: 0; overflow: hidden; }
+.project-description { max-width: 70ch; padding-block: 30px 15px; white-space: pre-line; }
 .project-hero { display: block; width: 100%; aspect-ratio: 1410 / 575; object-fit: cover; background: #111; }
 .project-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 15px; margin-top: 15px; align-items: start; }
 .project-grid figure { margin: 0; min-width: 0; grid-column: span var(--columns); }
@@ -150,7 +153,8 @@ p { margin: 0; }
   .index-open .about { display: none; }
   .index-filters { position: static; grid-column: 1 / -1; grid-row: 3; margin-top: 25px; width: 100%; padding: 0; justify-content: flex-start; }
   .project-detail-content { padding-top: calc(var(--index-top, 152px) + 16px); }
-  .project-detail-info { grid-template-columns: 1fr; gap: 15px; padding-block: 0 40px; }
+  .project-detail-info { grid-template-columns: 1fr; padding-block: 0 40px; }
+  .project-detail-info > .project-meta { margin-bottom: 15px; }
   .project-categories { flex-direction: column; align-items: flex-start; gap: 15px; }
   .project-info-toggle { justify-content: space-between; }
   .project-hero { aspect-ratio: 1; }
@@ -163,7 +167,7 @@ p { margin: 0; }
   .studio-detail-copy, .studio-close { margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .tile-services { transition: none; }
+  .tile-services, .project-description-panel { transition: none; }
   .page-out, .page-out-back, .page-in, .page-in-back { animation: none; }
   ::view-transition-group(*) { animation-duration: 0s !important; }
 }

@@ -640,13 +640,17 @@ test('reduced motion avoids the native transition API and Project Info reflects 
   assert.equal(transitions.length, 0);
   const [identity, categories, toggle, description] = elements['.project-detail-info'].children;
   assert.ok(identity.children.length > 0 && categories.children.length > 0);
-  assert.equal(description.textContent, normalizePortfolio(seed)[0].description);
-  assert.equal(description.hidden, true);
+  assert.equal(description.children[0].children[0].textContent, normalizePortfolio(seed)[0].description);
+  assert.equal(description.inert, true);
+  assert.equal(description.attrs['aria-hidden'], 'true');
   toggle.listeners.click();
-  assert.equal(description.hidden, false);
+  assert.equal(description.inert, false);
+  assert.equal(description.attrs['aria-hidden'], 'false');
+  assert.equal(description.classes.has('is-open'), true);
   assert.equal(toggle.attrs['aria-expanded'], 'true');
   toggle.listeners.click();
-  assert.equal(description.hidden, true);
+  assert.equal(description.inert, true);
+  assert.equal(description.classes.has('is-open'), false);
 });
 
 test('Index filters use CMS tags and each tile opens its own assigned project and image', async () => {

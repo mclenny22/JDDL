@@ -81,7 +81,9 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   four-up image rows. Mobile uses square heroes, stacked wide images and
   two-column rows. Every remaining published project image appears once.
   Project/client, categories and derived format sit above the hero;
-  Project Info + expands the CMS description. The footer and return control
+  Project Info + expands the CMS description with a reversible 450ms height
+  easing and text fade. Collapsed text is inert and hidden from assistive
+  technology; reduced motion switches immediately. The footer and return control
   follow the project images and scroll with the content.
 - Project links use `#project/<slug>/<image-id>` and real anchor hrefs.
   Native same-document View Transitions pair only the clicked repeated tile
