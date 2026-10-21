@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dependency-free CMS and horizontal portfolio server for JDDL."""
+"""Dependency-free CMS and horizontal portfolio server for AD4K."""
 
 from __future__ import annotations
 
@@ -221,7 +221,7 @@ def public_payload(admin: bool = False) -> dict:
 
 
 class Handler(SimpleHTTPRequestHandler):
-    server_version = "JDDL/2.0"
+    server_version = "AD4K/2.0"
 
     def public_api_headers(self) -> dict:
         # CORS applies only to the read-only content endpoint, never admin APIs.
@@ -596,8 +596,8 @@ def run() -> None:
     host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", "4174"))
     if host not in {"127.0.0.1", "localhost", "::1"} and "ADMIN_PASSWORD" not in os.environ:
-        raise SystemExit("Set ADMIN_PASSWORD before exposing JDDL beyond localhost.")
-    print(f"JDDL running at http://{host}:{port}")
+        raise SystemExit("Set ADMIN_PASSWORD before exposing AD4K beyond localhost.")
+    print(f"AD4K running at http://{host}:{port}")
     password_note = "configured through ADMIN_PASSWORD" if "ADMIN_PASSWORD" in os.environ else f"local password stored in {DATA / 'admin.password'}"
     print(f"Admin: /admin ({password_note})")
     ThreadingHTTPServer((host, port), Handler).serve_forever()

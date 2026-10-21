@@ -382,7 +382,7 @@ function buildPortfolioDocument(images) {
   const pages = groupedExportImages(images).flatMap(({ project, images: projectImages }) => {
     const projectTitle = project?.title || "Freie Arbeiten";
     const projectDescription = project?.description || "Ausgewählte Arbeiten ohne Projektzuordnung.";
-    const projectClient = project?.client || "JDDL Studio-Auswahl";
+    const projectClient = project?.client || "AD4K Studio-Auswahl";
     const projectCategories = [...new Set(projectImages.flatMap((image) => tagNames(image)))];
     const batches = chunk(projectImages, 5);
     return batches.map((batch, batchIndex) => {
@@ -400,7 +400,7 @@ function buildPortfolioDocument(images) {
 
   return `<!doctype html>
 <html lang="de"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>JDDL - ${escapeHtml(safeFileName(selectionFocus))} portfolio</title>
+<title>AD4K - ${escapeHtml(safeFileName(selectionFocus))} portfolio</title>
 <style>
   :root { color-scheme: light; font-family: Arial, Helvetica, sans-serif; color: #111; background: #d7d7d2; }
   * { box-sizing: border-box; }
@@ -450,8 +450,8 @@ function buildPortfolioDocument(images) {
 </style></head><body>
   <div class="print-toolbar"><span>Wähle im Druckdialog „Als PDF speichern“.</span><button type="button" onclick="window.print()">Drucken / PDF speichern</button></div>
   <section class="portfolio-page cover-page">
-    <div class="cover-main"><p class="cover-we-are">Wir sind</p><h1>JDDL</h1><p class="cover-selection">Eine Auswahl unserer Arbeiten im Bereich <strong>${escapeHtml(selectionFocus)}</strong>.</p></div>
-    <div class="cover-footer"><div><h2>${escapeHtml(studio.eyebrow || "Über das Studio")}</h2><p>${escapeHtml(studio.about || "JDDL ist ein unabhängiges Kreativstudio.")}</p></div><div><h2>Ausgewählte Kunden</h2><p>${escapeHtml(clients.join(" / ") || "JDDL Studio-Portfolio")}<br />${escapeHtml(categories.join(" / ") || "Ausgewählte Arbeiten")} / ${escapeHtml(date)}</p></div></div>
+    <div class="cover-main"><p class="cover-we-are">Wir sind</p><h1>AD4K</h1><p class="cover-selection">Eine Auswahl unserer Arbeiten im Bereich <strong>${escapeHtml(selectionFocus)}</strong>.</p></div>
+    <div class="cover-footer"><div><h2>${escapeHtml(studio.eyebrow || "Über das Studio")}</h2><p>${escapeHtml(studio.about || "AD4K ist ein unabhängiges Kreativstudio.")}</p></div><div><h2>Ausgewählte Kunden</h2><p>${escapeHtml(clients.join(" / ") || "AD4K Studio-Portfolio")}<br />${escapeHtml(categories.join(" / ") || "Ausgewählte Arbeiten")} / ${escapeHtml(date)}</p></div></div>
   </section>
   ${pages}
 <script>

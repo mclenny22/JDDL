@@ -6,7 +6,7 @@ output = root / 'public'
 if output.exists():
     shutil.rmtree(output)
 output.mkdir()
-for name in ('index.html', 'styles.css', 'app.js', 'projects.js', 'orbit.js', 'project-view.js'):
+for name in ('index.html', 'imprint.html', 'styles.css', 'app.js', 'projects.js', 'orbit.js', 'project-view.js'):
     shutil.copy2(root / 'frontend' / name, output / name)
 shutil.copytree(root / 'frontend/assets', output / 'assets')
 admin_output = output / 'admin-assets'

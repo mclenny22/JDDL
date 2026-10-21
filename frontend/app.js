@@ -14,10 +14,20 @@ async function start() {
   const projectFooter = document.querySelector('.project-footer');
   for (const [key, fallback] of footerValues) {
     const value = settings[`footer_${key}`] ?? fallback;
-    document.querySelector(`#footer-${key}`).textContent = value;
+    const footerField = document.querySelector(`#footer-${key}`);
+    footerField.textContent = value;
     const text = document.createElement('p');
     text.textContent = value;
     projectFooter.append(text);
+    if (key === 'contact') {
+      for (const field of [footerField, text]) {
+        const link = document.createElement('a');
+        link.href = '/imprint.html';
+        link.className = 'footer-imprint';
+        link.textContent = 'Imprint';
+        field.append(link);
+      }
+    }
   }
   const baseTitle = 'AD4K — Independent design studio';
   document.title = baseTitle;

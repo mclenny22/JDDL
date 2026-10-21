@@ -535,7 +535,10 @@
   ],
   "settings": {
     "eyebrow": "Who we are",
-    "about": "JDDL is an independent creative practice working across identity, image-making and digital experiences. We build visual systems that are precise enough to be useful and open enough to stay alive.",
-    "clients": "Adidas\nNew Balance\nNike\nStone Techno\nGlitch Festival\nTerra Kaffe"
+    "about": "AD4K is an independent creative practice working across identity, image-making and digital experiences. We build visual systems that are precise enough to be useful and open enough to stay alive.",
+    "clients": "Adidas\nNew Balance\nNike\nStone Techno\nGlitch Festival\nTerra Kaffe",
+    "footer_contact": "Contact",
+    "footer_email": "hi@ad4k.studio",
+    "footer_address": "Elßholzstrasse 23, Berlin"
   }
 }

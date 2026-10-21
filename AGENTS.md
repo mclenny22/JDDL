@@ -98,6 +98,9 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   column, span and row controls and validated `/api/settings` `image_layout`
   patches remain unchanged; no database migration is required.
 - No frontend framework, package dependencies or frontend build is required.
+- `frontend/imprint.html` is the static imprint page, linked from both site and
+  project footers and included in the Vercel export. It lists Lennard Makosch,
+  Wrangelstr. 79, Berlin; the studio contact address is a separate CMS setting.
 - Link previews use static Open Graph and social-card metadata in the initial
   `frontend/index.html` head, so crawlers do not need JavaScript or CMS access.
   `frontend/assets/social-preview.png` is a 1200 × 630 logo-only card rendered
