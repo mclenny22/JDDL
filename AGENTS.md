@@ -98,6 +98,11 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   column, span and row controls and validated `/api/settings` `image_layout`
   patches remain unchanged; no database migration is required.
 - No frontend framework, package dependencies or frontend build is required.
+- Link previews use static Open Graph and social-card metadata in the initial
+  `frontend/index.html` head, so crawlers do not need JavaScript or CMS access.
+  `frontend/assets/social-preview.png` is a 1200 × 630 logo-only card rendered
+  from the existing AD4K SVG on #f6f6f6; keep its centered logo within square
+  crop bounds. All hash-based project links currently share this studio card.
 
 ## Backend and content
 
