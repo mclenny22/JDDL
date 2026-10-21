@@ -706,3 +706,26 @@ test('a menu choice before the native snapshot callback still wins over the pend
   assert.equal(elements['#gallery'].hidden, false);
   transitions[1].finish(); await settle();
 });
+
+test('Project menu chooses a published project and avoids repeating the open project', async () => {
+  const data = structuredClone(seed);
+  data.projects.slice(2).forEach(project => { project.published = 0; });
+  const projects = normalizePortfolio(data);
+  const { elements, location } = await mount(data, true);
+  const button = elements['.menu'].children[2];
+  button.listeners.click();
+  for (let click = 0; click < 10; click++) {
+    const previous = location.hash;
+    assert.ok(projects.some(project => previous === `#project/${project.slug}/${project.images[0].id}`));
+    button.listeners.click();
+    assert.notEqual(location.hash, previous);
+    assert.equal(elements['#project-detail'].hidden, false);
+  }
+  data.projects[1].published = 0;
+  const single = await mount(data, true);
+  single.elements['.menu'].children[2].listeners.click();
+  const first = single.location.hash;
+  single.elements['.menu'].children[2].listeners.click();
+  assert.equal(single.location.hash, first);
+  assert.equal(single.elements['#project-detail'].hidden, false);
+});

@@ -58,7 +58,8 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   The active label uses the reference's pale rounded shape (Index is a pill);
   inactive numbers use triangle, hexagon, rounded square and circle shapes.
   Hover/focus varies inactive geometry without clipping labels or focus rings.
-  Project opens the active project's detail. About (`#about`) uses studio
+  Project opens a random published project's detail, excluding the currently
+  open project when another is available. About (`#about`) uses studio
   settings and selected clients. On mobile MENU becomes CLOSE and reveals
   a horizontal row beneath the logo; studio copy moves below that row while
   the rail keeps its size. Selection, outside click and Escape close the menu.

@@ -71,7 +71,7 @@ async function start() {
     }
     button.addEventListener('pointerenter', varyHoverShape);
     button.addEventListener('focus', varyHoverShape);
-    button.setAttribute('aria-label', ['Selected — View projects', 'Index — Explore all images', 'Project — Open active project', 'About the studio'][index]);
+    button.setAttribute('aria-label', ['Selected — View projects', 'Index — Explore all images', 'Project — Open a random project', 'About the studio'][index]);
     nav.append(button);
     button.style.setProperty('--menu-label-width', `${label.scrollWidth}px`);
     return button;
@@ -433,7 +433,9 @@ async function start() {
   menu.forEach(button => button.addEventListener('click', () => {
     const index = Number(button.dataset.project);
     if (index === 2) {
-      const project = detailProject || projects[active];
+      const alternatives = projects.filter(project => project.id !== detailProject?.id);
+      const choices = alternatives.length ? alternatives : projects;
+      const project = choices[Math.floor(Math.random() * choices.length)];
       openProject(project, project.images[0]);
       return;
     }
