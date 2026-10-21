@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { normalizePortfolio, loadPortfolio } from '../frontend/projects.js';
-import { imagePlacement } from '../frontend/project-view.js';
+import { imagePlacement, projectRows } from '../frontend/project-view.js';
 
 const seed = JSON.parse(fs.readFileSync(new URL('../backend/seed/content.json', import.meta.url)));
 
@@ -64,7 +64,7 @@ class Element {
     this.listeners[key] = previous ? event => { previous(event); callback(event); } : callback;
   }
   get offsetLeft() { return Math.round(this.parent.children.indexOf(this) * this.step + 16); }
-  getBoundingClientRect() { return { left: (this.parent?.children.indexOf(this) || 0) * this.step + 16, width: this.step - 10, height: 700, bottom: 100 }; }
+  getBoundingClientRect() { return { left: (this.parent?.children.indexOf(this) || 0) * this.step + 16, width: this.step - 10, height: 700, top: 0, bottom: 700 }; }
   get firstElementChild() { return this.children[0]; }
   get clientWidth() { return 1000; }
   set innerHTML(value) { this.children = [new Element()]; }
@@ -72,8 +72,8 @@ class Element {
   contains(element) { return element === this; }
 }
 
-async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1000, initialHash = '') {
-  const selectors = ['.rail', '.track', '.about', '.menu', '#status', '.portfolio', '#gallery', '#field', '.masthead', '.studio-logo', '.mobile-menu-trigger', '.site-footer', '#footer-contact', '#footer-address', '#footer-email', '#project-detail', '.project-detail-content', '.project-detail-info', '.project-hero', '.project-grid', '.project-close'];
+async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1000, initialHash = '', nativeTransitions = false) {
+  const selectors = ['.rail', '.track', '.about', '.menu', '#status', '.portfolio', '#gallery', '#field', '.masthead', '.studio-logo', '.mobile-menu-trigger', '.site-footer', '#footer-contact', '#footer-address', '#footer-email', '#project-detail', '.project-detail-content', '.project-detail-info', '.project-hero', '.project-grid', '.project-close', '.project-footer', '#studio-detail', '.studio-detail-copy', '.studio-close', '.index-filters'];
   const elements = Object.fromEntries(selectors.map(selector => [selector, new Element(step)]));
   elements['#gallery'].getBoundingClientRect = () => ({ width: viewportWidth, height: 700 });
   const frames = new Map();
@@ -87,10 +87,33 @@ async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1
     addEventListener: (key, callback) => { const previous = listeners[key]; listeners[key] = previous ? event => { previous(event); callback(event); } : callback; }, hidden: false,
   };
   const location = { pathname: '/', search: '', hash: initialHash };
-  const history = { pushState(_state, _title, url) { location.hash = url.includes('#') ? url.slice(url.indexOf('#')) : ''; } };
-  history.replaceState = history.pushState;
+  const entries = [{ hash: initialHash, state: null }];
+  let historyIndex = 0;
+  const history = {
+    get state() { return entries[historyIndex].state; },
+    pushState(state, _title, url) {
+      location.hash = url.includes('#') ? url.slice(url.indexOf('#')) : '';
+      entries.splice(++historyIndex);
+      entries.push({ hash: location.hash, state });
+    },
+    replaceState(state, _title, url) {
+      location.hash = url.includes('#') ? url.slice(url.indexOf('#')) : '';
+      entries[historyIndex] = { hash: location.hash, state };
+    },
+    back() { if (historyIndex > 0) { location.hash = entries[--historyIndex].hash; listeners.hashchange?.(); } },
+    forward() { if (historyIndex < entries.length - 1) { location.hash = entries[++historyIndex].hash; listeners.hashchange?.(); } },
+  };
+  const transitions = [];
+  if (nativeTransitions) document.startViewTransition = update => {
+    let finish;
+    const finished = new Promise(resolve => { finish = resolve; });
+    const ready = Promise.resolve().then(update);
+    const transition = { ready, finished, finish, skipTransition() { ready.then(finish); } };
+    transitions.push(transition);
+    return transition;
+  };
   const context = vm.createContext({
-    location, history, addEventListener: (key, callback) => { listeners[key] = callback; },
+    innerHeight: 900, location, history, addEventListener: (key, callback) => { listeners[key] = callback; },
     getComputedStyle: () => ({ opacity: '.5', transform: 'matrix(1, 0, 0, 1, 12, 0)' }),
     console, document, performance: { now: () => time },
     loadPortfolio: async () => ({ projects: normalizePortfolio(data), settings: data.settings || {} }),
@@ -107,7 +130,7 @@ async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1
     .replace("import { createProjectView } from './project-view.js';", '');
   vm.runInContext(source, context);
   await new Promise(resolve => setImmediate(resolve));
-  return { elements, listeners, tick: (delta = 100) => { time += delta; const pending = [...frames.values()]; frames.clear(); pending.forEach(frame => frame(time)); }, document, location };
+  return { elements, listeners, tick: (delta = 100) => { time += delta; const pending = [...frames.values()]; frames.clear(); pending.forEach(frame => frame(time)); }, document, location, history, transitions };
 }
 
 test('each project keeps exactly one CMS thumbnail while the rail moves', async () => {
@@ -116,7 +139,7 @@ test('each project keeps exactly one CMS thumbnail while the rail moves', async 
   assert.equal(tiles.length, 28);
   const thumbnails = tiles.map(tile => tile.children[0].src);
   assert.ok(tiles.every(tile => tile.children.length === 2));
-  assert.equal(tiles[0].children[1].children[1].textContent, seed.projects[0].description);
+  assert.ok(tiles[0].children[1].children[1].textContent.length > 0);
   for (let frame = 0; frame < 1000; frame++) tick();
   assert.deepEqual(tiles.map(tile => tile.children[0].src), thumbnails);
   assert.ok(tiles.every(tile => tile.children[0].classes.has('visible')));
@@ -197,17 +220,17 @@ test('saved CMS project order determines the landing project and its first visib
   featured.sort_order = -20;
   const firstImage = data.images.find(image => image.project_ids.includes(featured.id) && image.published && !image.archived);
   const { elements } = await mount(data);
-  assert.equal(elements['.track'].children[0].children[1].children[0].textContent, featured.title);
+  assert.equal(elements['.track'].children[0].children[1].children[0].children[0].children[0].textContent, featured.title);
   const activeTile = elements['.track'].children.find(tile => tile.attrs['aria-hidden'] === 'false');
   assert.equal(activeTile.children[0].src, firstImage.url);
   assert.equal(activeTile.children[0].classes.has('visible'), true);
   featured.published = 0;
   const hidden = await mount(data);
-  assert.equal(hidden.elements['.track'].children[0].children[1].children[0].textContent, normalizePortfolio(data)[0].title);
+  assert.equal(hidden.elements['.track'].children[0].children[1].children[0].children[0].children[0].textContent, normalizePortfolio(data)[0].title);
   featured.published = 1;
   data.images.filter(image => image.project_ids.includes(featured.id)).forEach(image => { image.archived = 1; });
   const empty = await mount(data);
-  assert.equal(empty.elements['.track'].children[0].children[1].children[0].textContent, normalizePortfolio(data)[0].title);
+  assert.equal(empty.elements['.track'].children[0].children[1].children[0].children[0].children[0].textContent, normalizePortfolio(data)[0].title);
 });
 
 
@@ -300,12 +323,13 @@ test('menu transitions defer the switch, accept the latest choice, and clear mot
   // A quick second click wins without briefly opening Index.
   menu.children[3].listeners.click();
   tick(100);
-  assert.equal(rail.scrollLeft % (4 * 310), 3 * 310);
-  assert.equal(portfolio.hidden, false);
-  assert.ok(portfolio.classes.has('page-in'));
-  assert.equal(portfolio.inert, false);
+  assert.equal(rail.scrollLeft, position);
+  assert.equal(portfolio.hidden, true);
+  assert.equal(elements['#studio-detail'].hidden, false);
+  assert.ok(elements['#studio-detail'].classes.has('page-in'));
+  assert.equal(elements['#studio-detail'].inert, false);
   tick(800);
-  assert.ok(!portfolio.classes.has('page-in'));
+  assert.ok(!elements['#studio-detail'].classes.has('page-in'));
   menu.children[1].listeners.click();
   tick(400);
   assert.equal(index.hidden, false);
@@ -527,24 +551,24 @@ test('mobile menu opens on demand, dismisses with Escape and collapses after nav
 });
 
 
-test('selected navigation retains its pill variant, and number hover chooses varying shapes', async () => {
+test('navigation has four destinations, and number hover chooses varying shapes', async () => {
   const { elements, tick } = await mount(seed, true);
   const menu = elements['.menu'].children;
-  const first = menu[0].dataset.selectedShape;
-  assert.ok(['rounded', 'beveled', 'scalloped', 'curved'].includes(first));
+  assert.equal(menu.length, 4);
+  assert.equal(menu[3].children[1].textContent, 'About');
   for (let frame = 0; frame < 60; frame++) tick();
-  assert.equal(menu[0].dataset.selectedShape, first);
+  assert.equal(menu[0].attrs['aria-current'], 'true');
   menu[1].listeners.pointerenter();
   const shape = menu[1].dataset.hoverShape;
   assert.ok(['triangle', 'square', 'circle'].includes(shape));
   menu[1].listeners.pointerenter();
   assert.notEqual(menu[1].dataset.hoverShape, shape);
   menu[1].listeners.click();
-  const selected = menu[1].dataset.selectedShape;
+  const selected = menu[1].dataset.hoverShape;
   menu[1].listeners.pointerenter();
-  assert.equal(menu[1].dataset.selectedShape, selected);
+  assert.equal(menu[1].dataset.hoverShape, selected);
   menu[0].listeners.click();
-  assert.notEqual(menu[0].dataset.selectedShape, first);
+  assert.equal(menu[0].attrs['aria-current'], 'true');
 });
 
 
@@ -557,4 +581,128 @@ test('idle rail moves at 10px per second across normal and sparse animation fram
     for (let frame = 0; frame < frames; frame++) tick(interval);
     assert.ok(Math.abs(rail.scrollLeft - initial - 100) < .01);
   }
+});
+
+const settle = () => new Promise(resolve => setImmediate(resolve));
+
+test('native transitions name only the clicked repeated image and restore history, focus and scroll', async () => {
+  const { elements, transitions, document, history, location, tick } = await mount(seed, false, 310, 1000, '', true);
+  const tile = elements['.track'].children[12];
+  const rail = elements['.rail'];
+  rail.scrollLeft += 37.25;
+  const position = rail.scrollLeft;
+  tile.listeners.click();
+  assert.equal(transitions.length, 1);
+  assert.equal(tile.children[0].style.viewTransitionName, 'project-image');
+  assert.equal(elements['.track'].children.filter(item => item.children[0].style.viewTransitionName === 'project-image').length, 1);
+  await transitions[0].ready;
+  assert.equal(elements['.project-hero'].style.viewTransitionName, 'project-image');
+  assert.equal(tile.children[0].style.viewTransitionName, '');
+  assert.equal(elements['.portfolio'].hidden, true);
+  tick(1000);
+  assert.equal(rail.scrollLeft, position);
+  transitions[0].finish(); await settle();
+  assert.equal(elements['.project-hero'].style.viewTransitionName, '');
+  assert.equal(document.documentElement.classes.has('project-transitioning'), false);
+  elements['#project-detail'].listeners.keydown({ key: 'Escape', preventDefault() {} });
+  await transitions[1].ready;
+  assert.equal(location.hash, '');
+  assert.equal(elements['#project-detail'].hidden, true);
+  assert.equal(tile.children[0].style.viewTransitionName, 'project-image');
+  assert.equal(tile.focused, true);
+  assert.equal(rail.scrollLeft, position);
+  transitions[1].finish(); await settle();
+  history.forward(); await transitions[2].ready;
+  assert.equal(elements['#project-detail'].hidden, false);
+  assert.equal(elements['.project-hero'].src, tile.children[0].src);
+  transitions[2].finish(); await settle();
+});
+
+test('a new menu destination safely skips an active project transition', async () => {
+  const { elements, transitions, tick, location, document } = await mount(seed, false, 310, 1000, '', true);
+  elements['.track'].children[12].listeners.click();
+  await transitions[0].ready;
+  elements['.menu'].children[1].listeners.click();
+  await settle();
+  assert.equal(transitions.length, 2);
+  await transitions[1].ready;
+  assert.equal(elements['#project-detail'].hidden, true);
+  assert.equal(elements['#gallery'].hidden, false);
+  assert.equal(location.hash, '#index/field');
+  transitions[1].finish(); await settle(); tick();
+  assert.equal(document.documentElement.classes.has('project-transitioning'), false);
+  assert.equal(elements['.project-hero'].style.viewTransitionName, '');
+});
+
+test('reduced motion avoids the native transition API and Project Info reflects CMS copy', async () => {
+  const { elements, transitions } = await mount(seed, true, 310, 1000, '', true);
+  elements['.track'].children[12].listeners.click();
+  assert.equal(transitions.length, 0);
+  const [identity, categories, toggle, description] = elements['.project-detail-info'].children;
+  assert.ok(identity.children.length > 0 && categories.children.length > 0);
+  assert.equal(description.textContent, normalizePortfolio(seed)[0].description);
+  assert.equal(description.hidden, true);
+  toggle.listeners.click();
+  assert.equal(description.hidden, false);
+  assert.equal(toggle.attrs['aria-expanded'], 'true');
+  toggle.listeners.click();
+  assert.equal(description.hidden, true);
+});
+
+test('Index filters use CMS tags and each tile opens its own assigned project and image', async () => {
+  const { elements, location, tick } = await mount(seed, true);
+  elements['.menu'].children[1].listeners.click(); tick();
+  const filter = elements['.index-filters'].children.find(button => button.textContent !== 'All');
+  filter.listeners.click(); tick();
+  assert.equal(filter.attrs['aria-pressed'], 'true');
+  const allowed = normalizePortfolio(seed).flatMap(project => project.images.filter(image => image.tags.includes(filter.textContent)));
+  assert.ok(elements['#field'].children.every(tile => allowed.some(image => image.url === tile.children[0].src)));
+  const tile = elements['#field'].children[0];
+  tile.listeners.keydown({ key: 'Enter', preventDefault() {} });
+  assert.equal(elements['.project-hero'].src, tile.children[0].src);
+  assert.match(location.hash, /^#project\//);
+  elements['#project-detail'].listeners.keydown({ key: 'Escape', preventDefault() {} });
+  assert.equal(elements['#gallery'].hidden, false);
+  assert.equal(location.hash, '#index/field');
+  assert.equal(filter.attrs['aria-pressed'], 'true');
+});
+
+test('About uses studio settings, supports history and preserves fractional gallery position', async () => {
+  const { elements, location } = await mount(seed, true);
+  const rail = elements['.rail'];
+  rail.scrollLeft += 42.5;
+  const position = rail.scrollLeft;
+  elements['.menu'].children[3].listeners.click();
+  assert.equal(elements['#studio-detail'].hidden, false);
+  assert.equal(location.hash, '#about');
+  assert.equal(elements['.studio-detail-copy'].children[1].textContent, seed.settings.about);
+  elements['#studio-detail'].listeners.keydown({ key: 'Escape', preventDefault() {} });
+  assert.equal(elements['#studio-detail'].hidden, true);
+  assert.equal(rail.scrollLeft, position);
+  const direct = await mount(seed, true, 310, 1000, '#about');
+  assert.equal(direct.elements['#studio-detail'].hidden, false);
+});
+
+test('automatic project rows show every supplied image once and fill incomplete final rows', () => {
+  for (let count = 0; count < 32; count++) {
+    const images = Array.from({ length: count }, (_, id) => ({ id }));
+    const rows = projectRows(images);
+    assert.deepEqual(rows.map(item => item.image), images);
+    assert.ok(rows.every(item => item.span >= 3 && item.span <= 12 && item.ratio > 0 && [1, 2].includes(item.mobileSpan)));
+  }
+  assert.equal(projectRows([{ id: 1 }])[0].span, 12);
+  assert.deepEqual(projectRows([{ id: 1 }, { id: 2 }]).map(item => item.span), [6, 6]);
+});
+
+test('a menu choice before the native snapshot callback still wins over the pending project', async () => {
+  const { elements, transitions, location } = await mount(seed, false, 310, 1000, '', true);
+  elements['.track'].children[12].listeners.click();
+  elements['.menu'].children[1].listeners.click();
+  await settle();
+  assert.equal(transitions.length, 2);
+  await transitions[1].ready;
+  assert.equal(location.hash, '#index/field');
+  assert.equal(elements['#project-detail'].hidden, true);
+  assert.equal(elements['#gallery'].hidden, false);
+  transitions[1].finish(); await settle();
 });

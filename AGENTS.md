@@ -15,79 +15,86 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
 
 ## Frontend
 
-- `frontend/index.html`, `styles.css`, and `app.js` implement the light horizontal
-  portfolio based on Figma section `703:3051` (landing `701:2931`, detail
-  `701:2989`): fixed SVG wordmark and CMS studio copy at top left, menu at top
-  right, captions above bottom-aligned portrait tiles and a three-column footer.
-  On desktop the wordmark is 47.04px tall (three 14px body lines); below 600px
-  it fits beside a single MENU disclosure button, with studio copy underneath.
-  The mobile menu closes on selection, outside click or Escape.
-  `frontend/assets/` contains the exported dark/light wordmarks. Footer text
-  uses the shared body copy and is editable under Studio-Informationen.
-- `frontend/projects.js` fetches `/api/public` with caching disabled and groups
-  public images by their single project assignment. Only published projects
-  with published, unarchived assigned images appear. Menu items use actual
-  project counts; empty/error states are explicit. Studio copy,
-  project titles, descriptions and image alt text come from the CMS. No demo
-  asset fallback or hardcoded project content belongs in the active frontend.
-- Seven repeated project sets rebase by whole cycles for an endless rail. Each
-  project shows one stable thumbnail: its first published, unarchived assigned
-  image. There is no image cycling, story bar or thumbnail indicator. All other
-  published project images remain available in Index and on the project page.
-  The rail drifts continuously at 10px/s, easing to .35px/s on hover or keyboard
-  focus. Manual wheel, touch and keyboard input suspends drift for 3.5 seconds.
-  Drift uses elapsed time and a fractional accumulator to maintain its speed
-  across frame rates without rounding away small movements. Reduced motion
-  disables drift and easing; manual navigation remains available.
-- The horizontal rail flows freely without CSS snapping, wheel target rounding,
-  minimum project jumps or scroll-end corrections. Mouse-wheel input anywhere
-  on the gallery eases to the exact requested offset. Horizontal trackpad
-  gestures and touch inside the rail remain native. Wheel targets rebase with
-  the rail by whole cycles. Browser pinch-to-zoom is preserved. Left/Right moves
-  relative to the current offset; Home/End and explicit menu choices navigate
-  to the requested project. Resize preserves the fractional position.
-- About, project text and menu share a fixed 14px root font size and 1.12 line
-  height across viewport sizes. Rail spacing uses fractional bounding rectangles
-  to keep whole-cycle wrapping seamless.
-- Menu buttons show numbers by default; the selected item always shows its
-  label in a pill. Each selection chooses rounded, 45-degree beveled, scalloped
-  or asymmetric curved ends; it keeps that shape until another selection.
-  Hover or keyboard focus on unselected desktop numbers randomly chooses a
-  triangle, square or circle background, keeping the number visible. Background
-  geometry uses a pseudo-element so labels and focus rings are not clipped and
-  hit areas remain rectangular. Mobile retains its MENU disclosure and text list.
-  Projects opens the active project detail. Labels use the shared regular-weight,
-  uppercase 14px copy. Reduced motion disables label transitions.
-- Button 2 (Index) opens the CMS-backed Infinite field in `frontend/orbit.js`,
-  wrapping on both axes with a radial center lens. It has no controls overlay:
-  Order–Chaos is fixed at 80% and image corners are fixed at 2px. The field supports
-  two-axis pointer/touch drag, trackpad scrolling, Shift-wheel horizontally and
-  all four arrow keys. Both `#index` and `#index/field` open the field; the legacy
-  URL is replaced with `#index/field` without adding a history entry. Browser
-  Back/Forward restores the view without reloading CMS content. The image layer
-  keeps its top/bottom fade and 800px cap during motion and resizing.
-  Escape or another menu button returns to the preserved horizontal gallery.
-  Rail drift pauses in Index and project detail; reduced
-  motion removes inertia and easing. Unchanged Index tile styles skip redundant DOM writes. Images settle with elapsed-time exponential
-  easing without spring overshoot. Spacing is resolved once in target geometry
-  with blended separation axes; displayed cards ease toward those positions.
-  Drag velocity and coasting account for elapsed time.
-- Menu navigation fades the outgoing view over 400ms, switches at opacity zero,
-  then eases the incoming view over 800ms with a small directional horizontal
-  offset. The masthead stays fixed. Exit clicks replace the pending destination;
-  rail drift pauses during transitions. Reduced motion switches immediately.
-- `frontend/project-view.js` opens a dark, vertically scrolling project detail
-  from a clicked rail image, animating its crop into the hero. Escape, the back
-  button and browser history restore the gallery. Deep links use
-  `#project/<slug>/<image-id>`. The detail content is at most 70vw wide on all
-  viewports, with seven columns; client, description and services (image tags)
-  come from the CMS. Reduced motion skips the expansion animation. The image
-  drawer exposes start column, column span and row; blank fields retain the
-  automatic staggered composition. Placements are stored by image ID in the
-  `project_layout` JSON studio setting through validated `image_layout` patches
-  to `/api/settings`. No database schema migration is needed.
-- No frontend framework or package dependencies are needed. Haffer uses a system
-  sans-serif fallback until licensed font files are supplied.
+- The active screens follow Figma file `83EmCrcQUbPM4r2UiCcgnx`, section
+  `731:61` (AD4K): desktop landing V1 `784:3845`, dark project `743:1124`,
+  mobile landing `801:491`, mobile project `800:471`, mobile menu `811:601`
+  and Index `743:922`. V1 is the bottom-aligned horizontal rail; V2 is an
+  alternate artboard, not a separate site mode.
+- `frontend/index.html`, `styles.css` and `app.js` implement the responsive
+  light portfolio. The desktop grid uses 15px margins/gutters and three
+  project tiles across; thumbnails crop at 4:5. At 390px the tiles are 266.25px
+  wide. Height is capped on short viewports so the masthead stays clear.
+  The AD4K logo and menu shapes are local, unmodified Figma SVG exports in
+  `frontend/assets/`. Desktop and mobile logo exports keep their native sizes
+  (460 × 34 and 203 × 34); the desktop asset includes its own whitespace.
+- Typography follows the new screens: 11px / 13px body, 8px / 10px metadata
+  labels and 14px / 16px mobile MENU/CLOSE. Waldenburg has a system sans-serif
+  fallback until licensed font files are supplied. CMS studio copy splits at
+  its first sentence into dark/light emphasis. Footer fields remain editable
+  under Studio-Informationen and appear in contact/email/address order. Empty
+  CMS fields stay empty; no fabricated contact details are added.
+- `frontend/projects.js` fetches `/api/public` with caching disabled. Only
+  published projects with published, unarchived assigned images appear.
+  Project titles, descriptions, clients, tags and image alt text come from
+  the CMS. No demo asset fallback or hardcoded project content belongs in
+  the active frontend. Figma's example project imagery is data, not branding.
+- Seven repeated project sets rebase by whole cycles for an endless rail.
+  Each project retains its first published, unarchived assigned image as a
+  stable thumbnail. No image cycling, story bar or indicators. All other
+  project images remain available in Index and the project detail.
+- The rail drifts at 10px/s, easing to .35px/s on hover/focus. Manual wheel,
+  touch and keyboard input suspends drift for 3.5 seconds. Fractional,
+  elapsed-time movement preserves its speed across frame rates. Drift pauses
+  in Index, About, project detail, open mobile menus and transitions.
+  Reduced motion disables drift, easing and view-transition snapshots.
+- Preserve free horizontal scrolling: no snapping, wheel rounding, minimum
+  project jumps or scroll-end corrections. Mouse-wheel easing lands on the
+  exact requested offset; native horizontal trackpad/touch and browser pinch
+  zoom remain available. Left/Right moves relative to the offset; Home/End
+  selects first/last. Fractional geometry and whole-cycle rebasing preserve
+  seamless wrapping. Resize preserves the fractional position, including
+  a deferred re-measure after returning from a hidden gallery.
+- Navigation has four destinations: Selected, Index, Project and About.
+  The active label uses the reference's pale rounded shape (Index is a pill);
+  inactive numbers use triangle, hexagon, rounded square and circle shapes.
+  Hover/focus varies inactive geometry without clipping labels or focus rings.
+  Project opens the active project's detail. About (`#about`) uses studio
+  settings and selected clients. On mobile MENU becomes CLOSE and reveals
+  a horizontal row beneath the logo; studio copy moves below that row while
+  the rail keeps its size. Selection, outside click and Escape close the menu.
+- `frontend/orbit.js` implements the CMS-backed infinite Index field with a
+  radial center lens. It wraps on both axes and retains its top/bottom fade,
+  800px image cap, fixed 80% chaos and 2px corners. CMS tag chips filter images
+  by one category (All resets). A click/tap or Enter/Space opens the image's
+  assigned project with that image as hero; dragging does not activate tiles.
+  Two-axis pointer/touch drag, trackpad, Shift-wheel and all four arrow keys
+  remain available. Coasting, separation and exponential settling account
+  for elapsed time; stationary frames avoid redundant style/accessibility
+  writes. `#index` normalizes to `#index/field` without adding history.
+- Menu navigation fades out over 400ms, switches at opacity zero, then eases
+  in over 800ms with a small directional offset. Exit clicks replace the
+  pending destination. The masthead stays fixed. Reduced motion switches
+  immediately. Back/Forward restores views without refetching CMS data.
+- `frontend/project-view.js` implements full-width dark project pages with
+  15px margins/gutters and automatic three-up, mixed, paired, full-width and
+  four-up image rows. Mobile uses square heroes, stacked wide images and
+  two-column rows. Every remaining published project image appears once.
+  Project/client, categories and derived format sit above the hero;
+  Project Info + expands the CMS description. The footer and return control
+  follow the project images and scroll with the content.
+- Project links use `#project/<slug>/<image-id>` and real anchor hrefs.
+  Native same-document View Transitions pair only the clicked repeated tile
+  with the hero, then reverse to its source on return. Unsupported browsers
+  use a Web Animations image morph. Interrupted transitions clean up temporary
+  names and pause state; a new destination replaces pending navigation.
+  Escape and the return button use the existing history entry when possible;
+  direct links return locally. Focus and gallery offsets are restored.
+- Existing seven-column image placements in the `project_layout` JSON studio
+  setting remain supported on desktop when a project has saved placements.
+  Mobile reflows these images into two columns. The image drawer's start
+  column, span and row controls and validated `/api/settings` `image_layout`
+  patches remain unchanged; no database migration is required.
+- No frontend framework, package dependencies or frontend build is required.
 
 ## Backend and content
 

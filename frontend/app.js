@@ -6,14 +6,21 @@ async function start() {
   const { projects, settings } = await loadPortfolio();
   const about = document.querySelector('.about');
   const copy = String(settings.about || '');
-  const [name, ...rest] = copy.split(/\s+/);
-  const studioName = document.createElement('strong');
-  studioName.textContent = name;
-  about.replaceChildren(studioName, document.createTextNode(rest.length ? ` ${rest.join(' ')}` : ''));
-  for (const [key, fallback] of [['contact', 'Contact'], ['address', 'Orbitstreet 666, Berlin'], ['email', 'Info (at) orbit.com']]) {
-    document.querySelector(`#footer-${key}`).textContent = settings[`footer_${key}`] ?? fallback;
+  const split = copy.match(/^(.+?[.!?])(?:\s+|$)([\s\S]*)/);
+  const headline = document.createElement('strong');
+  headline.textContent = split ? split[1] : copy;
+  about.replaceChildren(headline, document.createTextNode(split ? split[2] : ''));
+  const footerValues = [['contact', 'Contact'], ['email', ''], ['address', '']];
+  const projectFooter = document.querySelector('.project-footer');
+  for (const [key, fallback] of footerValues) {
+    const value = settings[`footer_${key}`] ?? fallback;
+    document.querySelector(`#footer-${key}`).textContent = value;
+    const text = document.createElement('p');
+    text.textContent = value;
+    projectFooter.append(text);
   }
-  document.title = `${name || 'JDDL'} — Independent design studio`;
+  const baseTitle = 'AD4K — Independent design studio';
+  document.title = baseTitle;
   const nav = document.querySelector('.menu');
   const menuTrigger = document.querySelector('.mobile-menu-trigger');
   const mobileViewport = matchMedia('(max-width: 600px)');
@@ -21,6 +28,7 @@ async function start() {
   function setMobileMenu(open, restoreFocus = false) {
     menuOpen = open;
     nav.classList.toggle('mobile-menu-open', open);
+    menuTrigger.textContent = open ? 'CLOSE' : 'MENU';
     menuTrigger.setAttribute('aria-expanded', String(open));
     if (restoreFocus) menuTrigger.focus({ preventScroll: true });
   }
@@ -33,15 +41,11 @@ async function start() {
     if (menuOpen && event.key === 'Escape') { event.preventDefault(); setMobileMenu(false, true); }
   });
   mobileViewport.addEventListener('change', () => setMobileMenu(false));
-  const logo = document.querySelector('.studio-logo');
-  function sizeLogo() {
-    logo.style.setProperty('--logo-scale', String(logo.getBoundingClientRect().width / 287.999));
-  }
-  new ResizeObserver(sizeLogo).observe(logo);
-  sizeLogo();
   const masthead = document.querySelector('.masthead');
   new ResizeObserver(() => {
-    document.documentElement.style.setProperty('--index-top', `${masthead.getBoundingClientRect().bottom + 24}px`);
+    const top = masthead.getBoundingClientRect().bottom + 24;
+    document.documentElement.style.setProperty('--index-top', `${top}px`);
+    document.documentElement.style.setProperty('--rail-top', `${top - (mobileViewport.matches && menuOpen ? 64 : 0)}px`);
   }).observe(masthead);
   new ResizeObserver(() => {
     document.documentElement.style.setProperty('--footer-height', `${document.querySelector('.site-footer').getBoundingClientRect().height}px`);
@@ -51,16 +55,15 @@ async function start() {
     const candidates = choices.filter(value => value !== previous);
     return candidates[Math.floor(Math.random() * candidates.length)];
   }
-  const menuLabels = ['Selected', 'Index', 'Projects', 'random'];
-  const menu = Array.from({ length: Math.max(4, projects.length) }, (_, index) => {
-    const project = projects[index];
+  const menuLabels = ['Selected', 'Index', 'Project', 'About'];
+  const menu = Array.from({ length: 4 }, (_, index) => {
     const button = document.createElement('button');
     const number = document.createElement('span');
     number.className = 'menu-number';
     number.textContent = String(index + 1);
     const label = document.createElement('span');
     label.className = 'menu-label';
-    label.textContent = menuLabels[index] || project?.title || '';
+    label.textContent = menuLabels[index];
     button.append(number, label);
     button.dataset.project = String(index);
     function varyHoverShape() {
@@ -68,7 +71,7 @@ async function start() {
     }
     button.addEventListener('pointerenter', varyHoverShape);
     button.addEventListener('focus', varyHoverShape);
-    button.setAttribute('aria-label', index === 1 ? 'Index — Explore all images' : index === 2 ? 'Projects — Open active project' : `${menuLabels[index] || project?.title || ''}${project ? ` — Show ${project.title}` : ''}`);
+    button.setAttribute('aria-label', ['Selected — View projects', 'Index — Explore all images', 'Project — Open active project', 'About the studio'][index]);
     nav.append(button);
     button.style.setProperty('--menu-label-width', `${label.scrollWidth}px`);
     return button;
@@ -88,32 +91,90 @@ async function start() {
   let showingIndex = false;
   let detailProject = null;
   let returnHash = '';
-  const detail = createProjectView(projects, settings, matchMedia('(prefers-reduced-motion: reduce)'), closeProject);
-  function closeProject(updateURL = true) {
-    if (!detailProject) return;
-    const source = detail.close();
-    detailProject = null;
-    portfolio.hidden = showingIndex;
-    indexView.hidden = !showingIndex;
-    orbit?.setVisible(showingIndex);
-    source?.focus({ preventScroll: true });
+  let showingAbout = false;
+  const studioView = document.querySelector('#studio-detail');
+  const studioCopy = document.querySelector('.studio-detail-copy');
+  for (const [label, value] of [[settings.eyebrow || 'About', settings.about], ['Selected clients', settings.clients]]) {
+    if (!value) continue;
+    const heading = document.createElement('h2');
+    heading.textContent = label;
+    const text = document.createElement('p');
+    text.textContent = value;
+    studioCopy.append(heading, text);
+  }
+  const filters = document.querySelector('.index-filters');
+  const tags = [...new Set(projects.flatMap(project => project.images.flatMap(image => image.tags)))];
+  const filterButtons = [];
+  for (const tag of [null, ...tags]) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = tag || 'All';
+    button.setAttribute('aria-pressed', String(tag === null));
+    button.addEventListener('click', () => {
+      filterButtons.forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+      orbit?.setFilter(tag);
+    });
+    filterButtons.push(button);
+    filters.append(button);
+  }
+  function syncShell() {
+    document.documentElement.classList.toggle('index-open', showingIndex && !detailProject && !showingAbout);
+    filters.hidden = !showingIndex || Boolean(detailProject) || showingAbout;
+    studioView.hidden = !showingAbout || Boolean(detailProject);
+  }
+  function showAbout(visible) {
+    showingAbout = visible;
+    portfolio.hidden = visible || showingIndex;
+    indexView.hidden = visible || !showingIndex;
+    orbit?.setVisible(showingIndex && !visible);
+    syncShell();
     updateMenu();
-    if (updateURL) history.pushState(null, '', `${location.pathname}${location.search}${returnHash}`);
-    previous = performance.now();
+    if (visible) studioView.focus({ preventScroll: true });
+  }
+  const detail = createProjectView(projects, settings, matchMedia('(prefers-reduced-motion: reduce)'), closeProject);
+  function closeProject(updateURL = true, after = null) {
+    if (!detailProject && !detail.isTransitioning()) { after?.(); return; }
+    if (updateURL && history.state?.portfolioProject && typeof history.back === 'function') {
+      history.back();
+      return;
+    }
+    detail.close(source => {
+      detailProject = null;
+      portfolio.hidden = showingIndex || showingAbout;
+      indexView.hidden = !showingIndex || showingAbout;
+      orbit?.setVisible(showingIndex && !showingAbout);
+      syncShell();
+      source?.focus({ preventScroll: true });
+      if (!source) (showingIndex ? indexView : rail).focus({ preventScroll: true });
+      document.title = baseTitle;
+      updateMenu();
+      if (updateURL) history.replaceState(null, '', `${location.pathname}${location.search}${returnHash}`);
+      manualInteraction();
+      previous = performance.now();
+      after?.();
+    });
   }
   function openProject(project, image, source = null) {
-    if (!detailProject) returnHash = showingIndex ? '#index/field' : '';
+    if (detailProject?.id === project.id && document.querySelector('.project-hero').src.endsWith(image.url)) return;
+    if (!detailProject) returnHash = history.state?.returnHash || (showingIndex ? '#index/field' : showingAbout ? '#about' : '');
     clearPageMotion();
     pageTransition = null;
     stopWheel();
-    detailProject = project;
-    updateMenu();
-    detail.open(project, image, source);
-    portfolio.hidden = true;
-    indexView.hidden = true;
-    orbit?.setVisible(false);
-    const hash = `#project/${encodeURIComponent(project.slug || project.id)}/${encodeURIComponent(image.id)}`;
-    if (location.hash !== hash) history.pushState(null, '', `${location.pathname}${location.search}${hash}`);
+    detail.open(project, image, source, () => {
+      detailProject = project;
+      const returnView = returnHash.startsWith('#index') ? 'index' : returnHash === '#about' ? 'about' : 'selected';
+      const back = document.querySelector('.project-close');
+      back.textContent = `Back to ${returnView} ↗`;
+      back.setAttribute('aria-label', `Return to ${returnView === 'selected' ? 'selected projects' : returnView}`);
+      updateMenu();
+      syncShell();
+      portfolio.hidden = true;
+      indexView.hidden = true;
+      orbit?.setVisible(false);
+      document.title = `${project.title} — AD4K`;
+      const hash = `#project/${encodeURIComponent(project.slug || project.id)}/${encodeURIComponent(image.id)}`;
+      if (location.hash !== hash) history.pushState({ portfolioProject: true, returnHash }, '', `${location.pathname}${location.search}${hash}`);
+    });
   }
   let savedRailPosition = 0;
   function showIndex(visible) {
@@ -124,8 +185,9 @@ async function start() {
     stopWheel();
     portfolio.hidden = visible;
     indexView.hidden = !visible;
-    if (visible && !orbit) orbit = createOrbitGrid(projects);
+    if (visible && !orbit) orbit = createOrbitGrid(projects, openProject);
     orbit?.setVisible(visible);
+    syncShell();
     if (returning) rail.scrollLeft = savedRailPosition;
     if (!visible) measure();
     updateMenu();
@@ -141,7 +203,7 @@ async function start() {
   let pageTransition = null;
   const transitionClasses = ['page-out', 'page-out-back', 'page-in', 'page-in-back'];
   function clearPageMotion() {
-    for (const view of [portfolio, indexView]) {
+    for (const view of [portfolio, indexView, studioView]) {
       transitionClasses.forEach(name => view.classList.remove(name));
       view.inert = false;
       view.style.setProperty('--page-exit-opacity', '1');
@@ -149,7 +211,7 @@ async function start() {
     }
   }
   function updateViewURL() {
-    const hash = showingIndex ? '#index/field' : '';
+    const hash = showingAbout ? '#about' : showingIndex ? '#index/field' : '';
     if (location.hash !== hash) history.pushState(null, '', `${location.pathname}${location.search}${hash}`);
   }
   function openURLView() {
@@ -159,24 +221,31 @@ async function start() {
       if (project) openProject(project, project.images.find(item => encodeURIComponent(item.id) === parts[2]) || project.images[0]);
       return;
     }
-    if (!['', '#index', '#index/field'].includes(location.hash)) return;
-    closeProject(false);
-    clearPageMotion();
-    pageTransition = null;
-    const index = location.hash.startsWith('#index');
-    showIndex(index);
-    if (index && location.hash !== '#index/field') history.replaceState(null, '', `${location.pathname}${location.search}#index/field`);
+    if (!['', '#index', '#index/field', '#about'].includes(location.hash)) return;
+    const restore = () => {
+      clearPageMotion();
+      pageTransition = null;
+      const index = location.hash.startsWith('#index');
+      showAbout(false);
+      showIndex(index);
+      showAbout(location.hash === '#about');
+      if (index && location.hash !== '#index/field') history.replaceState(null, '', `${location.pathname}${location.search}#index/field`);
+    };
+    if (detailProject || detail.isTransitioning()) closeProject(false, restore);
+    else restore();
   }
   function applyDestination(destination) {
-    const returningToGallery = showingIndex && !destination.indexView && destination.project === active;
+    const returningToGallery = destination.project === active;
+    showAbout(false);
     showIndex(destination.indexView);
-    if (!destination.indexView && !returningToGallery) navigate(destination.project, true);
+    showAbout(Boolean(destination.about));
+    if (!destination.indexView && !destination.about && !returningToGallery) navigate(destination.project, true);
     updateViewURL();
-    (destination.focus || (destination.indexView ? indexView : rail)).focus({ preventScroll: true });
+    (destination.focus || (destination.about ? studioView : destination.indexView ? indexView : rail)).focus({ preventScroll: true });
   }
-  function transitionTo(project, index = false, focus = null) {
-    closeProject();
-    const destination = { project, indexView: index, focus };
+  function transitionTo(project, index = false, focus = null, aboutView = false) {
+    const destination = { project, indexView: index, focus, about: aboutView };
+    if (detailProject || detail.isTransitioning()) { closeProject(false, () => applyDestination(destination)); return; }
     if (reducedMotion.matches) {
       clearPageMotion();
       pageTransition = null;
@@ -189,8 +258,8 @@ async function start() {
       pageTransition.destination = destination;
       return;
     }
-    if (!pageTransition && index === showingIndex && (index || project === active)) return;
-    const outgoing = showingIndex ? indexView : portfolio;
+    if (!pageTransition && aboutView === showingAbout && index === showingIndex && (index || aboutView || project === active)) return;
+    const outgoing = showingAbout ? studioView : showingIndex ? indexView : portfolio;
     const interrupted = pageTransition?.phase === 'in' ? getComputedStyle(outgoing) : null;
     const exitOpacity = interrupted?.opacity || '1';
     const exitTransform = interrupted?.transform || 'none';
@@ -219,7 +288,7 @@ async function start() {
       // their original layout so the rail's fractional geometry is preserved.
       applyDestination(transition.destination);
       clearPageMotion();
-      const incoming = showingIndex ? indexView : portfolio;
+      const incoming = showingAbout ? studioView : showingIndex ? indexView : portfolio;
       incoming.classList.add(transition.backwards ? 'page-in-back' : 'page-in');
       pageTransition.phase = 'in';
       pageTransition.started = now;
@@ -242,6 +311,7 @@ async function start() {
   let driftPosition = null;
   let manualUntil = 0;
   let pointerDown = false;
+  let needsMeasure = false;
   function manualInteraction() { driftPosition = null; manualUntil = performance.now() + 3500; rail.classList.remove('drifting'); }
   rail.addEventListener('pointerenter', event => { if (event.pointerType !== 'touch') hovering = true; });
   rail.addEventListener('pointerleave', () => { hovering = false; });
@@ -257,16 +327,21 @@ async function start() {
 
   for (let copy = 0; copy < copies; copy++) {
     projects.forEach((project, index) => {
-      const tile = document.createElement('article');
+      const tile = document.createElement('a');
       tile.className = 'tile';
       tile.dataset.project = index;
+      tile.href = `#project/${encodeURIComponent(project.slug || project.id)}/${encodeURIComponent(project.images[0].id)}`;
       tile.setAttribute('aria-label', project.title);
       tile.setAttribute('aria-hidden', 'true');
       tile.tabIndex = -1;
       tile.setAttribute('role', 'link');
-      const open = () => openProject(project, project.images[0], tile);
+      const open = event => {
+        if (event?.metaKey || event?.ctrlKey || event?.shiftKey || event?.altKey) return;
+        event?.preventDefault?.();
+        openProject(project, project.images[0], tile);
+      };
       tile.addEventListener('click', open);
-      tile.addEventListener('keydown', event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); open(); } });
+      tile.addEventListener('keydown', event => { if (event.key === ' ') { event.preventDefault(); open(event); } });
       const image = project.images[0];
       const img = new Image();
       img.src = image.url;
@@ -276,11 +351,25 @@ async function start() {
       tile.append(img);
       const caption = document.createElement('div');
       caption.className = 'tile-caption';
-      const heading = document.createElement('p');
-      heading.textContent = project.title;
-      const copy = document.createElement('p');
-      copy.textContent = project.description;
-      caption.append(heading, copy);
+      const values = document.createElement('p');
+      values.className = 'caption-values';
+      for (const [text, label] of [[project.title, 'Project'], [project.client, 'Client']]) {
+        if (!text) continue;
+        const pair = document.createElement('span');
+        pair.className = 'meta-pair';
+        const value = document.createElement('span');
+        value.className = 'meta-value';
+        value.textContent = text;
+        const name = document.createElement('span');
+        name.className = 'meta-label';
+        name.textContent = label;
+        pair.append(value, name);
+        values.append(pair);
+      }
+      const services = document.createElement('p');
+      services.className = 'tile-services';
+      services.textContent = [...new Set(project.images.flatMap(item => item.tags))].join(', ');
+      caption.append(values, services);
       tile.append(caption);
       track.append(tile);
       tiles.push(tile);
@@ -292,7 +381,8 @@ async function start() {
     const oldPosition = rail.scrollLeft;
     driftPosition = null;
     stopWheel();
-    if (showingIndex || detailProject) return;
+    if (showingIndex || showingAbout || detailProject || detail.isTransitioning()) { needsMeasure = true; return; }
+    needsMeasure = false;
     const savedProject = step ? (rail.scrollLeft / step) % projects.length : active;
     // Preserve the fractional position through resizing and whole-cycle rebasing.
     const first = tiles[0].getBoundingClientRect();
@@ -303,7 +393,7 @@ async function start() {
   }
 
   function onScroll() {
-    if (showingIndex || detailProject) return;
+    if (showingIndex || showingAbout || detailProject || detail.isTransitioning()) return;
     // Rebase by exact whole cycles, keeping identical pixels under the viewport.
     const shift = rail.scrollLeft < cycle * 2 ? cycle * 2 : rail.scrollLeft >= cycle * 5 ? -cycle * 2 : 0;
     if (shift) {
@@ -325,10 +415,7 @@ async function start() {
   function updateMenu() {
     menu.forEach(button => {
       const index = Number(button.dataset.project);
-      const selected = detailProject ? index === 2 : showingIndex ? index === 1 : index === 0;
-      if (selected && !button.classList.contains('selected')) {
-        button.dataset.selectedShape = randomShape(['rounded', 'beveled', 'scalloped', 'curved'], button.dataset.selectedShape);
-      }
+      const selected = detailProject ? index === 2 : showingAbout ? index === 3 : showingIndex ? index === 1 : index === 0;
       button.classList.toggle('selected', selected);
       if (selected) button.setAttribute('aria-current', 'true');
       else button.removeAttribute('aria-current');
@@ -350,7 +437,7 @@ async function start() {
       openProject(project, project.images[0]);
       return;
     }
-    transitionTo(Math.min(index, projects.length - 1), index === 1);
+    transitionTo(active, index === 1, button, index === 3);
   }));
   rail.addEventListener('scroll', onScroll, { passive: true });
   rail.addEventListener('keydown', event => {
@@ -365,7 +452,7 @@ async function start() {
   // Keep horizontal gestures native inside the rail. Route ordinary mouse-wheel
   // input (and gestures over the fixed header) into that same scroll container.
   document.addEventListener('wheel', event => {
-    if (showingIndex || detailProject || pageTransition || event.ctrlKey) return; // Preserve browser pinch-to-zoom.
+    if (showingIndex || showingAbout || detailProject || detail.isTransitioning() || pageTransition || event.ctrlKey) return; // Preserve browser pinch-to-zoom.
     manualInteraction();
     const horizontal = Math.abs(event.deltaX) > Math.abs(event.deltaY);
     if (rail.contains(event.target) && (horizontal || event.shiftKey)) { stopWheel(); return; }
@@ -395,9 +482,10 @@ async function start() {
     const delta = Math.max(now - previous, 0);
     previous = now;
     const transitioning = Boolean(pageTransition);
+    if (needsMeasure && !detailProject && !detail.isTransitioning() && !showingIndex && !showingAbout) measure();
     advancePageTransition(now);
     glide(delta);
-    const drifting = !menuOpen && !showingIndex && !detailProject && !transitioning && !pageTransition && !reducedMotion.matches && !document.hidden && !pointerDown && wheelTarget === null && now >= manualUntil;
+    const drifting = !menuOpen && !showingIndex && !showingAbout && !detailProject && !detail.isTransitioning() && !transitioning && !pageTransition && !reducedMotion.matches && !document.hidden && !pointerDown && wheelTarget === null && now >= manualUntil;
     rail.classList.toggle('drifting', drifting);
     if (drifting) {
       railSpeed += ((hovering ? .35 : idleRailSpeed) - railSpeed) * (1 - Math.exp(-delta / 350));
@@ -413,7 +501,9 @@ async function start() {
   measure();
   openURLView();
   window.addEventListener('hashchange', openURLView);
-  document.querySelector('.studio-logo').addEventListener('click', event => { event.preventDefault(); transitionTo(0); });
+  document.querySelector('.studio-close').addEventListener('click', () => transitionTo(active));
+  studioView.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); transitionTo(active); } });
+  document.querySelector('.studio-logo').addEventListener('click', event => { event.preventDefault(); transitionTo(active); });
   requestAnimationFrame(animate);
 
 }

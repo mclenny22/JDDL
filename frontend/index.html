@@ -3,17 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#f6f6f6">
   <title>JDDL — Independent design studio</title>
   <link rel="stylesheet" href="styles.css">
   <script type="module" src="app.js"></script>
 </head>
 <body>
-  <svg class="menu-shape-definitions" width="0" height="0" aria-hidden="true" focusable="false">
-    <defs><clipPath id="menu-scalloped-pill" clipPathUnits="objectBoundingBox"><path d="M .12 0 H .88 C .92 0 .90 .16 .96 .20 C 1 .23 1 .35 .97 .50 C 1 .65 1 .77 .96 .80 C .90 .84 .92 1 .88 1 H .12 C .08 1 .10 .84 .04 .80 C 0 .77 0 .65 .03 .50 C 0 .35 0 .23 .04 .20 C .10 .16 .08 0 .12 0 Z"/></clipPath></defs>
-  </svg>
   <header class="masthead">
-    <div class="studio"><a class="studio-logo" href="#" aria-label="Selected projects"><img class="logo-dark" src="assets/logo.svg" alt="Studio logo"><img class="logo-light" src="assets/logo-light.svg" alt="" aria-hidden="true"></a><p class="about"></p></div>
+    <div class="studio"><a class="studio-logo" href="#" aria-label="Selected projects"><picture class="logo-dark"><source media="(max-width: 600px)" srcset="assets/ad4k-logo-mobile.svg"><img src="assets/ad4k-logo.svg" alt="AD4K"></picture><picture class="logo-light" aria-hidden="true"><source media="(max-width: 600px)" srcset="assets/ad4k-logo-mobile-light.svg"><img src="assets/ad4k-logo-light.svg" alt=""></picture></a><p class="about"></p></div>
+    <nav class="index-filters" aria-label="Filter images by category" hidden></nav>
     <button class="mobile-menu-trigger" type="button" aria-controls="studio-menu" aria-expanded="false">MENU</button>
     <nav id="studio-menu" class="menu" aria-label="Projects"></nav>
   </header>
@@ -28,13 +26,15 @@
 
   </section>
   <section id="project-detail" class="project-detail" hidden tabindex="-1" aria-label="Project detail">
-    <button class="project-close" type="button" aria-label="Return to selected projects">Back to selected ↗</button>
     <div class="project-detail-content">
       <div class="project-detail-info"></div>
       <img class="project-hero" alt="">
       <div class="project-grid"></div>
+      <button class="project-close" type="button" aria-label="Return to selected projects">Back to selected ↗</button>
     </div>
+    <footer class="project-footer"></footer>
   </section>
-  <footer class="site-footer"><p id="footer-contact"></p><p id="footer-address"></p><p id="footer-email"></p></footer>
+  <section id="studio-detail" class="studio-detail" hidden tabindex="-1" aria-label="About the studio"><div class="studio-detail-copy"></div><button class="studio-close" type="button">Back to selected ↗</button></section>
+  <footer class="site-footer"><p id="footer-contact"></p><p id="footer-email"></p><p id="footer-address"></p></footer>
 </body>
 </html>

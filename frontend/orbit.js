@@ -1,5 +1,5 @@
 // Adapted from the archived Orbit Grid V2 center-lens motion study.
-export function createOrbitGrid(projects) {
+export function createOrbitGrid(projects, onOpen = () => {}) {
   const gallery = document.querySelector("#gallery");
   const field = document.querySelector("#field");
   let enabled = false;
@@ -12,7 +12,12 @@ export function createOrbitGrid(projects) {
   const minimumGap = 10;
   const targetGap = minimumGap + 1.25;
 
-  const sources = projects.flatMap(project => project.images.map(image => ({ ...image, projectTitle: project.title })));
+  const allSources = projects.flatMap(project => project.images.map(image => ({ ...image, projectTitle: project.title, project })));
+  let sources = allSources;
+  let suppressClick = false;
+  let pointerStartX = 0;
+  let pointerStartY = 0;
+  let pointerSource = null;
 
   let rows = Math.max(16, Math.ceil(sources.length / columns));
   const state = {
@@ -75,6 +80,15 @@ export function createOrbitGrid(projects) {
         const figure = document.createElement("figure");
         const image = document.createElement("img");
         figure.className = "orbit-tile";
+        figure.tabIndex = -1;
+        figure.setAttribute('role', 'link');
+        figure.setAttribute('aria-label', `${source.projectTitle} — ${source.alt_text || 'View project'}`);
+        figure.addEventListener('click', () => {
+          if (!suppressClick) onOpen(source.project, source, figure);
+        });
+        figure.addEventListener('keydown', event => {
+          if (['Enter', ' '].includes(event.key)) { event.preventDefault(); onOpen(source.project, source, figure); }
+        });
         image.src = source.url;
         image.alt = source.alt_text || source.projectTitle;
         image.draggable = false;
@@ -336,6 +350,12 @@ export function createOrbitGrid(projects) {
         tile.opacity += (target.opacity - tile.opacity) * opacityResponse;
       }
 
+      const reachable = tile.opacity > .4 && tile.x > 0 && tile.x < state.width && tile.y > 0 && tile.y < state.height;
+      if (tile.reachable !== reachable) {
+        tile.reachable = reachable;
+        tile.element.tabIndex = reachable ? 0 : -1;
+        tile.element.setAttribute('aria-hidden', String(!reachable));
+      }
       // Keep the displayed size capped while dimensions change on resize.
       tile.scale = Math.min(tile.scale, maximumImageSide / Math.max(tile.width, tile.height));
       return { tile, x: tile.x, y: tile.y, focus: target.focus };
@@ -409,6 +429,10 @@ export function createOrbitGrid(projects) {
     if (state.pointerId !== null) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
     if (event.target.closest("a, button, input, label")) return;
+    suppressClick = false;
+    pointerSource = event.target.closest(".orbit-tile");
+    pointerStartX = event.clientX;
+    pointerStartY = event.clientY;
     state.pointerId = event.pointerId;
     state.pointerY = event.clientY;
     state.pointerX = event.clientX;
@@ -423,6 +447,7 @@ export function createOrbitGrid(projects) {
 
   gallery.addEventListener("pointermove", (event) => {
     if (event.pointerId !== state.pointerId) return;
+    if (Math.hypot(event.clientX - pointerStartX, event.clientY - pointerStartY) > 6) suppressClick = true;
     const now = performance.now();
     const elapsed = Math.max(8, now - state.pointerTime);
     state.pointerTime = now;
@@ -443,6 +468,9 @@ export function createOrbitGrid(projects) {
   function endPointer(event) {
     if (event.pointerId !== state.pointerId) return;
     state.pointerId = null;
+    if (event.type === 'pointerup' && !suppressClick && pointerSource) pointerSource.click();
+    pointerSource = null;
+    suppressClick = true;
     if (event.type === "pointercancel" || performance.now() - state.pointerTime > 80) state.velocityX = state.velocityY = 0;
     gallery.classList.remove("is-dragging");
     if (gallery.hasPointerCapture(event.pointerId)) {
@@ -515,6 +543,13 @@ export function createOrbitGrid(projects) {
     requestFrame();
   });
   return {
+    setFilter(tag) {
+      const filtered = tag ? allSources.filter(source => source.tags?.includes(tag)) : allSources;
+      if (!filtered.length) return;
+      sources = filtered;
+      createTiles();
+      layout({ recenter: true });
+    },
     setVisible(visible) {
       enabled = visible;
       state.lastFrameTime = null;
