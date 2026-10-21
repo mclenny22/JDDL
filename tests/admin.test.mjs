@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import { imagePlacement, projectRows } from '../frontend/project-view.js';
 
 function mount() {
   const elements = new Map();
@@ -19,6 +20,7 @@ function mount() {
     querySelector() { return new Element(); }
     focus() { document.activeElement = this; }
     scrollIntoView() {}
+    getBoundingClientRect() { return { top: 0, height: 62, bottom: 62 }; }
     showModal() { this.open = true; }
     close() { this.open = false; this.listeners.close?.(); }
     reset() {}
@@ -36,14 +38,14 @@ function mount() {
   };
   const calls = [];
   const context = vm.createContext({
-    document, window: { addEventListener() {} }, Node: Element,
+    imagePlacement, projectRows, document, window: { addEventListener() {} }, Node: Element,
     fetch: async (url, options) => {
       calls.push({ url, options });
       return { ok: true, json: async () => ({ authenticated: false }) };
     },
     setTimeout: () => 0, clearTimeout() {},
   });
-  vm.runInContext(fs.readFileSync(new URL('../backend/static/admin.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../backend/static/admin.js', import.meta.url), 'utf8').replace(/^import .*;\n/, ''), context);
   vm.runInContext(`state.data = {
     projects: [{ id: 'alpha', title: 'Alpha Studio' }, { id: 'beta', title: 'Béta & Co' }],
     images: [{ id: 'image', original_name: 'Photo', published: 1, archived: 0, aspect_ratio: 1.5, project_ids: ['alpha'], tag_ids: [] }],
@@ -162,4 +164,120 @@ test('touch dragging changes project order, cancellation restores it and keyboar
   body.listeners.keydown(event('ArrowDown'));
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(JSON.parse(run('JSON.stringify(state.data.projects.map(project => project.id))')), ['beta', 'alpha']);
+});
+
+test('project layout drafts use the public hero, preserve saved placements and reset on reopen', () => {
+  const { run, elements } = mount();
+  run(`state.data.images.push(
+    { id: 'second', url: '/second.jpg', original_name: 'Second', published: 1, archived: 0, project_ids: ['alpha'] },
+    { id: 'draft', url: '/draft.jpg', published: 0, archived: 1, project_ids: ['alpha'] },
+    { id: 'other', url: '/other.jpg', published: 1, archived: 0, project_ids: ['beta'] }
+  ); state.data.images[0].url = '/hero.jpg';
+  state.data.settings.project_layout = JSON.stringify({ second: { column: 2, span: 3, row: 8 } });
+  openProject(state.data.projects[0]);`);
+  assert.equal(run('layoutEditor.hero.id'), 'image');
+  assert.deepEqual(JSON.parse(run('JSON.stringify(layoutEditor.images.map(image => image.id))')), ['second']);
+  assert.equal(run('layoutEditor.custom'), true);
+  assert.equal(run('layoutEditor.dirty'), false);
+  assert.match(elements.get('#layout-page').innerHTML, /grid-column:2\/span 3;grid-row:8/);
+  assert.match(elements.get('#layout-hidden-images').textContent, /1 nicht veröffentlichte/);
+  elements.get('#layout-mode').listeners.click();
+  assert.equal(run('layoutEditor.custom'), false);
+  assert.equal(run('layoutEditor.dirty'), true);
+  run('openProject(state.data.projects[0])');
+  assert.equal(run('layoutEditor.custom'), true);
+  assert.equal(run('layoutEditor.dirty'), false);
+});
+
+test('grid movement and resizing reject occupied cells and out-of-range placements', () => {
+  const { run } = mount();
+  run(`layoutEditor.placements = { a: { column: 1, span: 2, row: 1 }, b: { column: 4, span: 2, row: 1 } };`);
+  assert.equal(run("canPlaceImage('a', { column: 2, span: 2, row: 1 })"), true);
+  assert.equal(run("canPlaceImage('a', { column: 3, span: 2, row: 1 })"), false);
+  assert.equal(run("canPlaceImage('a', { column: 4, span: 2, row: 2 })"), true);
+  for (const placement of [{column:0,span:2,row:1}, {column:7,span:2,row:1}, {column:1,span:0,row:1}, {column:1,span:2,row:1001}, {column:1,span:2,row:0}]) {
+    assert.equal(run(`canPlaceImage('a', ${JSON.stringify(placement)})`), false);
+  }
+});
+
+test('project save includes a dirty layout in the same request and automatic reset sends an empty map', async () => {
+  for (const custom of [true, false]) {
+    const { run, elements, calls } = mount();
+    run(`openProject(state.data.projects[0]); refresh = async () => {};
+      layoutEditor.custom = ${custom}; layoutEditor.dirty = true;
+      layoutEditor.placements = { image: { column: 3, span: 2, row: 5 } };`);
+    await elements.get('#project-form').listeners.submit({ preventDefault() {}, submitter: { disabled: false } });
+    const request = calls.find(call => call.url === '/api/projects');
+    assert.deepEqual(JSON.parse(request.options.body).image_layouts, custom ? { image: { column: 3, span: 2, row: 5 } } : {});
+    assert.equal(calls.filter(call => call.url === '/api/settings').length, 0);
+  }
+});
+
+test('layout keyboard moves and resizes, while a cancelled drag leaves its draft unchanged', () => {
+  const { run, elements, context } = mount();
+  run(`layoutEditor.placements = { image: { column: 2, span: 2, row: 3 } };
+    layoutEditor.selected = 'image'; renderLayoutEditor = () => {};`);
+  const tile = { dataset: { layoutImage: 'image' } };
+  const event = (key, shiftKey = false) => ({ key, shiftKey, target: { closest: selector => selector === '[data-layout-image]' ? tile : null }, preventDefault() {} });
+  const page = elements.get('#layout-page');
+  page.listeners.keydown(event('ArrowRight'));
+  page.listeners.keydown(event('ArrowDown'));
+  page.listeners.keydown(event('ArrowRight', true));
+  assert.deepEqual(JSON.parse(run('JSON.stringify(layoutEditor.placements.image)')), { column: 3, span: 3, row: 4 });
+  context.cancelAnimationFrame = () => {};
+  run(`layoutEditor.drag = { pointerId: 1, frame: 1, tile: { hasPointerCapture: () => false, classList: { remove() {} } }, grid: { querySelector: () => ({ hidden: false }) }, next: { column: 1, span: 1, row: 1 } }; finishLayoutDrag(false);`);
+  assert.equal(run('layoutEditor.drag'), null);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(layoutEditor.placements.image)')), { column: 3, span: 3, row: 4 });
+});
+
+test('thumbnail picker auto-populates and changing the thumbnail preserves unsaved layout edits', () => {
+  const { run, elements } = mount();
+  run(`state.data.images[0].url = '/first.jpg';
+    state.data.images.push({ id: 'second', original_name: 'Second', url: '/second.jpg', published: 1, archived: 0, project_ids: ['alpha'] });
+    openProject(state.data.projects[0]);`);
+  assert.equal(elements.get('#project-thumbnail').value, '');
+  assert.equal(elements.get('#project-thumbnail-preview').src, '/first.jpg');
+  run(`layoutEditor.custom = true; layoutEditor.dirty = true;
+    layoutEditor.placements.second = { column: 2, span: 3, row: 9 };`);
+  elements.get('#project-thumbnail').value = 'second';
+  elements.get('#project-thumbnail').listeners.change();
+  assert.equal(run('layoutEditor.hero.id'), 'second');
+  assert.equal(run('layoutEditor.images[0].id'), 'image');
+  assert.equal(run('layoutEditor.custom'), true);
+  assert.equal(run('layoutEditor.dirty'), true);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(layoutEditor.retained.second)')), { column: 2, span: 3, row: 9 });
+  assert.equal(elements.get('#project-thumbnail-preview').src, '/second.jpg');
+  elements.get('#project-thumbnail').value = '';
+  elements.get('#project-thumbnail').listeners.change();
+  assert.equal(run('layoutEditor.hero.id'), 'image');
+  assert.equal(run('layoutEditor.placements.second.row'), 9);
+});
+
+test('project editor replaces the main view, keeps Projects active and returns focus and scroll on back', () => {
+  const { run, elements, document, context, Element } = mount();
+  const sections = ['library', 'projects', 'project-editor'].map(view => Object.assign(new Element(), { dataset: { viewContent: view } }));
+  const tabs = ['library', 'projects'].map(view => Object.assign(new Element(), { dataset: { view } }));
+  document.querySelectorAll = selector => selector === '[data-view-content]' ? sections : selector === '[data-view]' ? tabs : [];
+  const trigger = new Element(); trigger.isConnected = true;
+  document.activeElement = trigger;
+  const scrolls = [];
+  context.window.scrollY = 320;
+  context.window.scrollTo = options => scrolls.push(options.top);
+  run('openProject(state.data.projects[0])');
+  assert.equal(run('state.view'), 'project-editor');
+  assert.deepEqual(sections.map(section => section.hidden), [true, true, false]);
+  assert.equal(tabs[1].attributes['aria-selected'], 'true');
+  assert.equal(elements.get('#project-editor-title').textContent, 'Alpha Studio');
+  assert.equal(document.activeElement, elements.get('#project-editor-title'));
+  assert.equal(elements.get('#image-dialog').open, undefined);
+  run('layoutEditor.dirty = true');
+  elements.get('#project-back').listeners.click();
+  assert.equal(run('state.view'), 'projects');
+  assert.deepEqual(sections.map(section => section.hidden), [true, false, true]);
+  assert.equal(document.activeElement, trigger);
+  assert.deepEqual(scrolls, [0, 320]);
+  run('openProject(state.data.projects[0])');
+  assert.equal(run('layoutEditor.dirty'), false);
+  elements.get('#project-cancel').listeners.click();
+  assert.equal(run('state.view'), 'projects');
 });

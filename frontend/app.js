@@ -228,7 +228,7 @@ async function start() {
     const parts = location.hash.match(/^#project\/([^/]+)(?:\/([^/]+))?$/);
     if (parts) {
       const project = projects.find(item => encodeURIComponent(item.slug || item.id) === parts[1]);
-      if (project) openProject(project, project.images.find(item => encodeURIComponent(item.id) === parts[2]) || project.images[0]);
+      if (project) openProject(project, project.images.find(item => encodeURIComponent(item.id) === parts[2]) || project.thumbnail);
       return;
     }
     if (!['', '#index', '#index/field', '#about'].includes(location.hash)) return;
@@ -340,7 +340,7 @@ async function start() {
       const tile = document.createElement('a');
       tile.className = 'tile';
       tile.dataset.project = index;
-      tile.href = `#project/${encodeURIComponent(project.slug || project.id)}/${encodeURIComponent(project.images[0].id)}`;
+      tile.href = `#project/${encodeURIComponent(project.slug || project.id)}/${encodeURIComponent(project.thumbnail.id)}`;
       tile.setAttribute('aria-label', project.title);
       tile.setAttribute('aria-hidden', 'true');
       tile.tabIndex = -1;
@@ -348,11 +348,11 @@ async function start() {
       const open = event => {
         if (event?.metaKey || event?.ctrlKey || event?.shiftKey || event?.altKey) return;
         event?.preventDefault?.();
-        openProject(project, project.images[0], tile);
+        openProject(project, project.thumbnail, tile);
       };
       tile.addEventListener('click', open);
       tile.addEventListener('keydown', event => { if (event.key === ' ') { event.preventDefault(); open(event); } });
-      const image = project.images[0];
+      const image = project.thumbnail;
       const img = new Image();
       img.src = image.url;
       img.alt = image.alt_text || project.title;
@@ -446,7 +446,7 @@ async function start() {
       const alternatives = projects.filter(project => project.id !== detailProject?.id);
       const choices = alternatives.length ? alternatives : projects;
       const project = choices[Math.floor(Math.random() * choices.length)];
-      openProject(project, project.images[0]);
+      openProject(project, project.thumbnail);
       return;
     }
     transitionTo(active, index === 1, button, index === 3);

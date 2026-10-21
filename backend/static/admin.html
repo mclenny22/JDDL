@@ -134,6 +134,49 @@
             <div class="table-footer"><span id="export-result-count">0 Einträge</span></div>
           </div>
         </section>
+        <section id="project-editor" class="project-editor" data-view-content="project-editor" aria-labelledby="project-editor-title" hidden>
+      <form id="project-form">
+        <div class="admin-heading project-editor-heading">
+          <div class="project-editor-identity">
+            <button class="button project-back" type="button" id="project-back" aria-label="Zurück zu den Projekten">←</button>
+            <div><p class="admin-eyebrow">Projekte</p><h1 id="project-editor-title" tabindex="-1">Neues Projekt</h1></div>
+          </div>
+          <div class="project-editor-actions"><button class="button" type="button" id="project-cancel">Abbrechen</button><button class="button primary" type="submit">Projekt speichern</button></div>
+        </div>
+        <div class="project-editor-details">
+        <div class="project-details-fields">
+        <input id="project-id" type="hidden" />
+        <label class="field" for="project-title"><span>Titel</span><input id="project-title" maxlength="160" required /></label>
+        <label class="field" for="project-client"><span>Kunde / Art</span><input id="project-client" /></label>
+        <label class="field" for="project-description"><span>Beschreibung</span><textarea id="project-description"></textarea></label>
+        <div class="field-grid">
+          <label class="check-field"><input id="project-published" type="checkbox" checked /><span>Veröffentlicht</span></label>
+        </div>
+        </div>
+        <div class="field project-thumbnail-field">
+          <label for="project-thumbnail">Vorschaubild</label>
+          <select id="project-thumbnail" aria-describedby="project-thumbnail-help"></select>
+          <small id="project-thumbnail-help">Ohne Auswahl wird automatisch das erste veröffentlichte Projektbild verwendet. Das Vorschaubild erscheint in Selected und öffnet die Projektseite als Hero-Bild.</small>
+          <img id="project-thumbnail-preview" alt="Vorschau des Projekt-Vorschaubilds" hidden />
+        </div>
+        </div>
+        <p class="form-error" id="project-error" role="alert"></p>
+        <section class="project-layout-editor" aria-labelledby="layout-heading">
+          <div class="layout-heading"><h3 id="layout-heading">Bildlayout</h3><button type="button" class="button" id="layout-mode">7-Spalten-Layout erstellen</button></div>
+          <p class="layout-help" id="layout-help">Vorschau der Projektseite. Das erste veröffentlichte Bild bleibt das Hero-Bild.</p>
+          <div class="layout-tools" id="layout-tools" hidden>
+            <span id="layout-selection">Bild auswählen</span>
+            <button type="button" class="button" id="layout-narrow" aria-label="Ausgewähltes Bild schmaler machen">−</button>
+            <button type="button" class="button" id="layout-wide" aria-label="Ausgewähltes Bild breiter machen">+</button>
+            <button type="button" class="button" id="layout-add-rows">Leerraum unten hinzufügen</button>
+          </div>
+          <div class="layout-viewport"><div class="layout-page" id="layout-page"></div></div>
+          <p class="layout-help" id="layout-hidden-images"></p>
+          <p class="sr-only" id="layout-status" role="status" aria-live="polite"></p>
+        </section>
+      </form>
+        </section>
+
       </main>
     </div>
 
@@ -170,34 +213,9 @@
             <p class="project-combobox-empty" id="image-project-empty" hidden>Kein Projekt gefunden.</p>
           </div>
         </div>
-        <fieldset class="field" id="image-layout-fields"><legend>Projektseite · Sieben-Spalten-Raster</legend>
-          <small>Das Hero-Bild füllt die gesamte Breite. Diese Platzierung gilt für die weiteren Bilder. Bilder in derselben Zeile werden nebeneinander angeordnet.</small>
-          <div class="field-grid">
-            <label class="field" for="image-column"><span>Startspalte</span><input id="image-column" type="number" min="1" max="7" placeholder="Automatisch" /></label>
-            <label class="field" for="image-span"><span>Breite in Spalten</span><input id="image-span" type="number" min="1" max="7" placeholder="Automatisch" /></label>
-            <label class="field" for="image-row"><span>Zeile</span><input id="image-row" type="number" min="1" max="1000" placeholder="Automatisch" /></label>
-          </div>
-        </fieldset>
         <p class="form-error" id="image-error" role="alert"></p>
         </div>
         <div class="dialog-actions drawer-footer"><button class="button" type="button" data-close-dialog>Abbrechen</button><button class="button primary" type="submit">Bild speichern</button></div>
-      </form>
-    </dialog>
-
-    <dialog id="project-dialog" class="editor-drawer" aria-labelledby="project-dialog-title" aria-describedby="project-dialog-description">
-      <form id="project-form">
-        <div class="dialog-heading"><div><p class="admin-eyebrow">Projektdetails</p><h2 id="project-dialog-title">Neues Projekt</h2><p class="drawer-description" id="project-dialog-description">Projektdetails und Sichtbarkeit auf der Website verwalten.</p></div><button class="icon-button" type="button" data-close-dialog aria-label="Schließen">×</button></div>
-        <div class="drawer-body">
-        <input id="project-id" type="hidden" />
-        <label class="field" for="project-title"><span>Titel</span><input id="project-title" maxlength="160" required /></label>
-        <label class="field" for="project-client"><span>Kunde / Art</span><input id="project-client" /></label>
-        <label class="field" for="project-description"><span>Beschreibung</span><textarea id="project-description"></textarea></label>
-        <div class="field-grid">
-          <label class="check-field"><input id="project-published" type="checkbox" checked /><span>Veröffentlicht</span></label>
-        </div>
-        <p class="form-error" id="project-error" role="alert"></p>
-        </div>
-        <div class="dialog-actions drawer-footer"><button class="button" type="button" data-close-dialog>Abbrechen</button><button class="button primary" type="submit">Projekt speichern</button></div>
       </form>
     </dialog>
 

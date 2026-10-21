@@ -39,8 +39,13 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   the CMS. No demo asset fallback or hardcoded project content belongs in
   the active frontend. Figma's example project imagery is data, not branding.
 - Seven repeated project sets rebase by whole cycles for an endless rail.
-  Each project retains its first published, unarchived assigned image as a
-  stable thumbnail. No image cycling, story bar or indicators. All other
+  Each project uses its chosen published, unarchived assigned image as a stable
+  thumbnail; an empty or unavailable choice falls back to its first eligible image.
+  The project editor offers a Vorschaubild picker and an automatically populated
+  preview. Choices save with project metadata as `thumbnail_id`, backed by the
+  `project_thumbnails` setting without a schema migration. The image list keeps
+  its original order. Selected and the Project menu open the chosen thumbnail as
+  hero; Index and direct image links still open the selected image. No image cycling, story bar or indicators. All other
   project images remain available in Index and the project detail.
 - The rail drifts at 10px/s, easing to .35px/s on hover/focus. Manual wheel,
   touch and keyboard input suspends drift for 3.5 seconds. Fractional,
@@ -94,9 +99,15 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   direct links return locally. Focus and gallery offsets are restored.
 - Existing seven-column image placements in the `project_layout` JSON studio
   setting remain supported on desktop when a project has saved placements.
-  Mobile reflows these images into two columns. The image drawer's start
-  column, span and row controls and validated `/api/settings` `image_layout`
-  patches remain unchanged; no database migration is required.
+  Mobile reflows these images into two columns. Layout editing lives in the
+  project editor: a scaled dark page preview, seven-column pointer/touch dragging,
+  right-edge width resizing and arrow-key movement (Shift+Left/Right resizes).
+  Published assigned images appear after the thumbnail hero; unpublished
+  assignments are counted separately. Automatic layouts remain until explicitly
+  converted, and can be restored. Drafts save atomically with project metadata via
+  `/api/projects` `image_layouts`, validated against project assignments; cancel
+  discards drafts. Other projects' layouts are preserved. The legacy validated
+  `/api/settings` `image_layout` patch API remains supported. No migration is needed.
 - No frontend framework, package dependencies or frontend build is required.
 - `frontend/imprint.html` is the static imprint page, linked from both site and
   project footers and included in the Vercel export. It lists Lennard Makosch,
@@ -141,8 +152,13 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   filtering uses AND; portfolio export tags use OR and image selection remains
   explicit. Exports open a print-optimized A4 landscape document with a cover
   and project pages containing up to five ratio-preserving images each.
-- Admin controls use a dependency-free shadcn-style neutral design. Project and
-  image creation/editing open right-side modal drawers with fixed headers/actions,
+- Admin controls use a dependency-free shadcn-style neutral design. Project
+  creation/editing replaces the main content with a full-page editor, keeping
+  Projekte active in the navigation. Its sticky heading shows the project name,
+  a back arrow and Save/Cancel actions. Back/Cancel return to the list with focus
+  and scroll restored; unsaved drafts are discarded on reopening. Metadata and
+  thumbnail controls sit above the full-width layout canvas; dragging autoscrolls
+  the page. Image creation/editing opens a right-side modal drawer with fixed headers/actions,
   scrolling form content, native focus containment and Escape dismissal. Image
   name, tag and project cells open the same drawer at the corresponding field.
   Drawer entrance motion respects reduced motion; mobile drawers fill the width.
@@ -158,7 +174,7 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   Projects reorder through pointer dragging (mouse/touch) or Up/Down on row grips.
   `/api/projects/reorder` validates the complete ID list and saves positions in one
   transaction; new projects append. The public rail starts at the first published
-  project with published, unarchived images and shows its first assigned image.
+  project with published, unarchived images and shows its chosen or automatic thumbnail.
 - Project deletion retains images and clears links; tag deletion clears tag
   associations; image deletion removes its upload where present. Public data
   excludes archived and unpublished images. Admin bootstrap includes both.

@@ -10,7 +10,8 @@ export function normalizePortfolio(data) {
         ...image, tags: (image.tag_ids || []).map(id => (data.tags || []).find(tag => tag.id === id)?.name).filter(Boolean),
       })),
     }))
-    .filter(project => project.images.length);
+    .filter(project => project.images.length)
+    .map(project => ({ ...project, thumbnail: project.images.find(image => image.id === project.thumbnail_id) || project.images[0] }));
 }
 
 export async function loadPortfolio() {

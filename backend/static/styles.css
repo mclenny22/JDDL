@@ -440,3 +440,64 @@ html.has-open-drawer { overflow: hidden; }
 .project-drag-handle:disabled { opacity: .4; cursor: wait; }
 #project-table .is-dragging { background: #f4f4f5; box-shadow: inset 0 2px #a1a1aa, inset 0 -2px #a1a1aa; }
 .is-reordering-projects, .is-reordering-projects * { cursor: grabbing !important; user-select: none; }
+
+/* Project layout canvas scales the public page's gutters and natural image ratios. */
+.project-layout-editor { margin-top: 1.5rem; border-top: 1px solid var(--line); padding-top: 1.25rem; }
+.layout-heading, .layout-tools { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; }
+.layout-heading { justify-content: space-between; }
+.layout-heading h3 { margin: 0; font-size: 1rem; }
+.layout-help { color: var(--muted); font-size: .75rem; line-height: 1.6; }
+.layout-tools { margin-block: .75rem; }
+.layout-tools > span { font-size: .75rem; margin-right: auto; }
+.layout-viewport { overflow-x: auto; border-radius: 6px; background: #000; }
+.layout-page { container-type: inline-size; min-width: 420px; padding: 12px; background: #000; color: #fff; }
+.layout-meta { display: flex; justify-content: space-between; gap: 12px; padding: 20px 0 10px; font-size: 10px; }
+.layout-hero { position: relative; }
+.layout-hero img { display: block; width: 100%; aspect-ratio: 1410 / 575; object-fit: cover; }
+.layout-hero > span { position: absolute; bottom: 8px; left: 8px; background: #000b; padding: 4px 6px; font-size: 10px; }
+.layout-grid { display: grid; position: relative; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-auto-rows: minmax(1.02cqw, auto); column-gap: 1.064cqw; align-items: start; margin-top: 1.064cqw; }
+.layout-row { grid-column: 1 / -1; align-self: stretch; min-width: 0; pointer-events: none; background: repeating-linear-gradient(to right, #ffffff0d 0, #ffffff0d calc((100% + 1.064cqw) / 7 - 1.064cqw), transparent calc((100% + 1.064cqw) / 7 - 1.064cqw), transparent calc((100% + 1.064cqw) / 7)); border-bottom: 1px solid #ffffff09; }
+.layout-tile { min-width: 0; position: relative; outline: 1px solid #ffffff40; }
+.layout-tile.is-selected { outline: 2px solid #60a5fa; z-index: 1; }
+.layout-tile.is-dragging { opacity: .4; }
+.layout-move { display: block; width: 100%; padding: 0; border: 0; background: transparent; color: white; cursor: grab; touch-action: none; }
+.layout-move img { width: 100%; height: auto; display: block; pointer-events: none; }
+.layout-tile-label { position: absolute; left: 4px; bottom: 4px; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: #000b; font-size: 9px; padding: 2px; pointer-events: none; }
+.layout-resize { position: absolute; right: -6px; top: 40%; width: 24px; height: 32px; border: 1px solid #60a5fa; border-radius: 4px; background: #171717; color: #fff; cursor: ew-resize; touch-action: none; z-index: 2; padding: 0; }
+.layout-move:focus-visible, .layout-resize:focus-visible { outline: 3px solid #60a5fa; outline-offset: 3px; }
+.layout-target { position: absolute; pointer-events: none; background: #60a5fa40; outline: 2px solid #60a5fa; z-index: 3; }
+.layout-target.is-invalid { background: #ef444440; outline-color: #ef4444; }
+.layout-auto { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 1.064cqw; margin-top: 1.064cqw; }
+.layout-auto > div { min-width: 0; }
+.layout-auto img { display: block; width: 100%; aspect-ratio: var(--preview-ratio); object-fit: cover; }
+.layout-empty { padding: 30px 15px; font-size: 12px; line-height: 1.6; }
+
+.project-thumbnail-field select { width: 100%; min-width: 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: inherit; font: inherit; }
+#project-thumbnail-preview { display: block; width: 140px; aspect-ratio: 4 / 5; object-fit: cover; border: 1px solid var(--line); border-radius: 4px; margin-top: .5rem; }
+
+/* Large project edits occupy the main page; image details retain their drawer. */
+.project-editor-heading { position: sticky; top: 62px; z-index: 19; align-items: center; margin: -1rem -1rem 1.5rem; padding: 1rem; border-bottom: 1px solid var(--line); background: var(--paper); }
+.project-editor-identity { display: flex; align-items: center; gap: 1rem; min-width: 0; }
+.project-editor-identity > div { min-width: 0; }
+.project-editor-heading h1 { overflow-wrap: anywhere; }
+.project-editor-heading h1:focus { outline: none; }
+.project-back { flex: 0 0 auto; width: 38px; padding: 0; font-size: 1.2rem; }
+.project-editor-actions { display: flex; flex: 0 0 auto; align-items: center; gap: .5rem; }
+.project-editor-details { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 2rem; align-items: start; }
+.project-details-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.project-details-fields .field, .project-editor-details > .field { margin: 0; }
+.project-details-fields .field:has(textarea), .project-details-fields .field-grid { grid-column: 1 / -1; }
+.project-details-fields textarea { min-height: 110px; }
+.project-editor .check-field { display: flex; align-items: center; gap: .5rem; font-size: .8125rem; }
+.project-editor .check-field input { width: 15px; height: 15px; margin: 0; }
+.project-editor .project-layout-editor { margin-top: 1.5rem; }
+@media (max-width: 700px) {
+  .project-editor-details { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+  .project-editor-heading { flex-wrap: wrap; gap: .75rem; }
+  .project-editor-heading h1 { font-size: 1.5rem; }
+  .project-editor-actions { margin-left: auto; }
+  .project-editor-identity { gap: .65rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .project-editor { scroll-behavior: auto; }
+}

@@ -1,6 +1,11 @@
+import { imagePlacement, projectRows } from "/project-view.js";
+
 const $ = (selector) => document.querySelector(selector);
 const state = {
   data: null,
+  view: "library",
+  projectReturnScroll: 0,
+  projectReturnFocus: null,
   search: "",
   selectedTags: new Set(),
   selectedFile: null,
@@ -33,7 +38,7 @@ const el = {
   filterCount: $("#filter-count"),
   clearFilters: $("#clear-tag-filters"),
   imageDialog: $("#image-dialog"),
-  projectDialog: $("#project-dialog"),
+  projectEditor: $("#project-editor"),
   tagsDialog: $("#tags-dialog"),
   imageForm: $("#image-form"),
   projectForm: $("#project-form"),
@@ -102,12 +107,14 @@ function projectNames(image) {
 
 function setView(view) {
   cancelProjectDrag();
+  if (state.view === 'project-editor' && view !== 'project-editor') finishLayoutDrag(false);
+  state.view = view;
   closeRowMenu();
   document.querySelectorAll("[data-view-content]").forEach((section) => {
     section.hidden = section.dataset.viewContent !== view;
   });
   document.querySelectorAll("[data-view]").forEach((button) => {
-    const active = button.dataset.view === view;
+    const active = button.dataset.view === (view === "project-editor" ? "projects" : view);
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-selected", String(active));
   });
@@ -588,11 +595,6 @@ $("#image-project-field").addEventListener("focusout", (event) => {
 
 function openImage(image = null, field = "name") {
   el.imageForm.reset();
-  let layout = {};
-  try { layout = JSON.parse(state.data.settings.project_layout || "{}")[image?.id] || {}; } catch {}
-  $("#image-column").value = layout.column || "";
-  $("#image-span").value = layout.span || "";
-  $("#image-row").value = layout.row || "";
   $("#image-error").textContent = "";
   $("#image-id").value = image?.id || "";
   $("#image-dialog-title").textContent = image ? "Bild bearbeiten" : "Bild hinzufügen";
@@ -618,6 +620,8 @@ function openImage(image = null, field = "name") {
 }
 
 function openProject(project = null) {
+  state.projectReturnScroll = window.scrollY || 0;
+  state.projectReturnFocus = document.activeElement;
   el.projectForm.reset();
   $("#project-error").textContent = "";
   $("#project-id").value = project?.id || "";
@@ -625,10 +629,30 @@ function openProject(project = null) {
   $("#project-client").value = project?.client || "";
   $("#project-description").value = project?.description || "";
   $("#project-published").checked = project ? Boolean(project.published) : true;
-  $("#project-dialog-title").textContent = project ? "Projekt bearbeiten" : "Neues Projekt";
-  openDrawer(el.projectDialog);
-  $("#project-title").focus();
+  $('#project-editor-title').textContent = project?.title || 'Neues Projekt';
+  openThumbnailPicker(project);
+  openLayoutEditor(project);
+  setView('project-editor');
+  updateProjectHeaderInset();
+  window.scrollTo?.({ top: 0, behavior: 'instant' });
+  (project ? $('#project-editor-title') : $('#project-title')).focus({ preventScroll: true });
 }
+
+function updateProjectHeaderInset() {
+  $('#project-editor .project-editor-heading').style.top = `${$('.admin-topbar').getBoundingClientRect().height}px`;
+}
+window.addEventListener('resize', updateProjectHeaderInset);
+if (typeof ResizeObserver !== 'undefined') new ResizeObserver(updateProjectHeaderInset).observe($('.admin-topbar'));
+
+function closeProjectEditor() {
+  setView('projects');
+  window.scrollTo?.({ top: state.projectReturnScroll, behavior: 'instant' });
+  const previous = state.projectReturnFocus;
+  const fallback = $(`[data-edit-project="${$('#project-id').value}"]`) || $('#add-project-button');
+  (previous?.isConnected ? previous : fallback).focus({ preventScroll: true });
+}
+$('#project-back').addEventListener('click', closeProjectEditor);
+$('#project-cancel').addEventListener('click', closeProjectEditor);
 
 function openTags() {
   $("#tag-error").textContent = "";
@@ -734,7 +758,7 @@ function openDrawer(drawer) {
 }
 
 // Native modal dialogs provide focus containment, Escape and return focus.
-[el.imageDialog, el.projectDialog].forEach((drawer) => {
+[el.imageDialog].forEach((drawer) => {
   let backdropPress = false;
   const outside = (event) => {
     const box = drawer.getBoundingClientRect();
@@ -761,6 +785,7 @@ $("#login-form").addEventListener("submit", async (event) => {
 });
 
 $("#logout").addEventListener("click", async () => {
+  if (state.view === 'project-editor') closeProjectEditor();
   await api("/api/logout", { method: "POST" });
   el.adminApp.hidden = true;
   el.loginView.hidden = false;
@@ -856,9 +881,6 @@ el.imageForm.addEventListener("submit", async (event) => {
       catch { throw new Error("Das Bild konnte nicht gelesen werden. Wähle eine gültige Bilddatei aus."); }
       aspectRatio = el.imagePreview.naturalWidth / el.imagePreview.naturalHeight || 1;
     }
-    const placement = { column: Number($("#image-column").value), span: Number($("#image-span").value), row: Number($("#image-row").value) };
-    const customLayout = Object.values(placement).some(value => value !== 0);
-    if (customLayout && (!Object.values(placement).every(value => Number.isInteger(value) && value >= 1) || placement.column + placement.span > 8 || placement.row > 1000)) throw new Error("Das Bild muss innerhalb der sieben Spalten bleiben.");
     const shared = {
       original_name: $("#image-name").value,
       alt_text: $("#image-alt").value,
@@ -868,17 +890,14 @@ el.imageForm.addEventListener("submit", async (event) => {
       tag_names: tagIds.map((tagId) => tagFor(tagId)?.name).filter(Boolean).join(", "),
       project_ids: projectIds,
     };
-    let savedId = id;
     if (id) {
       await api(`/api/images/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(shared) });
     } else {
       const form = new FormData();
       form.append("image", state.selectedFile);
       Object.entries(shared).forEach(([key, value]) => form.append(key, Array.isArray(value) ? JSON.stringify(value) : String(value)));
-      const result = await api("/api/images", { method: "POST", body: form });
-      savedId = result.image;
+      await api("/api/images", { method: "POST", body: form });
     }
-    if (customLayout) await api("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image_layout: { id: savedId, ...placement } }) });
     el.imageDialog.close();
     await refresh();
     notify(id ? "Bild aktualisiert" : "Bild hinzugefügt");
@@ -896,10 +915,10 @@ el.projectForm.addEventListener("submit", async (event) => {
     await api("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: id || undefined, title: $("#project-title").value, client: $("#project-client").value, description: $("#project-description").value, sort_order: id ? projectFor(id)?.sort_order || 0 : Math.max(-10, ...state.data.projects.map((project) => project.sort_order || 0)) + 10, published: $("#project-published").checked }),
+      body: JSON.stringify({ id: id || undefined, title: $("#project-title").value, client: $("#project-client").value, description: $("#project-description").value, sort_order: id ? projectFor(id)?.sort_order || 0 : Math.max(-10, ...state.data.projects.map((project) => project.sort_order || 0)) + 10, published: $("#project-published").checked, thumbnail_id: $("#project-thumbnail").value, ...(layoutEditor.dirty ? { image_layouts: layoutEditor.custom ? { ...layoutEditor.retained, ...layoutEditor.placements } : {} } : {}) }),
     });
-    el.projectDialog.close();
     await refresh();
+    closeProjectEditor();
     notify(id ? "Projekt aktualisiert" : "Projekt erstellt");
   } catch (reason) { $("#project-error").textContent = reason.message; }
   finally { submit.disabled = false; }
@@ -967,3 +986,214 @@ $("#settings-form").addEventListener("submit", async (event) => {
 });
 
 api("/api/session").then((session) => { if (session.authenticated) return bootstrap(); }).catch(() => {});
+
+// Drafts stay local to the project drawer until the project is saved.
+const layoutEditor = { images: [], placements: {}, custom: false, dirty: false, selected: null, drag: null, rows: 12 };
+function openThumbnailPicker(project) {
+  const images = state.data.images.filter(image => image.project_ids.includes(project?.id) && image.published && !image.archived && image.url);
+  const picker = $('#project-thumbnail');
+  picker.innerHTML = `<option value="">Automatisch${images[0] ? ` · ${escapeHtml(images[0].original_name)}` : ' · noch kein veröffentlichtes Bild'}</option>` + images.map(image => `<option value="${escapeHtml(image.id)}">${escapeHtml(image.original_name)}</option>`).join('');
+  picker.value = images.some(image => image.id === project?.thumbnail_id) ? project.thumbnail_id : '';
+  updateThumbnailPreview(images);
+}
+function updateThumbnailPreview(images) {
+  const image = images.find(image => image.id === $('#project-thumbnail').value) || images[0];
+  const preview = $('#project-thumbnail-preview');
+  preview.hidden = !image;
+  if (image) preview.src = image.url;
+  else preview.removeAttribute('src');
+}
+$('#project-thumbnail').addEventListener('change', () => {
+  const custom = layoutEditor.custom;
+  const dirty = layoutEditor.dirty;
+  const draft = { ...layoutEditor.retained, ...layoutEditor.placements };
+  openLayoutEditor({ id: $('#project-id').value, thumbnail_id: $('#project-thumbnail').value }, draft);
+  layoutEditor.custom = custom;
+  layoutEditor.dirty = dirty;
+  updateThumbnailPreview(layoutEditor.visible);
+  renderLayoutEditor();
+});
+function openLayoutEditor(project, draft = null) {
+  const assigned = state.data.images.filter(image => image.project_ids.includes(project?.id));
+  const visible = assigned.filter(image => image.published && !image.archived && image.url);
+  let saved = {};
+  try { saved = JSON.parse(state.data.settings.project_layout || '{}') || {}; } catch {}
+  if (draft) saved = draft;
+  layoutEditor.visible = visible;
+  layoutEditor.hero = visible.find(image => image.id === project?.thumbnail_id) || visible[0];
+  layoutEditor.images = visible.filter(image => image !== layoutEditor.hero);
+  layoutEditor.custom = layoutEditor.images.some(image => saved[image.id] && Object.keys(saved[image.id]).length);
+  layoutEditor.placements = Object.fromEntries(layoutEditor.images.map((image, index) => [image.id, imagePlacement(image, index, saved)]));
+  // Keep placements for the hero and unpublished assignments while editing the visible grid.
+  layoutEditor.retained = Object.fromEntries(assigned.filter(image => !layoutEditor.images.includes(image) && saved[image.id]).map((image, index) => [image.id, imagePlacement(image, index, saved)]));
+  $('#layout-status').textContent = '';
+  layoutEditor.dirty = false;
+  layoutEditor.selected = null;
+  layoutEditor.drag = null;
+  layoutEditor.rows = Math.min(1000, Math.max(12, ...Object.values(layoutEditor.placements).map(p => p.row + 8)));
+  $('#layout-hidden-images').textContent = `${assigned.length - visible.length} nicht veröffentlichte Bilder werden auf der Website nicht angezeigt. Zuordnungen und Veröffentlichung unter „Alle Bilder“ bearbeiten.`;
+  renderLayoutEditor();
+}
+function renderLayoutEditor(focusId) {
+  const editor = layoutEditor;
+  $('#layout-mode').hidden = !editor.images.length;
+  $('#layout-mode').textContent = editor.custom ? 'Automatisches Layout' : '7-Spalten-Layout erstellen';
+  $('#layout-tools').hidden = !editor.custom || !editor.images.length;
+  $('#layout-help').textContent = editor.custom
+    ? 'Bilder ziehen; am rechten Griff die Breite ändern. Tastatur: Pfeiltasten verschieben, Umschalt + Links/Rechts ändert die Breite. Escape bricht das Ziehen ab. Änderungen werden mit dem Projekt gespeichert.'
+    : 'Vorschau der Projektseite. Für freie Platzierung das 7-Spalten-Layout erstellen. Das gewählte Vorschaubild wird als Hero-Bild dargestellt.';
+  const imageMarkup = image => `<img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.alt_text || image.original_name)}" draggable="false" />`;
+  const hero = editor.hero ? `<div class="layout-meta"><span>${escapeHtml($('#project-title').value)}</span><span>${escapeHtml($('#project-client').value)}</span></div><div class="layout-hero">${imageMarkup(editor.hero)}<span>Hero · volle Breite</span></div>` : '<p class="layout-empty">Noch keine veröffentlichten Bilder zugeordnet. Bilder unter „Alle Bilder“ diesem Projekt zuordnen.</p>';
+  let body = '';
+  if (editor.custom && editor.images.length) {
+    const rows = Array.from({ length: editor.rows }, (_, index) => `<div class="layout-row" data-layout-row="${index + 1}" style="grid-row:${index + 1}" aria-hidden="true"></div>`).join('');
+    body = `<div class="layout-grid">${rows}${editor.images.map(image => {
+      const p = editor.placements[image.id];
+      return `<div class="layout-tile" data-layout-image="${escapeHtml(image.id)}" style="grid-column:${p.column}/span ${p.span};grid-row:${p.row}"><button type="button" class="layout-move" aria-describedby="layout-help" aria-label="${escapeHtml(image.original_name)} verschieben">${imageMarkup(image)}<span class="layout-tile-label">${escapeHtml(image.original_name)}</span></button><button type="button" class="layout-resize" aria-label="Breite von ${escapeHtml(image.original_name)} ändern" aria-describedby="layout-help">↔</button></div>`;
+    }).join('')}<div class="layout-target" hidden aria-hidden="true"></div></div>`;
+  } else {
+    body = `<div class="layout-auto">${projectRows(editor.images).map(({ image, span, ratio }) => `<div style="grid-column:span ${span};--preview-ratio:${ratio}">${imageMarkup(image)}</div>`).join('')}</div>`;
+  }
+  $('#layout-page').innerHTML = hero + body;
+  updateLayoutSelection();
+  if (focusId) $(`[data-layout-image="${focusId}"] .layout-move`)?.focus({ preventScroll: true });
+}
+function updateLayoutSelection() {
+  const id = layoutEditor.selected;
+  const placement = layoutEditor.placements[id];
+  $('#layout-page').querySelectorAll('[data-layout-image]').forEach(tile => tile.classList.toggle('is-selected', tile.dataset.layoutImage === id));
+  $('#layout-selection').textContent = placement ? `Spalte ${placement.column} · Breite ${placement.span} · Zeile ${placement.row}` : 'Bild auswählen';
+  $('#layout-narrow').disabled = !placement || placement.span <= 1;
+  $('#layout-wide').disabled = !placement || placement.column + placement.span >= 8;
+}
+function canPlaceImage(id, placement, placements = layoutEditor.placements) {
+  return placement.column >= 1 && placement.span >= 1 && placement.column + placement.span <= 8 && placement.row >= 1 && placement.row <= 1000 && !Object.entries(placements).some(([otherId, other]) => otherId !== id && other.row === placement.row && other.column < placement.column + placement.span && placement.column < other.column + other.span);
+}
+function commitLayoutPlacement(id, placement) {
+  if (!canPlaceImage(id, placement)) {
+    $('#layout-status').textContent = 'Hier ist kein Platz. Wähle eine freie Position im Raster.';
+    return false;
+  }
+  layoutEditor.placements[id] = placement;
+  layoutEditor.dirty = true;
+  layoutEditor.rows = Math.min(1000, Math.max(layoutEditor.rows, placement.row + 8));
+  renderLayoutEditor(id);
+  $('#layout-status').textContent = `Bild verschoben: Spalte ${placement.column}, Breite ${placement.span}, Zeile ${placement.row}.`;
+  return true;
+}
+$('#layout-mode').addEventListener('click', () => {
+  layoutEditor.custom = !layoutEditor.custom;
+  layoutEditor.dirty = true;
+  // Existing automatic positions become editable without changing stored content until save.
+  renderLayoutEditor();
+});
+$('#layout-add-rows').addEventListener('click', () => {
+  layoutEditor.rows = Math.min(1000, layoutEditor.rows + 12);
+  renderLayoutEditor();
+});
+for (const [selector, delta] of [['#layout-narrow', -1], ['#layout-wide', 1]]) {
+  $(selector).addEventListener('click', () => {
+    const id = layoutEditor.selected;
+    if (id) commitLayoutPlacement(id, { ...layoutEditor.placements[id], span: layoutEditor.placements[id].span + delta });
+  });
+}
+$('#layout-page').addEventListener('click', event => {
+  const tile = event.target.closest('[data-layout-image]');
+  if (!tile) return;
+  layoutEditor.selected = tile.dataset.layoutImage;
+  updateLayoutSelection();
+});
+$('#layout-page').addEventListener('keydown', event => {
+  if (event.key === 'Escape' && layoutEditor.drag) {
+    event.preventDefault(); event.stopPropagation(); finishLayoutDrag(false); return;
+  }
+  const tile = event.target.closest('[data-layout-image]');
+  if (!tile || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+  event.preventDefault();
+  const id = tile.dataset.layoutImage;
+  layoutEditor.selected = id;
+  const next = { ...layoutEditor.placements[id] };
+  const horizontal = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0;
+  if (event.shiftKey || event.target.closest('.layout-resize')) next.span += horizontal;
+  else { next.column += horizontal; next.row += event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0; }
+  commitLayoutPlacement(id, next);
+});
+$('#layout-page').addEventListener('pointerdown', event => {
+  const tile = event.target.closest('[data-layout-image]');
+  if (!tile || event.button !== 0 || event.isPrimary === false) return;
+  const id = tile.dataset.layoutImage;
+  layoutEditor.selected = id;
+  updateLayoutSelection();
+  const grid = tile.closest('.layout-grid');
+  const rect = tile.getBoundingClientRect();
+  const drag = layoutEditor.drag = { id, pointerId: event.pointerId, tile, grid, original: { ...layoutEditor.placements[id] }, next: null, resize: Boolean(event.target.closest('.layout-resize')), offsetX: event.clientX - rect.left, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false };
+  tile.setPointerCapture(event.pointerId);
+  const scroll = () => {
+    if (layoutEditor.drag !== drag) return;
+    const bounds = { top: $('#project-editor .project-editor-heading').getBoundingClientRect().bottom, bottom: window.innerHeight };
+    if (drag.moved) {
+      const step = drag.y < bounds.top + 55 ? -10 : drag.y > bounds.bottom - 55 ? 10 : 0;
+      if (step) { window.scrollBy(0, step); updateLayoutDrag(); }
+      const horizontalViewport = $('.layout-viewport');
+      const horizontalBounds = horizontalViewport.getBoundingClientRect();
+      const horizontalStep = drag.x < horizontalBounds.left + 30 ? -8 : drag.x > horizontalBounds.right - 30 ? 8 : 0;
+      if (horizontalStep) { horizontalViewport.scrollLeft += horizontalStep; updateLayoutDrag(); }
+    }
+    drag.frame = requestAnimationFrame(scroll);
+  };
+  drag.frame = requestAnimationFrame(scroll);
+});
+function updateLayoutDrag() {
+  const drag = layoutEditor.drag;
+  if (!drag?.moved) return;
+  const rect = drag.grid.getBoundingClientRect();
+  const gap = rect.width * .01064;
+  const unit = (rect.width + gap) / 7;
+  const next = { ...drag.original };
+  if (drag.resize) next.span = Math.max(1, Math.min(8 - next.column, Math.round((drag.x - rect.left - (next.column - 1) * unit + gap) / unit)));
+  else {
+    next.column = Math.max(1, Math.min(8 - next.span, Math.round((drag.x - rect.left - drag.offsetX) / unit) + 1));
+    const rows = [...drag.grid.querySelectorAll('[data-layout-row]')];
+    const row = rows.find(row => { const r = row.getBoundingClientRect(); return drag.y >= r.top && drag.y < r.bottom; });
+    if (!row) { drag.next = null; drag.grid.querySelector('.layout-target').hidden = true; return; }
+    next.row = Number(row.dataset.layoutRow);
+  }
+  drag.next = canPlaceImage(drag.id, next) ? next : null;
+  const row = drag.grid.querySelector(`[data-layout-row="${next.row}"]`).getBoundingClientRect();
+  const target = drag.grid.querySelector('.layout-target');
+  target.hidden = false;
+  target.classList.toggle('is-invalid', !drag.next);
+  Object.assign(target.style, { left: `${(next.column - 1) * unit}px`, top: `${row.top - rect.top}px`, width: `${next.span * unit - gap}px`, height: `${row.height}px` });
+}
+$('#layout-page').addEventListener('pointermove', event => {
+  const drag = layoutEditor.drag;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+  drag.x = event.clientX; drag.y = event.clientY;
+  if (Math.hypot(drag.x - drag.startX, drag.y - drag.startY) > 4) drag.moved = true;
+  if (drag.moved) { drag.tile.classList.add('is-dragging'); updateLayoutDrag(); }
+});
+function finishLayoutDrag(commit) {
+  const drag = layoutEditor.drag;
+  if (!drag) return;
+  layoutEditor.drag = null;
+  cancelAnimationFrame(drag.frame);
+  if (drag.tile.hasPointerCapture(drag.pointerId)) drag.tile.releasePointerCapture(drag.pointerId);
+  drag.tile.classList.remove('is-dragging');
+  drag.grid.querySelector('.layout-target').hidden = true;
+  if (commit && drag.moved && drag.next) commitLayoutPlacement(drag.id, drag.next);
+  else if (commit && drag.moved) $('#layout-status').textContent = 'Hier ist kein Platz. Das Bild bleibt an seiner bisherigen Position.';
+}
+$('#layout-page').addEventListener('pointerup', () => finishLayoutDrag(true));
+$('#layout-page').addEventListener('pointercancel', () => finishLayoutDrag(false));
+$('#layout-page').addEventListener('lostpointercapture', () => finishLayoutDrag(false));
+
+for (const selector of ['#project-title', '#project-client']) {
+  $(selector).addEventListener('input', () => {
+    $('#project-editor-title').textContent = $('#project-title').value.trim() || 'Neues Projekt';
+    const meta = $('#layout-page .layout-meta');
+    if (meta) {
+      meta.children[0].textContent = $('#project-title').value;
+      meta.children[1].textContent = $('#project-client').value;
+    }
+  });
+}

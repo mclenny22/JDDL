@@ -205,7 +205,7 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
     content.setAttribute('aria-label', project.title);
   }
   function open(project, selectedImage, source = null, onSwitch = () => {}) {
-    const image = selectedImage || project.images[0];
+    const image = selectedImage || project.thumbnail || project.images[0];
     const origin = imageFor(source);
     transitionView(() => {
       sourceLink = source;

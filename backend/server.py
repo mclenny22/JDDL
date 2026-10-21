@@ -204,6 +204,9 @@ def public_payload(admin: bool = False) -> dict:
         image_where = "" if admin else "WHERE archived = 0 AND published = 1"
         projects = [dict(row) for row in projects_db.execute(f"SELECT * FROM projects {project_where} ORDER BY sort_order, title")]
         settings = {row["key"]: row["value"] for row in projects_db.execute("SELECT key, value FROM settings")}
+        thumbnails = json.loads(settings.get("project_thumbnails", "{}"))
+        for project in projects:
+            project["thumbnail_id"] = thumbnails.get(project["id"], "")
         tags = [dict(row) for row in images_db.execute("SELECT * FROM tags ORDER BY sort_order, name")]
         tag_links, project_links = {}, {}
         for link in images_db.execute("SELECT image_id, tag_id FROM image_tags"):
@@ -398,6 +401,30 @@ class Handler(SimpleHTTPRequestHandler):
         if not title:
             raise ValueError("Bitte gib einen Projekttitel ein")
         project_id = str(payload.get("id") or slugify(title))
+        thumbnail = payload.get("thumbnail_id", "")
+        if "thumbnail_id" in payload:
+            if not isinstance(thumbnail, str):
+                raise ValueError("Ungültiges Vorschaubild")
+            if thumbnail:
+                with connect(IMAGES_DB) as images_db:
+                    valid_thumbnail = images_db.execute(
+                        """SELECT 1 FROM images JOIN image_projects ON image_projects.image_id = images.id
+                           WHERE images.id = ? AND project_id = ? AND published = 1 AND archived = 0""",
+                        (thumbnail, project_id)).fetchone()
+                if not valid_thumbnail:
+                    raise ValueError("Wähle ein veröffentlichtes Bild dieses Projekts als Vorschaubild")
+        placements = payload.get("image_layouts")
+        assigned_ids = set()
+        if placements is not None:
+            if not isinstance(placements, dict):
+                raise ValueError("Ungültiges Projektlayout")
+            with connect(IMAGES_DB) as images_db:
+                assigned_ids = {row["image_id"] for row in images_db.execute(
+                    "SELECT image_id FROM image_projects WHERE project_id = ?", (project_id,))}
+            if not set(placements).issubset(assigned_ids):
+                raise ValueError("Das Layout darf nur Bilder dieses Projekts enthalten")
+            for placement in placements.values():
+                self.validate_placement(placement)
         values = (
             project_id,
             slugify(str(payload.get("slug") or title)),
@@ -416,6 +443,23 @@ class Handler(SimpleHTTPRequestHandler):
                    sort_order=excluded.sort_order, updated_at=CURRENT_TIMESTAMP""",
                 values,
             )
+            if "thumbnail_id" in payload:
+                record = db.execute("SELECT value FROM settings WHERE key = 'project_thumbnails'").fetchone()
+                thumbnails = json.loads(record["value"]) if record else {}
+                if thumbnail:
+                    thumbnails[project_id] = thumbnail
+                else:
+                    thumbnails.pop(project_id, None)
+                db.execute("INSERT INTO settings VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                           ("project_thumbnails", json.dumps(thumbnails)))
+            if placements is not None:
+                record = db.execute("SELECT value FROM settings WHERE key = 'project_layout'").fetchone()
+                layout = json.loads(record["value"]) if record else {}
+                # Replace only this project's entries; other projects keep their layout.
+                layout = {key: value for key, value in layout.items() if key not in assigned_ids}
+                layout.update(placements)
+                db.execute("INSERT INTO settings VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                           ("project_layout", json.dumps(layout)))
         self.json_response({"project": project_id})
 
     def reorder_projects(self, payload: dict) -> None:
@@ -472,18 +516,26 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.json_response({"error": "Tag nicht gefunden"}, 404)
         self.json_response({"deleted": True})
 
+    @staticmethod
+    def validate_placement(placement: dict) -> None:
+        if not isinstance(placement, dict):
+            raise ValueError("Ungültige Bildplatzierung")
+        if set(placement) - {"id", "column", "span", "row"}:
+            raise ValueError("Ungültige Bildplatzierung")
+        for key, maximum in (("column", 7), ("span", 7), ("row", 1000)):
+            value = placement.get(key)
+            if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= maximum:
+                raise ValueError("Spalte und Breite: 1–7; Zeile: 1–1000")
+        if placement["column"] + placement["span"] > 8:
+            raise ValueError("Das Bild muss innerhalb der sieben Spalten bleiben")
+
     def save_settings(self, payload: dict) -> None:
         allowed = {"eyebrow", "about", "clients", "footer_contact", "footer_address", "footer_email"}
         placement = payload.get("image_layout")
         if placement is not None:
             if not isinstance(placement, dict) or not re.fullmatch(r"[a-zA-Z0-9-]+", str(placement.get("id", ""))):
                 raise ValueError("Ungültige Bildplatzierung")
-            for key, maximum in (("column", 7), ("span", 7), ("row", 1000)):
-                value = placement.get(key)
-                if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= maximum:
-                    raise ValueError("Spalte und Breite: 1–7; Zeile: 1–1000")
-            if placement["column"] + placement["span"] > 8:
-                raise ValueError("Das Bild muss innerhalb der sieben Spalten bleiben")
+            self.validate_placement(placement)
         with connect(PROJECTS_DB) as db:
             if placement is not None:
                 record = db.execute("SELECT value FROM settings WHERE key = 'project_layout'").fetchone()

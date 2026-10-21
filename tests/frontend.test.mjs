@@ -733,3 +733,24 @@ test('Project menu chooses a published project and avoids repeating the open pro
   assert.equal(single.location.hash, first);
   assert.equal(single.elements['#project-detail'].hidden, false);
 });
+
+test('project thumbnails use a chosen eligible image and fall back without reordering images', async () => {
+  const data = structuredClone(seed);
+  const original = normalizePortfolio(data)[0];
+  const chosen = original.images[1];
+  data.projects.find(project => project.id === original.id).thumbnail_id = chosen.id;
+  const project = normalizePortfolio(data)[0];
+  assert.equal(project.thumbnail.id, chosen.id);
+  assert.deepEqual(project.images.map(image => image.id), original.images.map(image => image.id));
+  const { elements } = await mount(data);
+  const tile = elements['.track'].children.find(tile => tile.dataset.project === 0);
+  assert.equal(tile.children[0].src, chosen.url);
+  assert.equal(tile.href, `#project/${project.slug}/${chosen.id}`);
+  for (const patch of [{ published: 0 }, { archived: 1 }, { project_ids: [] }]) {
+    const changed = structuredClone(data);
+    Object.assign(changed.images.find(image => image.id === chosen.id), patch);
+    assert.equal(normalizePortfolio(changed)[0].thumbnail.id, original.images[0].id);
+  }
+  data.projects.find(project => project.id === original.id).thumbnail_id = '';
+  assert.equal(normalizePortfolio(data)[0].thumbnail.id, original.images[0].id);
+});

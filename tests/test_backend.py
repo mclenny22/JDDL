@@ -69,6 +69,57 @@ class BackendIntegrationTests(unittest.TestCase):
         unchanged = json.loads(self.request('GET', '/api/public')[2])["settings"]
         self.assertEqual(unchanged, settings)
 
+    def test_project_layout_batch_validates_and_saves_atomically(self):
+        self.login()
+        data = json.loads(self.request('GET', '/api/admin/bootstrap')[2])
+        project = data['projects'][0]
+        assigned = [image['id'] for image in data['images'] if project['id'] in image['project_ids']]
+        other = next(image['id'] for image in data['images'] if project['id'] not in image['project_ids'])
+        placement = {"column": 2, "span": 3, "row": 8}
+        self.request('POST', '/api/settings', {"image_layout": {"id": other, **placement}})
+        payload = {**project, 'title': 'Layout edited', 'image_layouts': {assigned[0]: placement, assigned[1]: {"column": 5, "span": 3, "row": 1}}}
+        self.assertEqual(self.request('POST', '/api/projects', payload)[0], 200)
+        saved = json.loads(self.request('GET', '/api/public')[2])
+        layout = json.loads(saved['settings']['project_layout'])
+        self.assertEqual(layout[assigned[0]], placement)
+        self.assertEqual(layout[other], placement)
+        self.assertEqual(next(p for p in saved['projects'] if p['id'] == project['id'])['title'], 'Layout edited')
+        for invalid in ({other: placement}, {assigned[0]: {**placement, 'span': 7}}, {assigned[0]: {**placement, 'row': True}}, {assigned[0]: []}, []):
+            self.assertEqual(self.request('POST', '/api/projects', {**payload, 'title': 'Must not save', 'image_layouts': invalid})[0], 400)
+            self.assertEqual(json.loads(self.request('GET', '/api/public')[2]), saved)
+        # Metadata-only saves preserve layouts; resetting affects only this project.
+        self.assertEqual(self.request('POST', '/api/projects', {**project, 'title': 'Metadata only'})[0], 200)
+        self.assertEqual(json.loads(json.loads(self.request('GET', '/api/public')[2])['settings']['project_layout']), layout)
+        self.assertEqual(self.request('POST', '/api/projects', {**project, 'image_layouts': {}})[0], 200)
+        reset = json.loads(json.loads(self.request('GET', '/api/public')[2])['settings']['project_layout'])
+        self.assertEqual(reset[other], placement)
+        self.assertTrue(all(image_id not in reset for image_id in assigned))
+
+    def test_project_thumbnail_is_optional_validated_and_preserved(self):
+        self.login()
+        data = json.loads(self.request('GET', '/api/admin/bootstrap')[2])
+        project = data['projects'][0]
+        assigned = [image for image in data['images'] if project['id'] in image['project_ids']]
+        chosen = assigned[1]['id']
+        other = next(image['id'] for image in data['images'] if project['id'] not in image['project_ids'])
+        payload = {**project, 'thumbnail_id': chosen}
+        self.assertEqual(self.request('POST', '/api/projects', payload)[0], 200)
+        saved = json.loads(self.request('GET', '/api/public')[2])
+        self.assertEqual(next(p for p in saved['projects'] if p['id'] == project['id'])['thumbnail_id'], chosen)
+        for invalid in (other, 'missing-image', True, [], None):
+            self.assertEqual(self.request('POST', '/api/projects', {**payload, 'title': 'Invalid edit', 'thumbnail_id': invalid})[0], 400)
+            self.assertEqual(json.loads(self.request('GET', '/api/public')[2]), saved)
+        metadata_only = {key: value for key, value in project.items() if key != 'thumbnail_id'}
+        self.assertEqual(self.request('POST', '/api/projects', metadata_only)[0], 200)
+        unchanged = json.loads(self.request('GET', '/api/admin/bootstrap')[2])
+        self.assertEqual(next(p for p in unchanged['projects'] if p['id'] == project['id'])['thumbnail_id'], chosen)
+        with server.connect(server.IMAGES_DB) as db:
+            db.execute('UPDATE images SET archived = 1 WHERE id = ?', (chosen,))
+        self.assertEqual(self.request('POST', '/api/projects', payload)[0], 400)
+        self.assertEqual(self.request('POST', '/api/projects', {**payload, 'thumbnail_id': ''})[0], 200)
+        reset = json.loads(self.request('GET', '/api/admin/bootstrap')[2])
+        self.assertEqual(next(p for p in reset['projects'] if p['id'] == project['id'])['thumbnail_id'], '')
+
     def test_new_site_and_admin_assets_do_not_conflict(self):
         status, _, page = self.request('GET', '/')
         self.assertEqual(status, 200)
