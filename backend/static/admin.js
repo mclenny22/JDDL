@@ -929,11 +929,15 @@ el.dropzone.addEventListener("drop", (event) => { if (!el.imageFile.disabled) { 
 
 el.imageForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const submit = event.submitter;
+  const submit = event.submitter || el.imageForm.querySelector('button[type="submit"]');
+  if (submit.disabled) return;
   const id = $("#image-id").value;
   const error = $("#image-error");
   if (!id && !state.selectedFile) { error.textContent = "Wähle zuerst ein Bild oder MP4-Video aus."; return; }
+  const label = submit.textContent;
   submit.disabled = true;
+  submit.textContent = id ? "Speichert…" : "Lädt hoch…";
+  el.imageForm.setAttribute("aria-busy", "true");
   error.textContent = "";
   try {
     const tagIds = [...document.querySelectorAll('input[name="image-tag"]:checked')].map((input) => input.value);
@@ -966,7 +970,11 @@ el.imageForm.addEventListener("submit", async (event) => {
     await refresh();
     notify(id ? "Asset aktualisiert" : "Asset hinzugefügt");
   } catch (reason) { error.textContent = reason.message; }
-  finally { submit.disabled = false; }
+  finally {
+    submit.disabled = false;
+    submit.textContent = label;
+    el.imageForm.removeAttribute("aria-busy");
+  }
 });
 
 el.projectForm.addEventListener("submit", async (event) => {
