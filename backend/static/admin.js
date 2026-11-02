@@ -15,6 +15,7 @@ const state = {
   projectDrag: null,
   reorderingProjects: false,
   exportTags: new Set(),
+  exportProject: "",
   exportSelected: new Set(),
 };
 
@@ -28,6 +29,7 @@ const el = {
   exportTable: $("#export-table"),
   exportBody: $("#export-table-body"),
   exportTagFilters: $("#export-tag-filters"),
+  exportProjectFilter: $("#export-project-filter"),
   exportSelectionSummary: $("#export-selection-summary"),
   createPortfolioButton: $("#create-portfolio-button"),
   clearExportSelection: $("#clear-export-selection"),
@@ -360,20 +362,30 @@ function renderSettings() {
   }
 }
 
+function exportProjectImages() {
+  return state.data.images.filter((image) => !isVideo(image) && (!state.exportProject || image.project_ids.includes(state.exportProject)));
+}
+
 function exportFilteredImages() {
-  const images = state.data.images.filter(image => !isVideo(image));
+  const images = exportProjectImages();
   if (!state.exportTags.size) return images;
   return images.filter((image) => image.tag_ids.some((id) => state.exportTags.has(id)));
 }
 
 function renderExportFilters() {
-  const counts = new Map(state.data.tags.map((tag) => [tag.id, state.data.images.filter((image) => image.tag_ids.includes(tag.id)).length]));
+  if (state.exportProject && !projectFor(state.exportProject)) state.exportProject = "";
+  el.exportProjectFilter.innerHTML = '<option value="">Alle Projekte</option>' + state.data.projects.map((project) => `<option value="${escapeHtml(project.id)}">${escapeHtml(project.title)}</option>`).join("");
+  el.exportProjectFilter.value = state.exportProject;
+  const images = exportProjectImages();
+  const counts = new Map(state.data.tags.map((tag) => [tag.id, images.filter((image) => image.tag_ids.includes(tag.id)).length]));
   el.exportTagFilters.innerHTML = state.data.tags.length
     ? state.data.tags.map((tag) => `<label class="tag-check"><input type="checkbox" data-export-tag-id="${tag.id}" ${state.exportTags.has(tag.id) ? "checked" : ""} /><span>${escapeHtml(tag.name)} <small>${counts.get(tag.id)}</small></span></label>`).join("")
     : '<span class="admin-muted">Keine Kategorien verfügbar.</span>';
 }
 
 function renderExportImages() {
+  const eligibleIds = new Set(exportProjectImages().map((image) => image.id));
+  state.exportSelected = new Set([...state.exportSelected].filter((id) => eligibleIds.has(id)));
   const images = exportFilteredImages();
   const selectedCount = state.exportSelected.size;
   el.exportSelectionSummary.textContent = `${selectedCount} ${selectedCount === 1 ? "Bild" : "Bilder"} ausgewählt`;
@@ -383,7 +395,7 @@ function renderExportImages() {
   $("#export-result-count").textContent = `${images.length} ${images.length === 1 ? "Eintrag" : "Einträge"}`;
   el.exportTable.hidden = images.length === 0;
   if (!images.length) {
-    el.exportBody.innerHTML = '<tr><td colspan="6"><div class="admin-empty"><h2>Keine Ergebnisse</h2><p>Ändere den Kategoriefilter.</p></div></td></tr>';
+    el.exportBody.innerHTML = '<tr><td colspan="6"><div class="admin-empty"><h2>Keine Ergebnisse</h2><p>Ändere den Projekt- oder Kategoriefilter.</p></div></td></tr>';
     el.exportTable.hidden = false;
     return;
   }
@@ -403,7 +415,7 @@ function renderExportImages() {
 }
 
 function selectedExportImages() {
-  return state.data.images.filter((image) => !isVideo(image) && state.exportSelected.has(image.id));
+  return exportProjectImages().filter((image) => state.exportSelected.has(image.id));
 }
 
 function safeFileName(value) {
@@ -880,6 +892,11 @@ el.tagFilters.addEventListener("change", (event) => {
 });
 el.clearFilters.addEventListener("click", () => { state.selectedTags.clear(); renderFilters(); renderImages(); });
 
+el.exportProjectFilter.addEventListener("change", () => {
+  state.exportProject = el.exportProjectFilter.value;
+  renderExportFilters();
+  renderExportImages();
+});
 el.exportTagFilters.addEventListener("change", (event) => {
   const input = event.target.closest("[data-export-tag-id]");
   if (!input) return;

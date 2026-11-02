@@ -166,8 +166,11 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
 - `/admin` uses German interface copy (the shared image/MP4 library uses “Asset hinzufügen”, “Asset bearbeiten” and “Asset speichern”): Alle Assets, Projekte, Portfolio-Export
   and Studio-Informationen. Dates and fixed portfolio export copy are German;
   stored project, image, tag and studio content retains its original language. Library tag
-  filtering uses AND; portfolio export tags use OR and image selection remains
-  explicit. Exports open a print-optimized A4 landscape document with a cover
+  filtering uses AND; portfolio export tags use OR within the selected project
+  (or all projects). Image selection remains explicit; switching projects prunes
+  selections outside that project, while category changes retain selected images.
+  Category counts include only still images in the chosen project. Exports open
+  a print-optimized A4 landscape document with a cover
   and project pages containing up to five ratio-preserving images each.
 - Admin controls use a dependency-free shadcn-style neutral design. Project
   creation/editing replaces the main content with a full-page editor, keeping

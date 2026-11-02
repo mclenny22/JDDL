@@ -100,17 +100,24 @@
             <div>
               <p class="admin-eyebrow">Portfolio für Kunden</p>
               <h1>Portfolio-Export</h1><p class="admin-muted">Der Druckexport enthält nur Bilder; MP4-Videos werden hier nicht aufgeführt.</p>
-              <p class="export-intro">Filtere das Archiv nach Kategorien, wähle die gewünschten Arbeiten aus und erstelle ein nach Projekten gegliedertes PDF im A4-Querformat.</p>
+              <p class="export-intro">Filtere das Archiv nach Projekt und Kategorien, wähle die gewünschten Arbeiten aus und erstelle ein nach Projekten gegliedertes PDF im A4-Querformat.</p>
             </div>
             <button class="button primary" id="create-portfolio-button" type="button" disabled>Portfolio-PDF erstellen</button>
           </div>
 
           <div class="export-config">
-            <label class="field export-title-field" for="portfolio-title">
-              <span>Schwerpunkt der Auswahl</span>
-              <input id="portfolio-title" maxlength="120" placeholder="z. B. Grafikdesign" />
-              <small>Auf dem Titelblatt steht „Eine Auswahl unserer Arbeiten im Bereich [Schwerpunkt].“</small>
-            </label>
+            <div class="export-config-fields">
+              <label class="field export-title-field" for="portfolio-title">
+                <span>Schwerpunkt der Auswahl</span>
+                <input id="portfolio-title" maxlength="120" placeholder="z. B. Grafikdesign" />
+                <small>Auf dem Titelblatt steht „Eine Auswahl unserer Arbeiten im Bereich [Schwerpunkt].“</small>
+              </label>
+              <label class="field" for="export-project-filter">
+                <span>Nach Projekt filtern</span>
+                <select id="export-project-filter" aria-describedby="export-project-help"><option value="">Alle Projekte</option></select>
+                <small id="export-project-help">Wähle darunter die Bilder für den Export aus. Beim Projektwechsel bleiben nur Bilder des gewählten Projekts ausgewählt.</small>
+              </label>
+            </div>
             <div class="field export-category-field">
               <span>Nach Kategorie filtern</span>
               <div class="tag-options" id="export-tag-filters"></div>

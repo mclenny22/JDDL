@@ -370,3 +370,102 @@ test('MP4 thumbnails and layout previews render video, and print selection exclu
   assert.equal(run('exportFilteredImages().length'), 0);
   assert.equal(run('selectedExportImages().length'), 0);
 });
+
+function mountExport() {
+  const app = mount();
+  app.run(`state.data.tags = [{ id: 'photo', name: 'Foto' }, { id: 'design', name: 'Design' }];
+    state.data.projects.push({ id: 'empty', title: 'Ohne Bilder' });
+    state.data.images = [
+      { id: 'a-photo', original_name: 'Alpha Foto', url: '/alpha-photo.jpg', project_ids: ['alpha'], tag_ids: ['photo'] },
+      { id: 'a-design', original_name: 'Alpha Design', url: '/alpha-design.jpg', project_ids: ['alpha'], tag_ids: ['design'], archived: 1 },
+      { id: 'b-photo', original_name: 'Beta Foto', url: '/beta-photo.jpg', project_ids: ['beta'], tag_ids: ['photo'] },
+      { id: 'free', original_name: 'Frei', url: '/free.jpg', project_ids: [], tag_ids: [] },
+      { id: 'clip', original_name: 'Clip', url: '/clip.mp4', mime_type: 'video/mp4', project_ids: ['alpha'], tag_ids: ['photo'] }
+    ]; renderExportFilters(); renderExportImages();`);
+  return app;
+}
+
+test('export project dropdown scopes images and category counts, with OR category matching', () => {
+  const { elements, run } = mountExport();
+  const picker = elements.get('#export-project-filter');
+  assert.match(picker.innerHTML, /Alle Projekte/);
+  assert.match(picker.innerHTML, /Béta &amp; Co/);
+  assert.match(picker.innerHTML, /Ohne Bilder/);
+  assert.equal(run('exportFilteredImages().length'), 4);
+  assert.match(elements.get('#export-tag-filters').innerHTML, /Foto <small>2<\/small>/);
+  picker.value = 'alpha'; picker.listeners.change();
+  assert.deepEqual(JSON.parse(run('JSON.stringify(exportFilteredImages().map(image => image.id))')), ['a-photo', 'a-design']);
+  assert.match(elements.get('#export-tag-filters').innerHTML, /Foto <small>1<\/small>/);
+  const tags = elements.get('#export-tag-filters');
+  for (const id of ['photo', 'design']) {
+    tags.listeners.change({ target: { closest: () => ({ checked: true, dataset: { exportTagId: id } }) } });
+    assert.equal(run('exportFilteredImages().length'), id === 'photo' ? 1 : 2);
+  }
+  assert.equal(run('state.exportSelected.size'), 0);
+  assert.equal(elements.get('#create-portfolio-button').disabled, true);
+  picker.value = ''; picker.listeners.change();
+  assert.equal(run('exportFilteredImages().length'), 3);
+});
+
+test('export keeps image choices across category changes but prunes them when switching projects', () => {
+  const { elements, run } = mountExport();
+  const picker = elements.get('#export-project-filter');
+  const all = elements.get('#select-visible-images');
+  all.listeners.click();
+  assert.equal(run('state.exportSelected.size'), 4);
+  picker.value = 'alpha'; picker.listeners.change();
+  assert.deepEqual(JSON.parse(run('JSON.stringify([...state.exportSelected])')), ['a-photo', 'a-design']);
+  elements.get('#export-table-body').listeners.change({ target: { closest: () => ({ checked: false, dataset: { exportImageId: 'a-design' } }) } });
+  elements.get('#export-tag-filters').listeners.change({ target: { closest: () => ({ checked: true, dataset: { exportTagId: 'design' } }) } });
+  assert.equal(run('state.exportSelected.has("a-photo")'), true);
+  all.listeners.click();
+  assert.equal(run('state.exportSelected.size'), 2);
+  picker.value = 'beta'; picker.listeners.change();
+  assert.equal(run('state.exportSelected.size'), 0);
+  assert.equal(elements.get('#create-portfolio-button').disabled, true);
+  assert.equal(all.disabled, true);
+  assert.match(elements.get('#export-table-body').innerHTML, /Projekt- oder Kategoriefilter/);
+  run('state.exportTags.clear()');
+  picker.listeners.change(); all.listeners.click();
+  assert.deepEqual(JSON.parse(run('JSON.stringify([...state.exportSelected])')), ['b-photo']);
+  picker.value = ''; picker.listeners.change();
+  assert.equal(run('state.exportSelected.size'), 1);
+  elements.get('#clear-export-selection').listeners.click();
+  assert.equal(elements.get('#export-selection-summary').textContent, '0 Bilder ausgewählt');
+});
+
+test('project export prints only explicitly chosen images in the selected project', () => {
+  const { elements, context, run } = mountExport();
+  context.URL = URL; context.location.origin = 'http://127.0.0.1:4174';
+  let printed;
+  context.window.open = () => ({ document: { open() {}, write(html) { printed = html; }, close() {} } });
+  const picker = elements.get('#export-project-filter');
+  picker.value = 'alpha'; picker.listeners.change();
+  elements.get('#export-table-body').listeners.change({ target: { closest: () => ({ checked: true, dataset: { exportImageId: 'a-photo' } }) } });
+  // Even stale selections cannot leak another project's images or videos into the PDF.
+  run(`state.exportSelected.add('b-photo'); state.exportSelected.add('clip')`);
+  elements.get('#create-portfolio-button').listeners.click();
+  assert.match(printed, /alpha-photo\.jpg/);
+  assert.doesNotMatch(printed, /alpha-design\.jpg|beta-photo\.jpg|clip\.mp4|free\.jpg/);
+  assert.match(printed, /Alpha Studio/);
+  assert.match(printed, /@page \{ size: A4 landscape/);
+});
+
+test('export refresh handles reassigned images and deleted or empty projects', async () => {
+  const { elements, context, run } = mountExport();
+  const picker = elements.get('#export-project-filter');
+  picker.value = 'alpha'; picker.listeners.change();
+  elements.get('#select-visible-images').listeners.click();
+  run(`state.data.images[0].project_ids = ['beta']; renderAll()`);
+  assert.deepEqual(JSON.parse(run('JSON.stringify([...state.exportSelected])')), ['a-design']);
+  picker.value = 'empty'; picker.listeners.change();
+  assert.equal(elements.get('#select-visible-images').disabled, true);
+  assert.equal(elements.get('#create-portfolio-button').disabled, true);
+  const payload = JSON.parse(run('JSON.stringify(state.data)'));
+  payload.projects = payload.projects.filter(project => project.id !== 'empty');
+  context.fetch = async () => ({ ok: true, json: async () => payload });
+  await run('refresh()');
+  assert.equal(run('state.exportProject'), '');
+  assert.equal(picker.value, '');
+  assert.equal(run('exportFilteredImages().length'), 4);
+});
