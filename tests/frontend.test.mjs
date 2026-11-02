@@ -40,7 +40,7 @@ test('loads fresh CMS content and reports API failures', async () => {
 
 class Element {
   constructor(step = 310) {
-    this.step = step;
+    this.step = step; this.tagName = 'IMG';
     this.children = []; this.dataset = {}; this.style = { writes: 0, setProperty(name, value) { this.writes++; this[name] = value; } }; this.attrs = {};
     this.value = '72'; this.hidden = false;
     this.listeners = {}; this.scrollLeft = 0; this.classes = new Set();
@@ -49,6 +49,12 @@ class Element {
       contains: name => this.classes.has(name), add: name => this.classes.add(name), remove: name => this.classes.delete(name),
     };
   }
+  replaceWith(element) {
+    if (this.parent) this.parent.children[this.parent.children.indexOf(this)] = element;
+    element.parent = this.parent;
+    this.onReplace?.(element);
+  }
+  cloneNode() { const clone = new Element(this.step); clone.src = this.src; return clone; }
   append(...elements) { elements.forEach(element => { element.parent = this; this.children.push(element); }); }
   focus() { this.focused = true; }
   closest() { return null; }
@@ -83,9 +89,10 @@ async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1
   const document = {
     documentElement: new Element(step),
     querySelector: selector => elements[selector],
-    createElement: () => new Element(step), createTextNode: text => ({ textContent: text }),
+    createElement: tag => { const element = new Element(step); element.tagName = tag.toUpperCase(); return element; }, createTextNode: text => ({ textContent: text }),
     addEventListener: (key, callback) => { const previous = listeners[key]; listeners[key] = previous ? event => { previous(event); callback(event); } : callback; }, hidden: false,
   };
+  elements['.project-hero'].onReplace = function update(element) { elements['.project-hero'] = element; element.onReplace = update; };
   const location = { pathname: '/', search: '', hash: initialHash };
   const entries = [{ hash: initialHash, state: null }];
   let historyIndex = 0;
@@ -118,13 +125,17 @@ async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1
     console, document, performance: { now: () => time },
     loadPortfolio: async () => ({ projects: normalizePortfolio(data), settings: data.settings || {} }),
     matchMedia: () => ({ matches: reduced, addEventListener() {} }), Image: class extends Element { constructor() { super(step); } },
+    IntersectionObserver: class { observe() {} unobserve() {} },
+    MutationObserver: class { observe() {} },
     ResizeObserver: class { observe() {} }, requestAnimationFrame: callback => { frames.set(++nextFrame, callback); return nextFrame; },
     cancelAnimationFrame: id => frames.delete(id),
   });
   context.window = context;
-  vm.runInContext(fs.readFileSync(new URL('../frontend/project-view.js', import.meta.url), 'utf8').replaceAll('export function', 'function'), context);
-  vm.runInContext(fs.readFileSync(new URL('../frontend/orbit.js', import.meta.url), 'utf8').replace('export function', 'function'), context);
+  vm.runInContext(fs.readFileSync(new URL('../frontend/media.js', import.meta.url), 'utf8').replaceAll('export function', 'function').replace(/^import .*;\n/gm, ''), context);
+  vm.runInContext(fs.readFileSync(new URL('../frontend/project-view.js', import.meta.url), 'utf8').replaceAll('export function', 'function').replace(/^import .*;\n/gm, ''), context);
+  vm.runInContext(fs.readFileSync(new URL('../frontend/orbit.js', import.meta.url), 'utf8').replace('export function', 'function').replace(/^import .*;\n/gm, ''), context);
   const source = fs.readFileSync(new URL('../frontend/app.js', import.meta.url), 'utf8')
+    .replace(/^import .*;\n/gm, '')
     .replace("import { loadPortfolio } from './projects.js';", '')
     .replace("import { createOrbitGrid } from './orbit.js';", '')
     .replace("import { createProjectView } from './project-view.js';", '');
@@ -789,4 +800,29 @@ test('saved row count renders leading and trailing blank rows without duplicatin
   assert.equal(figures.length, remaining.length);
   assert.deepEqual(figures.map(figure => figure.children[0].src), remaining.map(image => image.url));
   assert.ok(figures.every(figure => figure.style.gridRow === '2 / span 1'));
+});
+
+
+test('MP4 thumbnails open video heroes and mixed projects retain every remaining medium', async () => {
+  const data = structuredClone(seed);
+  const project = data.projects[0];
+  const media = data.images.find(image => image.project_ids.includes(project.id));
+  media.mime_type = 'video/mp4'; media.url = '/identity.mp4';
+  project.thumbnail_id = media.id;
+  const { elements, tick } = await mount(data, true);
+  const tile = elements['.track'].children[0];
+  assert.equal(tile.children[0].tagName, 'VIDEO');
+  assert.equal(tile.children[0].muted, true);
+  assert.ok(tile.href.endsWith(`/${media.id}`));
+  tile.listeners.click({ preventDefault() {} });
+  const hero = elements['.project-hero'];
+  assert.equal(hero.tagName, 'VIDEO');
+  assert.equal(hero.controls, true);
+  assert.equal(hero.dataset.mediaId, media.id);
+  assert.equal(elements['.project-grid'].children.length, normalizePortfolio(data)[0].images.length - 1);
+  elements['#project-detail'].listeners.keydown({ key: 'Escape', preventDefault() {} });
+  tick();
+  elements['.menu'].children[1].listeners.click();
+  const field = elements['#field'];
+  assert.ok(field.children.some(figure => figure.children[0].tagName === 'VIDEO'));
 });

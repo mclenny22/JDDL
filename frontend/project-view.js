@@ -1,3 +1,4 @@
+import { createMedia } from './media.js';
 // Existing seven-column placements remain supported without rewriting CMS data.
 export function imagePlacement(image, index, layout = {}) {
   const presets = [{ column: 5, span: 3, row: 1 }, { column: 3, span: 2, row: 8 },
@@ -53,7 +54,7 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
   const view = document.querySelector('#project-detail');
   const content = document.querySelector('.project-detail-content');
   const info = document.querySelector('.project-detail-info');
-  const hero = document.querySelector('.project-hero');
+  let hero = document.querySelector('.project-hero');
   const grid = document.querySelector('.project-grid');
   let layout = {};
   try { layout = JSON.parse(settings.project_layout || '{}') || {}; } catch { /* Older content has no layout. */ }
@@ -78,7 +79,7 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
     document.documentElement.classList.remove('project-transitioning');
     if (pending) { const next = pending; pending = null; next(); }
   }
-  function imageFor(source) { return source?.querySelector('img.visible') || source?.querySelector('img'); }
+  function imageFor(source) { return source?.querySelector('.visible') || source?.querySelector('img, video'); }
   function transitionView(update, from, getTarget) {
     if (transition) {
       pending = () => transitionView(update, from, getTarget);
@@ -114,9 +115,14 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
     if (!reducedMotion.matches && origin?.width && target && typeof target.animate === 'function') {
       const destination = target.getBoundingClientRect();
       if (!destination.width || !destination.height) return;
-      const clone = new Image();
-      clone.src = from.currentSrc || from.src;
-      clone.alt = '';
+      const clone = from.cloneNode(true);
+      clone.removeAttribute('controls');
+      clone.removeAttribute('id');
+      clone.style.viewTransitionName = '';
+      if (clone.tagName === 'VIDEO') {
+        clone.muted = true;
+        clone.currentTime = from.currentTime;
+      }
       clone.className = 'project-flying-image';
       document.body.append(clone);
       flyingImage = clone;
@@ -186,8 +192,11 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
       indicator.textContent = expanded ? '−' : '+';
     });
     info.append(identity, categories, toggle, description);
-    hero.src = image.url;
-    hero.alt = image.alt_text || project.title;
+    const nextHero = createMedia(image, project.title, true);
+    nextHero.className = 'project-hero';
+    nextHero.dataset.mediaId = image.id;
+    hero.replaceWith(nextHero);
+    hero = nextHero;
     grid.replaceChildren();
     const remaining = project.images.filter(item => item.id !== image.id);
     const custom = remaining.some(item => layout[item.id] && Object.keys(layout[item.id]).length);
@@ -222,9 +231,7 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
       figure.style.setProperty('--ratio', String(ratio));
       figure.style.setProperty('--mobile-columns', String(mobileSpan));
       figure.style.setProperty('--mobile-ratio', String(mobileRatio));
-      const img = new Image();
-      img.src = item.url;
-      img.alt = item.alt_text || project.title;
+      const img = createMedia(item, project.title, true);
       img.loading = 'lazy';
       img.decoding = 'async';
       img.width = 1000;
@@ -262,7 +269,7 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
       view.hidden = true;
       document.documentElement.classList.remove('project-open');
       onSwitch(source);
-    }, target && visibleHero ? hero : null, () => target && hero.src === target.src ? target : null);
+    }, target && visibleHero ? hero : null, () => target && (hero.currentSrc || hero.src) === (target.currentSrc || target.src) ? target : null);
     return source;
   }
   function cancelMotion() { stopFallback(); transition?.skipTransition(); }

@@ -1,3 +1,4 @@
+import { createMedia } from './media.js';
 import { loadPortfolio } from './projects.js';
 import { createOrbitGrid } from './orbit.js';
 import { createProjectView } from './project-view.js';
@@ -165,7 +166,7 @@ async function start() {
     });
   }
   function openProject(project, image, source = null) {
-    if (detailProject?.id === project.id && document.querySelector('.project-hero').src.endsWith(image.url)) return;
+    if (detailProject?.id === project.id && document.querySelector('.project-hero').dataset.mediaId === image.id) return;
     if (!detailProject) returnHash = history.state?.returnHash || (showingIndex ? '#index/field' : showingAbout ? '#about' : '');
     clearPageMotion();
     pageTransition = null;
@@ -353,9 +354,7 @@ async function start() {
       tile.addEventListener('click', open);
       tile.addEventListener('keydown', event => { if (event.key === ' ') { event.preventDefault(); open(event); } });
       const image = project.thumbnail;
-      const img = new Image();
-      img.src = image.url;
-      img.alt = image.alt_text || project.title;
+      const img = createMedia(image, project.title);
       img.draggable = false;
       img.classList.add('visible');
       tile.append(img);

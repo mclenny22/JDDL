@@ -10,6 +10,15 @@ Cross-domain browser access requires deploying the backend changes in this
 repository. The endpoint accepts `GET` and `HEAD`, with `OPTIONS` for preflight.
 Responses use `Cache-Control: no-store`.
 
+## Images and videos
+
+The existing `images` array can contain still images and MP4 videos. Check
+`mime_type === "video/mp4"` and render those URLs with `<video>` rather than
+`<img>`. Video entries use the same tags, project assignments, publication flags,
+`aspect_ratio` and `thumbnail_id` selection as images. No API route or schema
+change is needed. Upload limits remain below 4 MB online and up to 20 MB locally;
+MP4 with H.264 is the preferred browser-compatible upload format.
+
 ## Browser example
 
 Paste this into your frontend's JavaScript, replacing the CMS URL for local

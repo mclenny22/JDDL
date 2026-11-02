@@ -38,6 +38,15 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   Project titles, descriptions, clients, tags and image alt text come from
   the CMS. No demo asset fallback or hardcoded project content belongs in
   the active frontend. Figma's example project imagery is data, not branding.
+- Images and MP4 videos share the existing CMS library, assignments, publication,
+  thumbnail picker and layout metadata (`mime_type` identifies video; no migration).
+  Upload MP4 (prefer H.264 for browser compatibility) through the media drawer;
+  dimensions derive from video metadata. Existing upload limits remain 4 MB online
+  and 20 MB locally. `frontend/media.js` renders videos in the rail, Index and detail.
+  Visible videos loop muted inline, with native controls on project pages. Reduced
+  motion disables autoplay; offscreen/hidden videos pause and repeated copies load
+  only when visible. Admin previews are paused. Print portfolio export includes only
+  still images. Local MP4 serving supports byte ranges for seeking.
 - Seven repeated project sets rebase by whole cycles for an endless rail.
   Each project uses its chosen published, unarchived assigned image as a stable
   thumbnail; an empty or unavailable choice falls back to its first eligible image.
@@ -154,7 +163,7 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
 - `backend/seed/content.json` contains the public-content snapshot for fresh
   installs. Initialization seeds only missing databases; restarting does not
   overwrite edits or repopulate intentionally emptied existing databases.
-- `/admin` uses German interface copy: Alle Bilder, Projekte, Portfolio-Export
+- `/admin` uses German interface copy (the shared image/MP4 library uses “Asset hinzufügen”, “Asset bearbeiten” and “Asset speichern”): Alle Assets, Projekte, Portfolio-Export
   and Studio-Informationen. Dates and fixed portfolio export copy are German;
   stored project, image, tag and studio content retains its original language. Library tag
   filtering uses AND; portfolio export tags use OR and image selection remains

@@ -265,6 +265,49 @@ class BackendIntegrationTests(unittest.TestCase):
         self.assertEqual(self.request('DELETE', f'/api/images/{image_id}')[0], 200)
         self.assertEqual(self.request('GET', image['url'])[0], 404)
 
+    def test_mp4_upload_thumbnail_publication_ranges_and_deletion(self):
+        self.login()
+        public = json.loads(self.request('GET', '/api/public')[2])
+        project = public['projects'][0]
+        video = b'\x00\x00\x00\x18ftypmp42' + bytes(range(128))
+        boundary = 'mp4-test'
+        payload = (f'--{boundary}\r\nContent-Disposition: form-data; name="project_ids"\r\n\r\n{json.dumps([project["id"]])}\r\n'
+                   f'--{boundary}\r\nContent-Disposition: form-data; name="aspect_ratio"\r\n\r\n1.7777777778\r\n'
+                   f'--{boundary}\r\nContent-Disposition: form-data; name="image"; filename="clip.mp4"\r\nContent-Type: video/mp4\r\n\r\n').encode()
+        payload += video + f'\r\n--{boundary}--\r\n'.encode()
+        status, _, body = self.request('POST', '/api/images', payload, f'multipart/form-data; boundary={boundary}')
+        self.assertEqual(status, 201)
+        media_id = json.loads(body)['image']
+        media = next(i for i in json.loads(self.request('GET', '/api/admin/bootstrap')[2])['images'] if i['id'] == media_id)
+        self.assertEqual(media['mime_type'], 'video/mp4')
+        self.assertTrue(media['url'].endswith('.mp4'))
+        self.assertAlmostEqual(media['aspect_ratio'], 16 / 9)
+        self.assertNotIn(media_id, [i['id'] for i in json.loads(self.request('GET', '/api/public')[2])['images']])
+        self.assertEqual(self.request('POST', '/api/projects', {**project, 'thumbnail_id': media_id})[0], 400)
+        media.update(published=True, archived=False)
+        self.assertEqual(self.request('PUT', f'/api/images/{media_id}', media)[0], 200)
+        self.assertEqual(self.request('POST', '/api/projects', {**project, 'thumbnail_id': media_id})[0], 200)
+        saved = json.loads(self.request('GET', '/api/public')[2])
+        self.assertEqual(next(p for p in saved['projects'] if p['id'] == project['id'])['thumbnail_id'], media_id)
+        self.assertIn(media_id, [i['id'] for i in saved['images']])
+        status, headers, content = self.request('GET', media['url'])
+        self.assertEqual(status, 200)
+        self.assertEqual(headers['Content-Type'], 'video/mp4')
+        self.assertEqual(content, video)
+        for requested, start, end in [('bytes=8-19', 8, 19), ('bytes=20-', 20, len(video) - 1), ('bytes=-12', len(video) - 12, len(video) - 1)]:
+            status, headers, content = self.request('GET', media['url'], headers={'Range': requested})
+            self.assertEqual(status, 206)
+            self.assertEqual(headers['Content-Range'], f'bytes {start}-{end}/{len(video)}')
+            self.assertEqual(content, video[start:end + 1])
+        self.assertEqual(self.request('GET', media['url'], headers={'Range': 'bytes=9999-'})[0], 416)
+        self.assertEqual(self.request('GET', media['url'], headers={'Range': 'bytes=-0'})[0], 416)
+        status, headers, content = self.request('HEAD', media['url'])
+        self.assertEqual(status, 200)
+        self.assertEqual(int(headers['Content-Length']), len(video))
+        self.assertEqual(content, b'')
+        self.assertEqual(self.request('DELETE', f'/api/images/{media_id}')[0], 200)
+        self.assertEqual(self.request('GET', media['url'])[0], 404)
+
     def test_project_reordering_is_atomic_and_controls_public_order(self):
         self.assertEqual(self.request('POST', '/api/projects/reorder', {'project_ids': []})[0], 401)
         self.login()

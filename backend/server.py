@@ -35,7 +35,7 @@ SESSION_SECRET_FILE = DATA / "session.secret"
 CLOUD = bool(os.environ.get("TURSO_DATABASE_URL"))
 MAX_UPLOAD_BYTES = (4 if os.environ.get("VERCEL") else 20) * 1024 * 1024
 SESSION_LIFETIME = 8 * 60 * 60
-ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"}
+ALLOWED_MEDIA_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/avif", "video/mp4"}
 
 
 def slugify(value: str) -> str:
@@ -321,15 +321,48 @@ class Handler(SimpleHTTPRequestHandler):
         self.do_GET()
 
     def serve_file(self, target: Path) -> None:
-        content = target.read_bytes()
+        size = target.stat().st_size
         mime = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
-        self.send_response(200)
+        first, last = 0, size - 1
+        partial = False
+        # MP4 players request byte ranges for metadata and seeking.
+        requested = self.headers.get("Range", "") if mime == "video/mp4" else ""
+        if requested and self.command != "HEAD":
+            match = re.fullmatch(r"bytes=(\d*)-(\d*)", requested)
+            if match and any(match.groups()):
+                begin, end = match.groups()
+                if begin:
+                    first = int(begin)
+                    last = min(int(end), size - 1) if end else size - 1
+                else:
+                    first = max(0, size - int(end))
+                if first > last or first >= size:
+                    self.send_response(416)
+                    self.send_header("Content-Range", f"bytes */{size}")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                partial = True
+        length = max(0, last - first + 1)
+        self.send_response(206 if partial else 200)
         self.send_header("Content-Type", f"{mime}; charset=utf-8" if mime.startswith("text/") or mime in {"application/javascript", "application/json"} else mime)
-        self.send_header("Content-Length", str(len(content)))
+        self.send_header("Content-Length", str(length))
+        if mime == "video/mp4":
+            self.send_header("Accept-Ranges", "bytes")
+        if partial:
+            self.send_header("Content-Range", f"bytes {first}-{last}/{size}")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
         if self.command != "HEAD":
-            self.wfile.write(content)
+            with target.open("rb") as stream:
+                stream.seek(first)
+                remaining = length
+                while remaining:
+                    chunk = stream.read(min(64 * 1024, remaining))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    remaining -= len(chunk)
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
@@ -575,7 +608,7 @@ class Handler(SimpleHTTPRequestHandler):
         if "multipart/form-data" not in content_type:
             raise ValueError("Die Anfrage muss ein Datei-Upload sein")
         if length > MAX_UPLOAD_BYTES:
-            raise ValueError(f"Der Bild-Upload muss kleiner als {MAX_UPLOAD_BYTES // (1024 * 1024)} MB sein")
+            raise ValueError(f"Der Medien-Upload muss kleiner als {MAX_UPLOAD_BYTES // (1024 * 1024)} MB sein")
         raw = self.rfile.read(length)
         message = BytesParser(policy=policy.default).parsebytes(
             f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode() + raw
@@ -595,9 +628,9 @@ class Handler(SimpleHTTPRequestHandler):
         fields, files = self.multipart()
         upload = files.get("image")
         if not upload or not upload["content"]:
-            raise ValueError("Wähle ein Bild zum Hochladen aus")
-        if upload["type"] not in ALLOWED_IMAGE_TYPES:
-            raise ValueError("Unterstützte Formate: JPEG, PNG, WebP, GIF und AVIF")
+            raise ValueError("Wähle ein Bild oder MP4-Video zum Hochladen aus")
+        if upload["type"] not in ALLOWED_MEDIA_TYPES:
+            raise ValueError("Unterstützte Formate: JPEG, PNG, WebP, GIF, AVIF und MP4")
         image_id = uuid.uuid4().hex
         extension = mimetypes.guess_extension(upload["type"]) or Path(upload["filename"]).suffix.lower() or ".img"
         filename = f"{image_id}{extension.replace('.jpe', '.jpg')}"

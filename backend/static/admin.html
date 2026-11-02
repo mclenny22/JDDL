@@ -23,7 +23,7 @@
       <header class="admin-topbar">
         <a class="admin-brand" href="/" target="_blank" rel="noreferrer">AD4K / Archiv</a>
         <nav class="admin-tabs" aria-label="Verwaltungsbereiche">
-          <button class="admin-tab is-active" type="button" data-view="library" aria-selected="true">Alle Bilder</button>
+          <button class="admin-tab is-active" type="button" data-view="library" aria-selected="true">Alle Assets</button>
           <button class="admin-tab" type="button" data-view="projects" aria-selected="false">Projekte</button>
           <button class="admin-tab" type="button" data-view="portfolio-export" aria-selected="false">Portfolio-Export</button>
           <button class="admin-tab" type="button" data-view="studio" aria-selected="false">Studio-Informationen</button>
@@ -37,12 +37,12 @@
       <main class="admin-main">
         <section data-view-content="library">
           <div class="admin-heading">
-            <div><p class="admin-eyebrow">Bilddatenbank</p><h1>Alle Bilder</h1></div>
-            <p class="admin-muted" id="image-count">0 Bilder</p>
+            <div><p class="admin-eyebrow">Asset-Bibliothek</p><h1>Alle Assets</h1></div>
+            <p class="admin-muted" id="image-count">0 Assets</p>
           </div>
           <div class="admin-toolbar">
             <div class="admin-tools">
-              <label class="admin-search"><span aria-hidden="true">⌕</span><input id="image-search" type="search" placeholder="Bilder filtern…" aria-label="Bilder filtern" /></label>
+              <label class="admin-search"><span aria-hidden="true">⌕</span><input id="image-search" type="search" placeholder="Assets filtern…" aria-label="Assets filtern" /></label>
               <div class="menu-wrap">
                 <button class="button" id="tag-filter-button" type="button" aria-expanded="false" aria-controls="tag-filter-menu">Tags <span class="count-badge" id="filter-count" hidden></span></button>
                 <div class="admin-menu" id="tag-filter-menu" hidden>
@@ -54,7 +54,7 @@
             </div>
             <div class="admin-tools">
               <button class="button" id="manage-tags-button" type="button">Tags verwalten</button>
-              <button class="button primary" id="add-image-button" type="button">Bild hinzufügen</button>
+              <button class="button primary" id="add-image-button" type="button">Asset hinzufügen</button>
             </div>
           </div>
           <div class="table-shell">
@@ -62,22 +62,22 @@
               <thead><tr><th class="thumb-col">Vorschau</th><th>Name</th><th>Tags</th><th>Projekt</th><th>Status</th><th>Hinzugefügt</th><th class="action-col"><span class="sr-only">Aktionen</span></th></tr></thead>
               <tbody id="image-table-body"></tbody>
             </table>
-            <div class="admin-empty" id="library-empty" hidden><h2>Noch keine Bilder</h2><p>Füge das erste Bild zum Archiv hinzu.</p><button class="button primary" type="button" data-open-upload>Bild hinzufügen</button></div>
+            <div class="admin-empty" id="library-empty" hidden><h2>Noch keine Assets</h2><p>Füge das erste Asset zum Archiv hinzu – Bild oder MP4-Video.</p><button class="button primary" type="button" data-open-upload>Asset hinzufügen</button></div>
             <div class="table-footer"><span id="table-result-count">0 Einträge</span></div>
           </div>
         </section>
 
         <section data-view-content="projects" hidden>
           <div class="admin-heading">
-            <div><p class="admin-eyebrow">Projektübersicht</p><h1>Projekte</h1><p class="export-intro" id="project-order-help">Am Griff ziehen, um Projekte zu sortieren. Mit der Tastatur: Pfeil nach oben / unten. Das erste veröffentlichte Projekt mit Bildern startet die Website.</p></div>
+            <div><p class="admin-eyebrow">Projektübersicht</p><h1>Projekte</h1><p class="export-intro" id="project-order-help">Am Griff ziehen, um Projekte zu sortieren. Mit der Tastatur: Pfeil nach oben / unten. Das erste veröffentlichte Projekt mit Assets startet die Website.</p></div>
             <button class="button primary" id="add-project-button" type="button">Neues Projekt</button>
           </div>
           <div class="table-shell">
             <table id="project-table">
-              <thead><tr><th class="drag-col"><span class="sr-only">Reihenfolge</span></th><th>Name</th><th>Kunde / Art</th><th>Beschreibung</th><th>Bilder</th><th>Status</th><th class="action-col"><span class="sr-only">Aktionen</span></th></tr></thead>
+              <thead><tr><th class="drag-col"><span class="sr-only">Reihenfolge</span></th><th>Name</th><th>Kunde / Art</th><th>Beschreibung</th><th>Assets</th><th>Status</th><th class="action-col"><span class="sr-only">Aktionen</span></th></tr></thead>
               <tbody id="project-table-body"></tbody>
             </table>
-            <div class="admin-empty" id="projects-empty" hidden><h2>Noch keine Projekte</h2><p>Erstelle ein Projekt und ordne ihm Bilder zu.</p><button class="button primary" type="button" data-open-project>Neues Projekt</button></div>
+            <div class="admin-empty" id="projects-empty" hidden><h2>Noch keine Projekte</h2><p>Erstelle ein Projekt und ordne ihm Assets zu.</p><button class="button primary" type="button" data-open-project>Neues Projekt</button></div>
             <div class="table-footer"><span id="project-result-count">0 Einträge</span></div>
           </div>
         </section>
@@ -99,7 +99,7 @@
           <div class="admin-heading export-heading">
             <div>
               <p class="admin-eyebrow">Portfolio für Kunden</p>
-              <h1>Portfolio-Export</h1>
+              <h1>Portfolio-Export</h1><p class="admin-muted">Der Druckexport enthält nur Bilder; MP4-Videos werden hier nicht aufgeführt.</p>
               <p class="export-intro">Filtere das Archiv nach Kategorien, wähle die gewünschten Arbeiten aus und erstelle ein nach Projekten gegliedertes PDF im A4-Querformat.</p>
             </div>
             <button class="button primary" id="create-portfolio-button" type="button" disabled>Portfolio-PDF erstellen</button>
@@ -156,18 +156,18 @@
         <div class="field project-thumbnail-field">
           <label for="project-thumbnail">Vorschaubild</label>
           <select id="project-thumbnail" aria-describedby="project-thumbnail-help"></select>
-          <small id="project-thumbnail-help">Ohne Auswahl wird automatisch das erste veröffentlichte Projektbild verwendet. Das Vorschaubild erscheint in Selected und öffnet die Projektseite als Hero-Bild.</small>
+          <small id="project-thumbnail-help">Ohne Auswahl wird automatisch das erste veröffentlichte Projekt-Asset verwendet. Das Vorschaubild erscheint in Selected und öffnet die Projektseite als Hero-Asset.</small>
           <img id="project-thumbnail-preview" alt="Vorschau des Projekt-Vorschaubilds" hidden />
         </div>
         </div>
         <p class="form-error" id="project-error" role="alert"></p>
         <section class="project-layout-editor" aria-labelledby="layout-heading">
-          <div class="layout-heading"><h3 id="layout-heading">Bildlayout</h3><button type="button" class="button" id="layout-mode">7-Spalten-Layout erstellen</button></div>
-          <p class="layout-help" id="layout-help">Vorschau der Projektseite. Das erste veröffentlichte Bild bleibt das Hero-Bild.</p>
+          <div class="layout-heading"><h3 id="layout-heading">Asset-Layout</h3><button type="button" class="button" id="layout-mode">7-Spalten-Layout erstellen</button></div>
+          <p class="layout-help" id="layout-help">Vorschau der Projektseite. Das gewählte Vorschaubild oder Video erscheint als Hero-Asset.</p>
           <div class="layout-tools" id="layout-tools" hidden>
-            <span id="layout-selection">Bild auswählen</span>
-            <button type="button" class="button" id="layout-narrow" aria-label="Ausgewähltes Bild schmaler machen">−</button>
-            <button type="button" class="button" id="layout-wide" aria-label="Ausgewähltes Bild breiter machen">+</button>
+            <span id="layout-selection">Asset auswählen</span>
+            <button type="button" class="button" id="layout-narrow" aria-label="Ausgewähltes Asset schmaler machen">−</button>
+            <button type="button" class="button" id="layout-wide" aria-label="Ausgewähltes Asset breiter machen">+</button>
           </div>
           <div class="layout-viewport"><div class="layout-page" id="layout-page"></div></div>
           <p class="layout-help" id="layout-hidden-images"></p>
@@ -181,19 +181,19 @@
 
     <dialog id="image-dialog" class="editor-drawer" aria-labelledby="image-dialog-title" aria-describedby="image-dialog-description">
       <form id="image-form" enctype="multipart/form-data">
-        <div class="dialog-heading"><div><p class="admin-eyebrow">Bilddetails</p><h2 id="image-dialog-title">Bild hinzufügen</h2><p class="drawer-description" id="image-dialog-description">Bildinformationen, Zuordnung und Sichtbarkeit verwalten.</p></div><button class="icon-button" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+        <div class="dialog-heading"><div><p class="admin-eyebrow">Asset-Details</p><h2 id="image-dialog-title">Asset hinzufügen</h2><p class="drawer-description" id="image-dialog-description">Bilder und MP4-Videos, Zuordnung und Sichtbarkeit verwalten.</p></div><button class="icon-button" type="button" data-close-dialog aria-label="Schließen">×</button></div>
         <div class="drawer-body">
         <input id="image-id" type="hidden" />
         <label class="dropzone" id="dropzone">
-          <input id="image-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" />
+          <input id="image-file" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.avif,.mp4,image/jpeg,image/png,image/webp,image/gif,image/avif,video/mp4" />
           <img id="image-preview" alt="Vorschau des ausgewählten Bildes" hidden />
-          <span id="dropzone-copy"><strong>Bild auswählen</strong><small>oder hierher ziehen · lokal max. 20 MB, online unter 4 MB</small></span>
+          <span id="dropzone-copy"><strong>Asset auswählen</strong><small>Bilder oder MP4 hierher ziehen · MP4 am besten mit H.264 · lokal max. 20 MB, online unter 4 MB</small></span>
         </label>
         <label class="field" for="image-name"><span>Name</span><input id="image-name" maxlength="240" required /></label>
-        <label class="field" for="image-alt"><span>Alternativtext</span><input id="image-alt" placeholder="Beschreibe das Bild" /></label>
+        <label class="field" for="image-alt"><span>Alternativtext</span><input id="image-alt" placeholder="Beschreibe das Bild oder Video" /></label>
         <div class="field image-visibility">
           <label class="check-field"><input id="image-published" type="checkbox" aria-describedby="image-visibility-help" /><span>Veröffentlicht</span></label>
-          <small id="image-visibility-help">Nicht veröffentlichte Bilder werden im Archiv gespeichert.</small>
+          <small id="image-visibility-help">Nicht veröffentlichte Assets werden im Archiv gespeichert.</small>
         </div>
         <fieldset class="field" id="image-tags-field"><legend>Tags</legend><div class="tag-options" id="image-tag-options"></div></fieldset>
         <div class="field project-combobox" id="image-project-field">
@@ -214,7 +214,7 @@
         </div>
         <p class="form-error" id="image-error" role="alert"></p>
         </div>
-        <div class="dialog-actions drawer-footer"><button class="button" type="button" data-close-dialog>Abbrechen</button><button class="button primary" type="submit">Bild speichern</button></div>
+        <div class="dialog-actions drawer-footer"><button class="button" type="button" data-close-dialog>Abbrechen</button><button class="button primary" type="submit">Asset speichern</button></div>
       </form>
     </dialog>
 

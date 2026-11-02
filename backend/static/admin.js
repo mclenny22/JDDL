@@ -97,6 +97,62 @@ function projectFor(id) {
   return state.data.projects.find((project) => project.id === id);
 }
 
+function isVideo(media) { return media?.mime_type === "video/mp4"; }
+
+function mediaMarkup(media, className = "", label = "", draggable = false) {
+  const attributes = `class="${className}" src="${escapeHtml(media.url)}" draggable="${draggable}"`;
+  return isVideo(media)
+    ? `<video ${attributes} muted playsinline preload="metadata" aria-label="${escapeHtml(label || media.original_name)}"></video>`
+    : `<img ${attributes} alt="${escapeHtml(label)}" loading="lazy" />`;
+}
+
+function setMediaPreview(preview, media, controls = false) {
+  const tag = isVideo(media) ? "VIDEO" : "IMG";
+  if (preview.tagName && preview.tagName !== tag) {
+    const replacement = document.createElement(tag.toLowerCase());
+    replacement.id = preview.id;
+    preview.pause?.();
+    preview.replaceWith(replacement);
+    preview = replacement;
+  }
+  preview.hidden = !media;
+  if (media) {
+    if (isVideo(media)) {
+      preview.muted = true;
+      preview.playsInline = true;
+      preview.controls = controls;
+      preview.preload = "metadata";
+      preview.setAttribute("aria-label", media.alt_text || media.original_name || "Video-Vorschau");
+    } else preview.alt = media.alt_text || "Bild-Vorschau";
+    preview.src = media.url;
+  } else preview.removeAttribute("src");
+  return preview;
+}
+
+let previewURL = null;
+function releasePreviewURL() {
+  el.imagePreview.pause?.();
+  if (previewURL) { URL.revokeObjectURL(previewURL); previewURL = null; }
+}
+
+function mediaDimensions(preview) {
+  if (preview.tagName !== "VIDEO") return preview.decode().then(() => preview.naturalWidth / preview.naturalHeight || 1);
+  if (preview.error) return Promise.reject(new Error("Das MP4-Video konnte nicht gelesen werden."));
+  if (preview.readyState >= 1) return Promise.resolve(preview.videoWidth / preview.videoHeight || 1);
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timer);
+      preview.removeEventListener("loadedmetadata", loaded);
+      preview.removeEventListener("error", failed);
+    };
+    const loaded = () => { cleanup(); resolve(preview.videoWidth / preview.videoHeight || 1); };
+    const failed = () => { cleanup(); reject(new Error("Das MP4-Video konnte nicht gelesen werden.")); };
+    const timer = setTimeout(failed, 15000);
+    preview.addEventListener("loadedmetadata", loaded, { once: true });
+    preview.addEventListener("error", failed, { once: true });
+  });
+}
+
 function tagNames(image) {
   return image.tag_ids.map((id) => tagFor(id)?.name).filter(Boolean);
 }
@@ -144,7 +200,7 @@ function renderImages() {
   closeRowMenu();
   const images = filteredImages();
   const filtering = Boolean(state.search.trim()) || state.selectedTags.size > 0;
-  $("#image-count").textContent = `${images.length} ${images.length === 1 ? "Bild" : "Bilder"}`;
+  $("#image-count").textContent = `${images.length} ${images.length === 1 ? "Asset" : "Assets"}`;
   $("#table-result-count").textContent = `${images.length} ${images.length === 1 ? "Eintrag" : "Einträge"}`;
   el.imageTable.hidden = !images.length && !filtering;
   el.libraryEmpty.hidden = images.length || filtering;
@@ -157,7 +213,7 @@ function renderImages() {
     const projects = projectNames(image);
     const status = image.archived ? "Archiviert" : image.published ? "Veröffentlicht" : "Entwurf";
     return `<tr>
-      <td><img class="admin-thumb" src="${escapeHtml(image.url)}" alt="" loading="lazy" /></td>
+      <td>${mediaMarkup(image, "admin-thumb")}</td>
       <td><button class="cell-button" data-edit-field="name" data-image-id="${image.id}"><span class="file-name">${escapeHtml(image.original_name)}</span><small>${escapeHtml(image.alt_text || "Kein Alternativtext")}</small></button></td>
       <td><button class="cell-button" data-edit-field="tags" data-image-id="${image.id}"><span class="tags">${tags.length ? tags.map((name) => `<span class="tag">${escapeHtml(name)}</span>`).join("") : '<span class="admin-muted">Tags auswählen</span>'}</span></button></td>
       <td><button class="cell-button" data-edit-field="project" data-image-id="${image.id}">${projects.length ? escapeHtml(projects[0]) : '<span class="admin-muted">Projekt auswählen</span>'}</button></td>
@@ -290,7 +346,7 @@ function renderTagManager() {
   el.tagManager.innerHTML = state.data.tags.length
     ? state.data.tags.map((tag) => {
       const count = state.data.images.filter((image) => image.tag_ids.includes(tag.id)).length;
-      return `<div class="manager-row"><input value="${escapeHtml(tag.name)}" maxlength="60" data-tag-name="${tag.id}" aria-label="Tag-Name" /><span class="usage">${count} ${count === 1 ? "Bild" : "Bilder"}</span><button class="button" type="button" data-save-tag="${tag.id}">Speichern</button><button class="row-button danger" type="button" data-delete-tag="${tag.id}" aria-label="Tag löschen">×</button></div>`;
+      return `<div class="manager-row"><input value="${escapeHtml(tag.name)}" maxlength="60" data-tag-name="${tag.id}" aria-label="Tag-Name" /><span class="usage">${count} ${count === 1 ? "Asset" : "Assets"}</span><button class="button" type="button" data-save-tag="${tag.id}">Speichern</button><button class="row-button danger" type="button" data-delete-tag="${tag.id}" aria-label="Tag löschen">×</button></div>`;
     }).join("")
     : '<div class="admin-empty compact">Noch keine Tags.</div>';
 }
@@ -305,8 +361,9 @@ function renderSettings() {
 }
 
 function exportFilteredImages() {
-  if (!state.exportTags.size) return state.data.images;
-  return state.data.images.filter((image) => image.tag_ids.some((id) => state.exportTags.has(id)));
+  const images = state.data.images.filter(image => !isVideo(image));
+  if (!state.exportTags.size) return images;
+  return images.filter((image) => image.tag_ids.some((id) => state.exportTags.has(id)));
 }
 
 function renderExportFilters() {
@@ -336,7 +393,7 @@ function renderExportImages() {
     const status = image.archived ? "Archiviert" : image.published ? "Veröffentlicht" : "Entwurf";
     return `<tr class="export-row ${state.exportSelected.has(image.id) ? "is-selected" : ""}">
       <td><input class="row-checkbox" type="checkbox" data-export-image-id="${image.id}" aria-label="Auswählen: ${escapeHtml(image.original_name)}" ${state.exportSelected.has(image.id) ? "checked" : ""} /></td>
-      <td><img class="admin-thumb" src="${escapeHtml(image.url)}" alt="" loading="lazy" /></td>
+      <td>${mediaMarkup(image, "admin-thumb")}</td>
       <td><span class="file-name">${escapeHtml(image.original_name)}</span><small class="row-subtitle">${escapeHtml(image.alt_text || "Kein Alternativtext")}</small></td>
       <td><span class="tags">${tags.length ? tags.map((name) => `<span class="tag">${escapeHtml(name)}</span>`).join("") : '<span class="admin-muted">Keine Kategorien</span>'}</span></td>
       <td>${projects.length ? escapeHtml(projects[0]) : '<span class="admin-muted">Kein Projekt</span>'}</td>
@@ -346,7 +403,7 @@ function renderExportImages() {
 }
 
 function selectedExportImages() {
-  return state.data.images.filter((image) => state.exportSelected.has(image.id));
+  return state.data.images.filter((image) => !isVideo(image) && state.exportSelected.has(image.id));
 }
 
 function safeFileName(value) {
@@ -594,10 +651,12 @@ $("#image-project-field").addEventListener("focusout", (event) => {
 });
 
 function openImage(image = null, field = "name") {
+  releasePreviewURL();
+  state.selectedFile = null;
   el.imageForm.reset();
   $("#image-error").textContent = "";
   $("#image-id").value = image?.id || "";
-  $("#image-dialog-title").textContent = image ? "Bild bearbeiten" : "Bild hinzufügen";
+  $("#image-dialog-title").textContent = image ? "Asset bearbeiten" : "Asset hinzufügen";
   $("#image-name").value = image?.original_name || "";
   $("#image-alt").value = image?.alt_text || "";
   $("#image-published").checked = Boolean(image?.published && !image?.archived);
@@ -609,8 +668,7 @@ function openImage(image = null, field = "name") {
   el.imageFile.disabled = Boolean(image);
   el.imagePreview.hidden = !image;
   el.dropzoneCopy.hidden = Boolean(image);
-  if (image) el.imagePreview.src = image.url;
-  else el.imagePreview.removeAttribute("src");
+  el.imagePreview = setMediaPreview(el.imagePreview, image, true);
   el.dropzone.classList.toggle("is-readonly", Boolean(image));
   openDrawer(el.imageDialog);
   const focusTargets = { name: "#image-name", tags: "#image-tags-field input", project: "#image-project-trigger" };
@@ -663,13 +721,20 @@ function openTags() {
 }
 
 function selectFile(file) {
-  if (!file || !file.type.startsWith("image/")) return;
-  if (file.size > (location.hostname === "localhost" || location.hostname === "127.0.0.1" ? 20 : 4) * 1024 * 1024) {
-    $("#image-error").textContent = "Das Bild ist zu groß. Online müssen Uploads kleiner als 4 MB sein; lokal sind bis zu 20 MB möglich.";
+  if (!file) return;
+  if (!["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif", "video/mp4"].includes(file.type)) {
+    $("#image-error").textContent = "Wähle ein Bild oder MP4-Video aus.";
     return;
   }
+  if (file.size > (location.hostname === "localhost" || location.hostname === "127.0.0.1" ? 20 : 4) * 1024 * 1024) {
+    $("#image-error").textContent = "Die Datei ist zu groß. Online müssen Uploads kleiner als 4 MB sein; lokal sind bis zu 20 MB möglich.";
+    return;
+  }
+  releasePreviewURL();
   state.selectedFile = file;
-  el.imagePreview.src = URL.createObjectURL(file);
+  previewURL = URL.createObjectURL(file);
+  el.imagePreview = setMediaPreview(el.imagePreview, { url: previewURL, mime_type: file.type, original_name: file.name }, true);
+  $("#image-error").textContent = "";
   el.imagePreview.hidden = false;
   el.dropzoneCopy.hidden = true;
   if (!$("#image-name").value) $("#image-name").value = file.name;
@@ -731,12 +796,12 @@ el.rowMenu.addEventListener("click", async (event) => {
     else openImage(state.data.images.find((image) => image.id === id));
     return;
   }
-  const message = kind === "project" ? "Dieses Projekt löschen? Seine Bilder bleiben unter „Alle Bilder“ erhalten." : "Dieses Bild dauerhaft löschen?";
+  const message = kind === "project" ? "Dieses Projekt löschen? Seine Assets bleiben unter „Alle Assets“ erhalten." : "Dieses Asset dauerhaft löschen?";
   if (!confirm(message)) return;
   try {
     await api(`/api/${kind === "project" ? "projects" : "images"}/${id}`, { method: "DELETE" });
     await refresh();
-    notify(kind === "project" ? "Projekt gelöscht" : "Bild gelöscht");
+    notify(kind === "project" ? "Projekt gelöscht" : "Asset gelöscht");
   } catch (reason) { notify(reason.message); }
 });
 window.addEventListener("resize", () => closeRowMenu());
@@ -770,7 +835,7 @@ function openDrawer(drawer) {
     backdropPress = false;
   });
   drawer.addEventListener("close", () => {
-    if (drawer === el.imageDialog) closeProjectSelect();
+    if (drawer === el.imageDialog) { closeProjectSelect(); releasePreviewURL(); }
     document.documentElement.classList.remove("has-open-drawer");
   });
 });
@@ -867,7 +932,7 @@ el.imageForm.addEventListener("submit", async (event) => {
   const submit = event.submitter;
   const id = $("#image-id").value;
   const error = $("#image-error");
-  if (!id && !state.selectedFile) { error.textContent = "Wähle zuerst ein Bild aus."; return; }
+  if (!id && !state.selectedFile) { error.textContent = "Wähle zuerst ein Bild oder MP4-Video aus."; return; }
   submit.disabled = true;
   error.textContent = "";
   try {
@@ -877,9 +942,8 @@ el.imageForm.addEventListener("submit", async (event) => {
     // Keep existing metadata; new uploads derive their ratio from the actual image.
     let aspectRatio = state.data.images.find((image) => image.id === id)?.aspect_ratio || 1;
     if (!id) {
-      try { await el.imagePreview.decode(); }
-      catch { throw new Error("Das Bild konnte nicht gelesen werden. Wähle eine gültige Bilddatei aus."); }
-      aspectRatio = el.imagePreview.naturalWidth / el.imagePreview.naturalHeight || 1;
+      try { aspectRatio = await mediaDimensions(el.imagePreview); }
+      catch { throw new Error("Die Datei konnte nicht gelesen werden. Wähle ein gültiges Bild oder MP4-Video aus."); }
     }
     const shared = {
       original_name: $("#image-name").value,
@@ -900,7 +964,7 @@ el.imageForm.addEventListener("submit", async (event) => {
     }
     el.imageDialog.close();
     await refresh();
-    notify(id ? "Bild aktualisiert" : "Bild hinzugefügt");
+    notify(id ? "Asset aktualisiert" : "Asset hinzugefügt");
   } catch (reason) { error.textContent = reason.message; }
   finally { submit.disabled = false; }
 });
@@ -951,7 +1015,7 @@ el.tagManager.addEventListener("click", async (event) => {
     return;
   }
   const remove = event.target.closest("[data-delete-tag]");
-  if (!remove || !confirm("Diesen Tag löschen? Er wird von allen zugeordneten Bildern entfernt.")) return;
+  if (!remove || !confirm("Diesen Tag löschen? Er wird von allen zugeordneten Assets entfernt.")) return;
   try {
     state.selectedTags.delete(remove.dataset.deleteTag);
     state.exportTags.delete(remove.dataset.deleteTag);
@@ -992,7 +1056,7 @@ const layoutEditor = { images: [], placements: {}, custom: false, dirty: false, 
 function openThumbnailPicker(project) {
   const images = state.data.images.filter(image => image.project_ids.includes(project?.id) && image.published && !image.archived && image.url);
   const picker = $('#project-thumbnail');
-  picker.innerHTML = `<option value="">Automatisch${images[0] ? ` · ${escapeHtml(images[0].original_name)}` : ' · noch kein veröffentlichtes Bild'}</option>` + images.map(image => `<option value="${escapeHtml(image.id)}">${escapeHtml(image.original_name)}</option>`).join('');
+  picker.innerHTML = `<option value="">Automatisch${images[0] ? ` · ${escapeHtml(images[0].original_name)}` : ' · noch kein veröffentlichtes Asset'}</option>` + images.map(image => `<option value="${escapeHtml(image.id)}">${escapeHtml(image.original_name)}</option>`).join('');
   picker.value = images.some(image => image.id === project?.thumbnail_id) ? project.thumbnail_id : '';
   updateThumbnailPreview(images);
 }
@@ -1000,8 +1064,7 @@ function updateThumbnailPreview(images) {
   const image = images.find(image => image.id === $('#project-thumbnail').value) || images[0];
   const preview = $('#project-thumbnail-preview');
   preview.hidden = !image;
-  if (image) preview.src = image.url;
-  else preview.removeAttribute('src');
+  setMediaPreview(preview, image);
 }
 $('#project-thumbnail').addEventListener('change', () => {
   const custom = layoutEditor.custom;
@@ -1039,7 +1102,7 @@ function openLayoutEditor(project, draft = null) {
   layoutEditor.selected = null;
   layoutEditor.drag = null;
   layoutEditor.rows = Math.min(1000, Math.max(Number(rowCounts[project?.id]) || 0, 0, ...Object.values(layoutEditor.placements).map(p => p.row)));
-  $('#layout-hidden-images').textContent = `${assigned.length - visible.length} nicht veröffentlichte Bilder werden auf der Website nicht angezeigt. Zuordnungen und Veröffentlichung unter „Alle Bilder“ bearbeiten.`;
+  $('#layout-hidden-images').textContent = `${assigned.length - visible.length} nicht veröffentlichte Assets werden auf der Website nicht angezeigt. Zuordnungen und Veröffentlichung unter „Alle Assets“ bearbeiten.`;
   renderLayoutEditor();
 }
 function renderLayoutEditor(focusId) {
@@ -1048,10 +1111,10 @@ function renderLayoutEditor(focusId) {
   $('#layout-mode').textContent = editor.custom ? 'Automatisches Layout' : '7-Spalten-Layout erstellen';
   $('#layout-tools').hidden = !editor.custom || !editor.images.length;
   $('#layout-help').textContent = editor.custom
-    ? 'Mit + eine Zeile einfügen. Bilder ziehen; am rechten Griff die Breite ändern. Tastatur: Pfeiltasten verschieben, Umschalt + Links/Rechts ändert die Breite. Escape bricht das Ziehen ab. Änderungen werden mit dem Projekt gespeichert.'
-    : 'Vorschau der Projektseite. Für freie Platzierung das 7-Spalten-Layout erstellen. Das gewählte Vorschaubild wird als Hero-Bild dargestellt.';
-  const imageMarkup = image => `<img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.alt_text || image.original_name)}" draggable="false" />`;
-  const hero = editor.hero ? `<div class="layout-meta"><span>${escapeHtml($('#project-title').value)}</span><span>${escapeHtml($('#project-client').value)}</span></div><div class="layout-hero">${imageMarkup(editor.hero)}<span>Hero · volle Breite</span></div>` : '<p class="layout-empty">Noch keine veröffentlichten Bilder zugeordnet. Bilder unter „Alle Bilder“ diesem Projekt zuordnen.</p>';
+    ? 'Mit + eine Zeile einfügen. Assets ziehen; am rechten Griff die Breite ändern. Tastatur: Pfeiltasten verschieben, Umschalt + Links/Rechts ändert die Breite. Escape bricht das Ziehen ab. Änderungen werden mit dem Projekt gespeichert.'
+    : 'Vorschau der Projektseite. Für freie Platzierung das 7-Spalten-Layout erstellen. Das gewählte Vorschaubild wird als Hero-Asset dargestellt.';
+  const imageMarkup = image => mediaMarkup(image, "", image.alt_text || image.original_name);
+  const hero = editor.hero ? `<div class="layout-meta"><span>${escapeHtml($('#project-title').value)}</span><span>${escapeHtml($('#project-client').value)}</span></div><div class="layout-hero">${imageMarkup(editor.hero)}<span>Hero · volle Breite</span></div>` : '<p class="layout-empty">Noch keine veröffentlichten Assets zugeordnet. Assets unter „Alle Assets“ diesem Projekt zuordnen.</p>';
   let body = '';
   if (editor.custom && editor.images.length) {
     const insertButton = (row, top = false) => `<button type="button" class="layout-row-add${top ? ' is-top' : ''}" data-insert-row="${row}" aria-label="Zeile ${row} einfügen" ${editor.rows >= 1000 ? 'disabled' : ''}>+</button>`;
@@ -1077,7 +1140,7 @@ function updateLayoutSelection() {
   const id = layoutEditor.selected;
   const placement = layoutEditor.placements[id];
   $('#layout-page').querySelectorAll('[data-layout-image]').forEach(tile => tile.classList.toggle('is-selected', tile.dataset.layoutImage === id));
-  $('#layout-selection').textContent = placement ? `Spalte ${Number(placement.column.toFixed(2))} · Breite ${Number(placement.span.toFixed(2))} · Zeile ${placement.row}` : 'Bild auswählen';
+  $('#layout-selection').textContent = placement ? `Spalte ${Number(placement.column.toFixed(2))} · Breite ${Number(placement.span.toFixed(2))} · Zeile ${placement.row}` : 'Asset auswählen';
   $('#layout-narrow').disabled = !placement || placement.span <= 1;
   $('#layout-wide').disabled = !placement || placement.column + placement.span >= 8;
 }
@@ -1093,7 +1156,7 @@ function commitLayoutPlacement(id, placement) {
   layoutEditor.dirty = true;
   layoutEditor.rows = Math.min(1000, Math.max(layoutEditor.rows, placement.row));
   renderLayoutEditor(id);
-  $('#layout-status').textContent = `Bild verschoben: Spalte ${Number(placement.column.toFixed(2))}, Breite ${Number(placement.span.toFixed(2))}, Zeile ${placement.row}.`;
+  $('#layout-status').textContent = `Asset verschoben: Spalte ${Number(placement.column.toFixed(2))}, Breite ${Number(placement.span.toFixed(2))}, Zeile ${placement.row}.`;
   return true;
 }
 $('#layout-mode').addEventListener('click', () => {
@@ -1217,7 +1280,7 @@ function finishLayoutDrag(commit) {
   drag.tile.classList.remove('is-dragging');
   drag.grid.querySelector('.layout-target').hidden = true;
   if (commit && drag.moved && drag.next) commitLayoutPlacement(drag.id, drag.next);
-  else if (commit && drag.moved) $('#layout-status').textContent = 'Hier ist kein Platz. Das Bild bleibt an seiner bisherigen Position.';
+  else if (commit && drag.moved) $('#layout-status').textContent = 'Hier ist kein Platz. Das Asset bleibt an seiner bisherigen Position.';
 }
 $('#layout-page').addEventListener('pointerup', () => finishLayoutDrag(true));
 $('#layout-page').addEventListener('pointercancel', () => finishLayoutDrag(false));

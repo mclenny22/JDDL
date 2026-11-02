@@ -8,13 +8,18 @@ function mount() {
   const elements = new Map();
   let document;
   class Element {
-    constructor() {
+    constructor(tag = 'div') {
+      this.tagName = tag.toUpperCase();
       this.value = ''; this.hidden = true; this.checked = false;
       this.listeners = {}; this.attributes = {}; this.dataset = {}; this.style = {};
       this.classList = { toggle() {}, add() {}, remove() {} };
     }
     addEventListener(name, handler) { this.listeners[name] = handler; }
     setAttribute(name, value) { this.attributes[name] = value; }
+    replaceWith(replacement) {
+      for (const [selector, element] of elements) if (element === this) elements.set(selector, replacement);
+    }
+    pause() { this.paused = true; }
     removeAttribute(name) { delete this.attributes[name]; }
     querySelectorAll() { return []; }
     querySelector() { return new Element(); }
@@ -30,9 +35,13 @@ function mount() {
     activeElement: null,
     documentElement: { classList: { add() {}, remove() {} } },
     querySelector(selector) {
-      if (!elements.has(selector)) elements.set(selector, new Element());
+      if (!elements.has(selector)) {
+        const element = new Element(selector.endsWith('preview') ? 'img' : 'div');
+        element.id = selector.slice(1); elements.set(selector, element);
+      }
       return elements.get(selector);
     },
+    createElement: tag => new Element(tag),
     querySelectorAll() { return []; },
     addEventListener() {},
   };
@@ -43,6 +52,9 @@ function mount() {
       calls.push({ url, options });
       return { ok: true, json: async () => ({ authenticated: false }) };
     },
+    location: { hostname: '127.0.0.1' },
+    URL: { createObjectURL: file => `blob:${file.name}`, revokeObjectURL() {} },
+    FormData: class { constructor() { this.fields = new Map(); } append(key, value) { this.fields.set(key, value); } get(key) { return this.fields.get(key); } },
     setTimeout: () => 0, clearTimeout() {},
   });
   vm.runInContext(fs.readFileSync(new URL('../backend/static/admin.js', import.meta.url), 'utf8').replace(/^import .*;\n/, ''), context);
@@ -324,4 +336,37 @@ test('row insertion shifts later images once and persists a bottom empty row on 
   run('layoutEditor.rows = 1000; insertLayoutRow(1)');
   assert.equal(run('layoutEditor.rows'), 1000);
   assert.equal(run('layoutEditor.placements.second.row'), 2);
+});
+
+
+test('MP4 upload previews and saves video dimensions with the existing publication and assignment fields', async () => {
+  const { elements, calls, run } = mount();
+  run(`openImage(); selectFile({ type: 'video/mp4', name: 'identity.mp4', size: 1024 });
+    el.imagePreview.readyState = 1; el.imagePreview.videoWidth = 1920; el.imagePreview.videoHeight = 1080;
+    el.projectSelection.value = 'alpha'; refresh = async () => {};`);
+  const preview = elements.get('#image-preview');
+  assert.equal(preview.tagName, 'VIDEO');
+  assert.equal(preview.controls, true);
+  assert.equal(preview.src, 'blob:identity.mp4');
+  elements.get('#image-published').checked = true;
+  await elements.get('#image-form').listeners.submit({ preventDefault() {}, submitter: { disabled: false } });
+  const form = calls.find(call => call.url === '/api/images').options.body;
+  assert.equal(form.get('image').name, 'identity.mp4');
+  assert.equal(Number(form.get('aspect_ratio')), 16 / 9);
+  assert.equal(form.get('published'), 'true');
+  assert.equal(form.get('project_ids'), '["alpha"]');
+  run('openImage(state.data.images[0])');
+  assert.equal(elements.get('#image-preview').tagName, 'IMG');
+});
+
+test('MP4 thumbnails and layout previews render video, and print selection excludes videos', () => {
+  const { elements, run } = mount();
+  run(`state.data.images[0].mime_type = 'video/mp4'; state.data.images[0].url = '/clip.mp4';
+    openThumbnailPicker(state.data.projects[0]); openLayoutEditor(state.data.projects[0]); renderLayoutEditor();
+    state.exportSelected.add('image');`);
+  assert.equal(elements.get('#project-thumbnail-preview').tagName, 'VIDEO');
+  assert.equal(elements.get('#project-thumbnail-preview').src, '/clip.mp4');
+  assert.match(elements.get('#layout-page').innerHTML, /<video/);
+  assert.equal(run('exportFilteredImages().length'), 0);
+  assert.equal(run('selectedExportImages().length'), 0);
 });

@@ -1,3 +1,4 @@
+import { createMedia } from './media.js';
 // Adapted from the archived Orbit Grid V2 center-lens motion study.
 export function createOrbitGrid(projects, onOpen = () => {}) {
   const gallery = document.querySelector("#gallery");
@@ -78,7 +79,7 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
         const index = row * columns + column;
         const source = sourceFor(index);
         const figure = document.createElement("figure");
-        const image = document.createElement("img");
+        const image = createMedia(source, source.projectTitle);
         figure.className = "orbit-tile";
         figure.tabIndex = -1;
         figure.setAttribute('role', 'link');
@@ -89,8 +90,6 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
         figure.addEventListener('keydown', event => {
           if (['Enter', ' '].includes(event.key)) { event.preventDefault(); onOpen(source.project, source, figure); }
         });
-        image.src = source.url;
-        image.alt = source.alt_text || source.projectTitle;
         image.draggable = false;
         figure.append(image);
         field.append(figure);
