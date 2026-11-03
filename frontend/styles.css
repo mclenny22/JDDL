@@ -196,3 +196,13 @@ p { margin: 0; }
   .project-grid.composed-layout :is(img, video) { aspect-ratio: var(--mobile-ratio); }
   .project-grid-spacer { display: none; }
 }
+
+.project-grid.twelve-layout { grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-rows: minmax(0, auto); gap: 15px; }
+.project-grid.twelve-layout :is(img, video) { aspect-ratio: var(--layout-ratio); }
+.project-text { color: #fff; margin: 0; padding-block: 15px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: clamp(14px, 1.4vw, 24px); line-height: 1.4; }
+@media (max-width: 600px) {
+  .project-grid.twelve-layout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .project-grid.twelve-layout figure { grid-column: span var(--mobile-columns, 1) !important; grid-row: auto !important; }
+  .project-grid.twelve-layout :is(img, video) { aspect-ratio: var(--mobile-ratio, 1); }
+  .project-grid.twelve-layout .project-text { grid-column: 1 / -1 !important; grid-row: auto !important; font-size: 16px; }
+}

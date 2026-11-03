@@ -127,3 +127,22 @@ then check the Vercel deployment. Content-only edits belong in the live CMS and
 need a page refresh, not a code deployment. Back up Turso and Blob separately;
 a Git checkout does not contain live cloud edits or uploaded files. No recurring
 backup automation was configured during this setup.
+
+
+## Read-only storage check — 3 November 2026
+
+The connected Vercel store API reports `jddl-images` active/available, with 27
+files totaling 46,763,575 bytes (46.8 MB decimal), and `usageQuotaExceeded: false`.
+The current documented Hobby Blob allowance is 1 GB-month of average storage,
+plus 10 GB monthly Blob transfer: https://vercel.com/docs/vercel-blob/usage-and-pricing.
+Against 1 GB, the JDDL store alone occupies about 4.7%, leaving roughly 953 MB
+of nominal storage headroom. This is a point-in-time size comparison, not a
+measurement of all team stores or of monthly average storage/transfer/operations.
+The connector did not return the team's current billing plan; Hobby is the
+previously documented plan, not newly verified by this check.
+
+The Turso integration reports the existing Starter plan with 5 GB total database
+storage. Current database bytes were not exposed by the Vercel store API and were
+not queried directly. Uploaded image/video bytes live in Blob, not Turso, so
+moving the metadata database would not free Blob storage. No hosting resources,
+credentials, environment settings or production content were changed.

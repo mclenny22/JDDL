@@ -57,9 +57,10 @@
               <button class="button primary" id="add-image-button" type="button">Asset hinzufügen</button>
             </div>
           </div>
+          <div class="library-selection"><span id="library-selection-count" role="status">0 ausgewählt</span><button class="text-button" id="library-clear-selection" type="button" hidden>Auswahl aufheben</button><span>Auswählen und Status, Projekte oder Tags direkt in der Zeile bearbeiten.</span></div>
           <div class="table-shell">
             <table id="image-table">
-              <thead><tr><th class="thumb-col">Vorschau</th><th>Name</th><th>Tags</th><th>Projekt</th><th>Status</th><th>Hinzugefügt</th><th class="action-col"><span class="sr-only">Aktionen</span></th></tr></thead>
+              <thead><tr><th class="select-col"><input id="library-select-all" type="checkbox" aria-label="Alle angezeigten Assets auswählen" /></th><th class="thumb-col">Vorschau</th><th>Name</th><th>Tags</th><th>Projekt</th><th>Status</th><th>Hinzugefügt</th><th class="action-col"><span class="sr-only">Aktionen</span></th></tr></thead>
               <tbody id="image-table-body"></tbody>
             </table>
             <div class="admin-empty" id="library-empty" hidden><h2>Noch keine Assets</h2><p>Füge das erste Asset zum Archiv hinzu – Bild oder MP4-Video.</p><button class="button primary" type="button" data-open-upload>Asset hinzufügen</button></div>
@@ -163,20 +164,32 @@
         <div class="field project-thumbnail-field">
           <label for="project-thumbnail">Vorschaubild</label>
           <select id="project-thumbnail" aria-describedby="project-thumbnail-help"></select>
-          <small id="project-thumbnail-help">Ohne Auswahl wird automatisch das erste veröffentlichte Projekt-Asset verwendet. Das Vorschaubild erscheint in Selected und öffnet die Projektseite als Hero-Asset.</small>
+          <small id="project-thumbnail-help">Ohne Auswahl wird automatisch das erste veröffentlichte Projekt-Asset verwendet. Das Vorschaubild erscheint in Selected. Ohne separate Hero-Auswahl öffnet es auch die Projektseite als Hero-Asset.</small>
           <img id="project-thumbnail-preview" alt="Vorschau des Projekt-Vorschaubilds" hidden />
         </div>
         </div>
         <p class="form-error" id="project-error" role="alert"></p>
         <section class="project-layout-editor" aria-labelledby="layout-heading">
-          <div class="layout-heading"><h3 id="layout-heading">Asset-Layout</h3><button type="button" class="button" id="layout-mode">7-Spalten-Layout erstellen</button></div>
+          <div class="layout-heading"><h3 id="layout-heading">Asset-Layout</h3><button type="button" class="button" id="layout-mode">12-Spalten-Layout erstellen</button></div>
           <p class="layout-help" id="layout-help">Vorschau der Projektseite. Das gewählte Vorschaubild oder Video erscheint als Hero-Asset.</p>
           <div class="layout-tools" id="layout-tools" hidden>
             <span id="layout-selection">Asset auswählen</span>
             <button type="button" class="button" id="layout-narrow" aria-label="Ausgewähltes Asset schmaler machen">−</button>
             <button type="button" class="button" id="layout-wide" aria-label="Ausgewähltes Asset breiter machen">+</button>
           </div>
-          <div class="layout-viewport"><div class="layout-page" id="layout-page"></div></div>
+          <div class="layout-workspace">
+            <aside class="layout-sidebar" id="layout-sidebar" aria-label="Layout-Elemente" hidden>
+              <label class="field" for="layout-hero-select"><span>Hero austauschen</span><select id="layout-hero-select"></select></label>
+              <p class="layout-help">Das bisherige Hero-Asset übernimmt den Platz des neuen. Das Vorschaubild in Selected bleibt separat wählbar.</p>
+              <h4>Verfügbare Assets</h4><p class="layout-help">Ins Raster ziehen oder per Einfügen platzieren. Auf Touch-Geräten Einfügen wählen und danach verschieben.</p>
+              <div id="layout-palette" class="layout-palette"></div>
+              <button class="button" type="button" id="layout-clear-images">Alle Bilder zurücklegen</button>
+              <button class="button" type="button" id="layout-add-text">Text hinzufügen</button>
+              <label class="field" for="layout-text-content" id="layout-text-field" hidden><span>Weißer Text</span><textarea id="layout-text-content" maxlength="10000"></textarea></label>
+              <button class="button" type="button" id="layout-remove" disabled>Aus Layout entfernen</button>
+            </aside>
+            <div class="layout-viewport"><div class="layout-page" id="layout-page"></div></div>
+          </div>
           <p class="layout-help" id="layout-hidden-images"></p>
           <p class="sr-only" id="layout-status" role="status" aria-live="polite"></p>
         </section>
@@ -192,10 +205,11 @@
         <div class="drawer-body">
         <input id="image-id" type="hidden" />
         <label class="dropzone" id="dropzone">
-          <input id="image-file" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.avif,.mp4,image/jpeg,image/png,image/webp,image/gif,image/avif,video/mp4" />
+          <input id="image-file" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.avif,.mp4,image/jpeg,image/png,image/webp,image/gif,image/avif,video/mp4" />
           <img id="image-preview" alt="Vorschau des ausgewählten Bildes" hidden />
-          <span id="dropzone-copy"><strong>Asset auswählen</strong><small>Bilder oder MP4 hierher ziehen · MP4 am besten mit H.264 · lokal max. 20 MB, online unter 4 MB</small></span>
+          <span id="dropzone-copy"><strong>Assets auswählen</strong><small>Mehrere Bilder oder MP4 hierher ziehen · MP4 am besten mit H.264 · lokal max. 20 MB, online unter 4 MB</small></span>
         </label>
+        <p id="upload-queue" class="upload-queue" role="status"></p>
         <label class="field" for="image-name"><span>Name</span><input id="image-name" maxlength="240" required /></label>
         <label class="field" for="image-alt"><span>Alternativtext</span><input id="image-alt" placeholder="Beschreibe das Bild oder Video" /></label>
         <div class="field image-visibility">
@@ -215,7 +229,7 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></svg>
               <input id="image-project-search" type="text" role="combobox" aria-label="Projekt suchen" aria-autocomplete="list" aria-expanded="false" aria-controls="image-project-options" placeholder="Projekt suchen…" autocomplete="off" />
             </div>
-            <div id="image-project-options" role="listbox" aria-labelledby="image-project-label"></div>
+            <div id="image-project-options" role="listbox" aria-multiselectable="true" aria-labelledby="image-project-label"></div>
             <p class="project-combobox-empty" id="image-project-empty" hidden>Kein Projekt gefunden.</p>
           </div>
         </div>

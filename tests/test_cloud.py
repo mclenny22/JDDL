@@ -19,6 +19,16 @@ class CloudStorageTests(unittest.TestCase):
             with patch.dict('sys.modules', {'libsql': SimpleNamespace(Error=sqlite3.Error)}), patch.object(cloud, 'CloudConnection', Connection), patch.object(server, 'connect', lambda path: Connection()):
                 cloud.initialize_cloud(server.SEED, server.ROOT / 'schema.sql')
                 with Connection() as db:
+                    db.execute('CREATE UNIQUE INDEX one_project_per_image ON image_projects(image_id)')
+                cloud.initialize_cloud(server.SEED, server.ROOT / 'schema.sql')
+                with Connection() as db:
+                    image = db.execute('SELECT image_id FROM image_projects LIMIT 1').fetchone()[0]
+                    projects = [row[0] for row in db.execute('SELECT id FROM projects')]
+                    for position, project in enumerate(projects):
+                        db.execute('INSERT OR IGNORE INTO image_projects VALUES (?,?,?)', (image, project, position))
+                cloud.initialize_cloud(server.SEED, server.ROOT / 'schema.sql')
+                with Connection() as db:
+                    self.assertEqual(len(db.execute('SELECT project_id FROM image_projects WHERE image_id=?', (image,)).fetchall()), len(projects))
                     db.execute('UPDATE projects SET description=?', ('Edited in CMS',))
                     db.execute('DELETE FROM image_tags')
                     db.execute('DELETE FROM images')

@@ -38,16 +38,37 @@ export function projectRows(images) {
   return result;
 }
 
-// Seven visible guide columns, with subcolumns to retain automatic thirds/halves/quarters.
-export function automaticPlacements(images) {
+// Automatic and manual compositions use the same twelve-column geometry.
+// The optional column count supports existing saved seven-column layouts.
+export function automaticPlacements(images, columns = 12) {
   let row = 1;
   let used = 0;
   return Object.fromEntries(projectRows(images).map(({ image, span, ratio }) => {
-    const placement = { column: 1 + used * 7 / 12, span: span * 7 / 12, row, ratio };
+    const placement = { column: 1 + used * columns / 12, span: span * columns / 12, row, ratio };
     used += span;
     if (used >= 12 - 1e-6) { used = 0; row++; }
     return [image.id, placement];
   }));
+}
+
+export function projectComposition(project, settings, images) {
+  let saved = {}, legacy = {}, rows = {};
+  try { saved = JSON.parse(settings.project_compositions || '{}'); } catch {}
+  if (saved[project.id]) return JSON.parse(JSON.stringify(saved[project.id]));
+  try { legacy = JSON.parse(settings.project_layout || '{}'); rows = JSON.parse(settings.project_layout_rows || '{}'); } catch {}
+  const hero = images.find(image => image.id === project.thumbnail_id) || images[0];
+  const remaining = images.filter(image => image !== hero);
+  const manual = remaining.some(image => legacy[image.id]);
+  const composed = Boolean(rows[project.id]) || remaining.some(image => legacy[image.id]?.ratio);
+  const placements = automaticPlacements(remaining);
+  if (manual) remaining.forEach((image, index) => {
+    if (!legacy[image.id] && composed) return;
+    const old = imagePlacement(image, index, legacy);
+    const start = Math.round((old.column - 1) * 12 / 7);
+    const column = start + 1;
+    placements[image.id] = { column, span: Math.min(13 - column, Math.max(1, Math.round((old.column - 1 + old.span) * 12 / 7) - start)), row: old.row, ratio: old.ratio || Number(image.aspect_ratio) || 1 };
+  });
+  return { columns: 12, manual, hero_id: '', placements, texts: {}, rows: Math.max(Number(rows[project.id]) || 0, 0, ...Object.values(placements).map(p => p.row)) };
 }
 
 export function createProjectView(projects, settings, reducedMotion, onClose) {
@@ -198,14 +219,17 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
     hero.replaceWith(nextHero);
     hero = nextHero;
     grid.replaceChildren();
+    let compositions = {};
+    try { compositions = JSON.parse(settings.project_compositions || '{}'); } catch {}
+    const composition = compositions[project.id];
     const remaining = project.images.filter(item => item.id !== image.id);
-    const custom = remaining.some(item => layout[item.id] && Object.keys(layout[item.id]).length);
+    const custom = !composition && remaining.some(item => layout[item.id] && Object.keys(layout[item.id]).length);
     grid.classList.toggle('custom-layout', custom);
     let rowCounts = {};
     try { rowCounts = JSON.parse(settings.project_layout_rows || '{}') || {}; } catch {}
     const composed = custom && (Number(rowCounts[project.id]) > 0 || remaining.some(item => layout[item.id]?.ratio));
     grid.classList.toggle('composed-layout', Boolean(composed));
-    const automatic = automaticPlacements(remaining);
+    const automatic = automaticPlacements(remaining, 7);
     const placed = remaining.map((item, index) => composed && !layout[item.id] ? automatic[item.id] : imagePlacement(item, index, layout));
     if (composed) {
       const rows = Math.min(1000, Math.max(Number(rowCounts[project.id]) || 0, ...placed.map(p => p.row)));
@@ -219,7 +243,7 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
         grid.append(space);
       }
     }
-    projectRows(remaining).forEach(({ image: item, span, ratio, mobileSpan, mobileRatio }, index) => {
+    if (!composition?.manual) projectRows(remaining).forEach(({ image: item, span, ratio, mobileSpan, mobileRatio }, index) => {
       const figure = document.createElement('figure');
       if (custom) {
         const placement = placed[index];
@@ -239,6 +263,41 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
       figure.append(img);
       grid.append(figure);
     });
+    grid.classList.toggle('twelve-layout', Boolean(composition?.manual));
+    if (composition?.manual) {
+      grid.replaceChildren();
+      grid.classList.remove('custom-layout', 'composed-layout');
+      const entries = [
+        ...Object.entries(composition.placements).filter(([id]) => id !== image.id).map(([id, placement]) => ({ placement, image: project.images.find(item => item.id === id) })).filter(item => item.image),
+        ...Object.values(composition.texts).map(placement => ({ placement, text: placement.text })),
+      ];
+      // Direct image links can promote a placed asset to hero. Keep the chosen
+      // project hero in the body so that following such a link loses no content.
+      const defaultHero = project.images.find(item => item.id === (composition.hero_id || project.thumbnail?.id));
+      if (defaultHero && defaultHero.id !== image.id && !composition.placements[defaultHero.id]) {
+        entries.push({ image: defaultHero, placement: { column: 1, span: 12, row: composition.rows + 1, ratio: Number(defaultHero.aspect_ratio) || 1 } });
+      }
+      const occupied = new Set(entries.map(item => item.placement.row));
+      for (let row = 1; row <= composition.rows; row++) {
+        const space = document.createElement('div');
+        space.className = 'project-grid-spacer'; space.style.gridRow = String(row);
+        space.style.minHeight = occupied.has(row) ? '0' : '10vw'; space.setAttribute('aria-hidden', 'true'); grid.append(space);
+      }
+      entries.sort((a, b) => a.placement.row - b.placement.row || a.placement.column - b.placement.column);
+      entries.forEach(entry => {
+        const block = document.createElement(entry.image ? 'figure' : 'p');
+        const p = entry.placement;
+        block.style.gridColumn = `${p.column} / span ${p.span}`;
+        block.style.gridRow = String(p.row);
+        if (entry.image) {
+          block.style.setProperty('--layout-ratio', String(p.ratio || Number(entry.image.aspect_ratio) || 1));
+          block.style.setProperty('--mobile-columns', p.span >= 8 ? '2' : '1');
+          block.style.setProperty('--mobile-ratio', p.span >= 8 ? '1' : '4 / 5');
+          block.append(createMedia(entry.image, project.title, true));
+        } else { block.className = 'project-text'; block.textContent = entry.text; }
+        grid.append(block);
+      });
+    }
     view.hidden = false;
     view.scrollTop = 0;
     document.documentElement.classList.add('project-open');
@@ -246,7 +305,7 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
     content.setAttribute('aria-label', project.title);
   }
   function open(project, selectedImage, source = null, onSwitch = () => {}) {
-    const image = selectedImage || project.thumbnail || project.images[0];
+    const image = selectedImage || project.hero || project.thumbnail || project.images[0];
     const origin = imageFor(source);
     transitionView(() => {
       sourceLink = source;

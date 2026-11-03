@@ -53,6 +53,80 @@ class BackendIntegrationTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.cookie = headers['Set-Cookie'].split(';')[0]
 
+    def test_batch_edits_preserve_other_fields_and_relations_and_rollback_invalid_ids(self):
+        self.assertEqual(self.request('POST', '/api/images/batch', {'ids': ['missing'], 'changes': {'published': False}})[0], 401)
+        self.login()
+        data = json.loads(self.request('GET', '/api/admin/bootstrap')[2])
+        images = data['images'][:2]
+        ids = [image['id'] for image in images]
+        project = data['projects'][-1]['id']
+        tag = data['tags'][-1]['id']
+        changes = {'published': False, 'add_project_ids': [project], 'add_tag_ids': [tag]}
+        self.assertEqual(self.request('POST', '/api/images/batch', {'ids': ids, 'changes': changes})[0], 200)
+        updated = json.loads(self.request('GET', '/api/admin/bootstrap')[2])
+        for old in images:
+            image = next(item for item in updated['images'] if item['id'] == old['id'])
+            self.assertEqual(image['original_name'], old['original_name'])
+            self.assertEqual(image['aspect_ratio'], old['aspect_ratio'])
+            self.assertEqual(set(image['project_ids']), set(old['project_ids']) | {project})
+            self.assertEqual(set(image['tag_ids']), set(old['tag_ids']) | {tag})
+            self.assertEqual((image['published'], image['archived']), (0, 1))
+        for invalid in ({'ids': ids + ['missing'], 'changes': {'published': True}},
+                        {'ids': ids, 'changes': {'published': True, 'add_project_ids': ['missing']}},
+                        {'ids': ids, 'changes': {'tag_ids': ['missing']}}):
+            self.assertEqual(self.request('POST', '/api/images/batch', invalid)[0], 400)
+        self.assertEqual(json.loads(self.request('GET', '/api/admin/bootstrap')[2]), updated)
+        self.assertEqual(self.request('POST', '/api/images/batch', {'ids': ids, 'changes': {'remove_project_ids': [project], 'remove_tag_ids': [tag]}})[0], 200)
+
+    def test_compositions_are_project_specific_and_validate_text_and_geometry_atomically(self):
+        self.login()
+        data = json.loads(self.request('GET', '/api/admin/bootstrap')[2])
+        first, second = data['projects'][:2]
+        image = next(image for image in data['images'] if first['id'] in image['project_ids'])
+        self.assertEqual(self.request('POST', '/api/images/batch', {'ids': [image['id']], 'changes': {'add_project_ids': [second['id']]}})[0], 200)
+        composition = {'columns': 12, 'manual': True, 'hero_id': '', 'rows': 3,
+                       'placements': {image['id']: {'column': 9, 'span': 4, 'row': 1, 'ratio': 1.5}},
+                       'texts': {'text-note': {'column': 1, 'span': 6, 'row': 2, 'text': '<hello> & weißer Text'}}}
+        for project, column in ((first, 9), (second, 1)):
+            draft = json.loads(json.dumps(composition))
+            draft['placements'][image['id']]['column'] = column
+            self.assertEqual(self.request('POST', '/api/projects', {**project, 'composition': draft})[0], 200)
+        saved = json.loads(self.request('GET', '/api/public')[2])
+        layouts = json.loads(saved['settings']['project_compositions'])
+        self.assertEqual(layouts[first['id']]['placements'][image['id']]['column'], 9)
+        self.assertEqual(layouts[second['id']]['placements'][image['id']]['column'], 1)
+        for mutation in ('bounds', 'overlap', 'assignment', 'text', 'row'):
+            invalid = json.loads(json.dumps(composition))
+            if mutation == 'bounds': invalid['placements'][image['id']]['span'] = 5
+            if mutation == 'overlap': invalid['texts']['text-note'].update(column=9, row=1)
+            if mutation == 'assignment': invalid['hero_id'] = 'missing'
+            if mutation == 'text': invalid['texts']['text-note']['text'] = 'x' * 10001
+            if mutation == 'row': invalid['rows'] = 1
+            self.assertEqual(self.request('POST', '/api/projects', {**first, 'title': 'Must not save', 'composition': invalid})[0], 400)
+        self.assertEqual(json.loads(self.request('GET', '/api/public')[2]), saved)
+
+    def test_unpublished_project_text_is_not_part_of_public_content(self):
+        self.login()
+        project = server.public_payload(admin=True)['projects'][0]
+        composition = {'columns': 12, 'manual': True, 'hero_id': '', 'rows': 1, 'placements': {},
+                       'texts': {'text-private': {'column': 1, 'span': 12, 'row': 1, 'text': 'Unpublished draft'}}}
+        self.assertEqual(self.request('POST', '/api/projects', {**project, 'published': False, 'composition': composition})[0], 200)
+        self.assertNotIn('Unpublished draft', self.request('GET', '/api/public')[2].decode())
+        self.assertIn('Unpublished draft', self.request('GET', '/api/admin/bootstrap')[2].decode())
+
+    def test_restart_removes_old_unique_index_and_keeps_multiple_assignments(self):
+        data = server.public_payload(admin=True)
+        image, projects = data['images'][0], data['projects'][:2]
+        with server.connect(server.IMAGES_DB) as db:
+            db.execute('CREATE UNIQUE INDEX one_project_per_image ON image_projects(image_id)')
+        server.initialize()
+        with server.connect(server.IMAGES_DB) as db:
+            db.execute('INSERT OR IGNORE INTO image_projects VALUES (?, ?, ?)', (image['id'], projects[1]['id'], 1))
+        server.initialize()
+        persisted = next(item for item in server.public_payload(admin=True)['images'] if item['id'] == image['id'])
+        self.assertIn(projects[1]['id'], persisted['project_ids'])
+        self.assertIn(image['project_ids'][0], persisted['project_ids'])
+
     def test_footer_and_seven_column_layout_are_saved_and_validated(self):
         self.login()
         first = {"id": "showcase-01", "column": 2, "span": 3, "row": 8}
@@ -261,7 +335,7 @@ class BackendIntegrationTests(unittest.TestCase):
         self.assertEqual(self.request('PUT', f'/api/images/{image_id}', image)[0], 200)
         self.assertNotIn(image_id, [i['id'] for i in json.loads(self.request('GET', '/api/public')[2])['images']])
         admin_image = next(i for i in json.loads(self.request('GET', '/api/admin/bootstrap')[2])['images'] if i['id'] == image_id)
-        self.assertEqual(admin_image['project_ids'], [project_id])
+        self.assertEqual(admin_image['project_ids'], [project_id, public['projects'][1]['id']])
         self.assertEqual(self.request('DELETE', f'/api/images/{image_id}')[0], 200)
         self.assertEqual(self.request('GET', image['url'])[0], 404)
 

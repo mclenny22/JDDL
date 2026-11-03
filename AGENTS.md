@@ -54,11 +54,11 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   preview. Choices save with project metadata as `thumbnail_id`, backed by the
   `project_thumbnails` setting without a schema migration. The image list keeps
   its original order. Selected and the Project menu open the chosen thumbnail as
-  hero; Index and direct image links still open the selected image. No image cycling, story bar or indicators. All other
+  hero unless a separate hero is saved in the project composition; Index and direct image links still open the selected image. No image cycling, story bar or indicators. All other
   project images remain available in Index and the project detail.
-- The rail drifts at 10px/s, easing to .35px/s on hover/focus. Manual wheel,
-  touch and keyboard input suspends drift for 3.5 seconds. Fractional,
-  elapsed-time movement preserves its speed across frame rates. Drift pauses
+- The rail drifts at 20px/s, easing to 5px/s on hover/focus. Manual wheel,
+  touch and keyboard input suspends drift for 3.5 seconds. A 700ms exponential response and its exact distance integral
+  provide smooth slowdown and acceleration. Fractional, elapsed-time movement preserves its speed across frame rates. Drift pauses
   in Index, About, project detail, open mobile menus and transitions.
   Reduced motion disables drift, easing and view-transition snapshots.
 - Preserve free horizontal scrolling: no snapping, wheel rounding, minimum
@@ -93,7 +93,8 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
 - `frontend/project-view.js` implements full-width dark project pages with
   15px margins/gutters and automatic three-up, mixed, paired, full-width and
   four-up image rows. Mobile uses square heroes, stacked wide images and
-  two-column rows. Every remaining published project image appears once.
+  two-column rows. Automatic layouts show every remaining published project image once;
+  manual compositions show the images explicitly placed in that project.
   Project/client, categories and derived format sit above the hero;
   Project Info + expands the CMS description with a reversible 450ms height
   easing and text fade. Collapsed text is inert and hidden from assistive
@@ -106,25 +107,32 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   names and pause state; a new destination replaces pending navigation.
   Escape and the return button use the existing history entry when possible;
   direct links return locally. Focus and gallery offsets are restored.
-- Existing seven-column image placements in the `project_layout` JSON studio
-  setting remain supported on desktop when a project has saved placements.
-  Mobile reflows these images into two columns. Layout editing lives in the
-  project editor: a scaled dark page preview, seven-column pointer/touch dragging,
-  right-edge width resizing and arrow-key movement (Shift+Left/Right resizes).
-  Entering editing copies the automatic row groups, sizes and crop ratios without
-  adding empty rows. Seven visible guides use 84 internal subcolumns to preserve
-  thirds/halves/quarters exactly; saved composed placements may include twelfth-
-  column fractions and a `ratio`. Plus controls above, between and below rows
-  insert one empty row and shift later images; empty rows have a remove control.
-  Row count saves through `layout_rows` into `project_layout_rows`, preserving
-  leading/trailing blank rows. Legacy integer placements remain supported and
-  mobile still reflows into two columns. No rows are appended on drag or resize.
-  Published assigned images appear after the thumbnail hero; unpublished
-  assignments are counted separately. Automatic layouts remain until explicitly
-  converted, and can be restored. Drafts save atomically with project metadata via
-  `/api/projects` `image_layouts`, validated against project assignments; cancel
-  discards drafts. Other projects' layouts are preserved. The legacy validated
-  `/api/settings` `image_layout` patch API remains supported. No migration is needed.
+- Automatic and manual project layouts share twelve integer columns and identical
+  gutters/crop ratios. Entering manual mode copies the automatic composition
+  without moving assets or adding empty rows. The full-page editor has a left
+  asset palette (stacked above the canvas on narrow screens): unplaced published
+  assets can be dragged into a row or inserted with a keyboard/touch-accessible
+  button. Removing an asset from the canvas returns it to the palette without
+  changing its project assignments. “Alle Bilder zurücklegen” returns all images
+  to the palette for individual placement. Manual layouts intentionally show only placed
+  assets. Pointer/touch dragging, right-edge resizing and arrow-key movement
+  (Shift+Left/Right resizes), explicit row insertion/removal and autoscroll remain.
+  Dragging and resizing do not append rows. White plain-text blocks share the
+  grid, move/resize controls and row operations; their text is edited in the
+  sidebar and rendered as text, never HTML. The sidebar hero picker is separate
+  from the Selected thumbnail. Swapping the hero places the old hero in the new
+  hero's previous slot. Index and direct image links retain their chosen hero.
+- Project-specific layouts save atomically with metadata through `/api/projects`
+  `composition`, stored in the `project_compositions` JSON setting keyed by project
+  ID: `{columns:12, manual, hero_id, placements, texts, rows}`. Placements use
+  `{column, span, row, ratio?}`; text entries add `text`. This lets shared assets
+  have independent layouts in different projects. The backend validates project
+  membership, bounds, overlap and text length. Unpublished projects' compositions
+  are omitted from public settings. Cancel discards drafts. Automatic mode can
+  be restored. Existing seven-column `project_layout` / `project_layout_rows`
+  data and the legacy `/api/settings` patch API still render until edited;
+  opening the editor converts legacy geometry into a twelve-column draft.
+  No content settings are rewritten just by opening an editor.
 - No frontend framework, package dependencies or frontend build is required.
 - `frontend/imprint.html` is the static imprint page, linked from both site and
   project footers and included in the Vercel export. It lists Lennard Makosch,
@@ -155,8 +163,9 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   Static serving restricts resolved paths to asset directories. Live data,
   archives and source files outside the frontend are not served.
 - `data/projects.db` stores projects and studio settings. `data/images.db`
-  stores images, tags and image-to-project relations. An image can have many
-  tags but at most one project, enforced by the existing unique index.
+  stores images, tags and image-to-project relations. An asset can have many tags and many projects. Startup drops the legacy
+  `one_project_per_image` index locally and in Turso, preserving existing links.
+  The `(image_id, project_id)` primary key prevents duplicate assignments.
 - `uploads/` stores persistent uploaded files. `data/`, `uploads/`, SQLite
   sidecars and session secrets are ignored by Git. Preserve these directories
   when changing code. Use SQLite backup APIs when copying live databases.
@@ -180,7 +189,7 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   thumbnail controls sit above the full-width layout canvas; dragging autoscrolls
   the page. Image creation/editing opens a right-side modal drawer with fixed headers/actions,
   scrolling form content, native focus containment and Escape dismissal. Image
-  name, tag and project cells open the same drawer at the corresponding field.
+  name cells open the drawer; tag, project and status cells offer inline editing.
   Drawer entrance motion respects reduced motion; mobile drawers fill the width.
   Image aspect ratio is hidden metadata: uploads derive it from natural dimensions,
   and editing retains the stored ratio without a manual dimension control.
@@ -190,7 +199,18 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   Images have one “Veröffentlicht” checkbox: unchecked saves unpublished/archived,
   checked saves published/unarchived. New uploads default to archived in the UI
   and API. Existing content is unchanged until saved. Project assignment uses a
-  searchable single-select combobox with keyboard navigation and “Kein Projekt”.
+  searchable multiselect combobox with keyboard
+  navigation and “Kein Projekt” to clear all assignments. The library has row
+  selection checkboxes and select-all for the filtered results. Clicking a status,
+  project or tag cell opens an inline editor; if that row is selected, changes
+  apply to the full selection. Mixed tags/projects remain unchanged until toggled.
+  `/api/images/batch` validates the whole selection and applies status/relation
+  changes in one transaction, preserving unrelated metadata and relations.
+  Multi-file selection/drop uploads each file in a separate request, derives its
+  dimensions and shares tags, project assignments and visibility. The queue shows
+  remaining files and retries only unfinished uploads after a failure. Per-file
+  upload limits remain unchanged. Portfolio export uses the selected project
+  when grouping a shared image; all-project export includes each image once.
   Projects reorder through pointer dragging (mouse/touch) or Up/Down on row grips.
   `/api/projects/reorder` validates the complete ID list and saves positions in one
   transaction; new projects append. The public rail starts at the first published

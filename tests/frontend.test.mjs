@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { normalizePortfolio, loadPortfolio } from '../frontend/projects.js';
-import { imagePlacement, projectRows, automaticPlacements } from '../frontend/project-view.js';
+import { imagePlacement, projectRows, automaticPlacements, projectComposition } from '../frontend/project-view.js';
 
 const seed = JSON.parse(fs.readFileSync(new URL('../backend/seed/content.json', import.meta.url)));
 
@@ -483,20 +483,21 @@ test('legacy Index links, unknown fragments and empty CMS content stay usable', 
 });
 
 
-test('rail drifts continuously, hover approaches stillness, and reduced motion disables drift', async () => {
+test('rail drifts continuously, hover smoothly approaches 5px/s, and reduced motion disables drift', async () => {
   const { elements, tick } = await mount();
   const rail = elements['.rail'];
   const initial = rail.scrollLeft;
   for (let frame = 0; frame < 10; frame++) tick();
-  assert.ok(Math.abs(rail.scrollLeft - initial - 10) < .01);
+  assert.ok(Math.abs(rail.scrollLeft - initial - 20) < .01);
   rail.listeners.pointerenter({ pointerType: 'mouse' });
   for (let frame = 0; frame < 25; frame++) tick();
   const hovered = rail.scrollLeft;
   for (let frame = 0; frame < 10; frame++) tick();
-  assert.ok(rail.scrollLeft - hovered < 1);
+  assert.ok(Math.abs(rail.scrollLeft - hovered - 5) < .5);
+  const resume = rail.scrollLeft;
   rail.listeners.pointerleave();
   for (let frame = 0; frame < 10; frame++) tick();
-  assert.ok(rail.scrollLeft - hovered > 6 && rail.scrollLeft - hovered < 11);
+  assert.ok(rail.scrollLeft - resume > 5 && rail.scrollLeft - resume < 20);
   const reduced = await mount(seed, true);
   const stationary = reduced.elements['.rail'].scrollLeft;
   for (let frame = 0; frame < 100; frame++) reduced.tick();
@@ -583,14 +584,14 @@ test('navigation has four destinations, and number hover chooses varying shapes'
 });
 
 
-test('idle rail moves at 10px per second across normal and sparse animation frames', async () => {
+test('idle rail moves at 20px per second across normal and sparse animation frames', async () => {
   for (const interval of [1000 / 60, 100, 1000]) {
     const { elements, tick } = await mount();
     const rail = elements['.rail'];
     const initial = rail.scrollLeft;
     const frames = Math.round(10000 / interval);
     for (let frame = 0; frame < frames; frame++) tick(interval);
-    assert.ok(Math.abs(rail.scrollLeft - initial - 100) < .01);
+    assert.ok(Math.abs(rail.scrollLeft - initial - 200) < .01);
   }
 });
 
@@ -774,10 +775,11 @@ test('editable automatic placements retain row groupings, widths and crop ratios
   for (const { image, span, ratio } of automatic) {
     const p = placements[image.id];
     assert.equal(p.row, row);
-    assert.ok(Math.abs((p.column - 1) / 7 - used / 12) < 1e-9);
-    assert.ok(Math.abs(p.span / 7 - span / 12) < 1e-9);
+    assert.ok(Math.abs((p.column - 1) / 12 - used / 12) < 1e-9);
+    assert.ok(Math.abs(p.span / 12 - span / 12) < 1e-9);
     assert.equal(p.ratio, ratio);
-    assert.deepEqual(imagePlacement(image, 0, placements), p);
+    assert.equal(Number.isInteger(p.column), true);
+    assert.equal(Number.isInteger(p.span), true);
     used += span;
     if (used === 12) { row++; used = 0; }
   }
@@ -787,7 +789,7 @@ test('saved row count renders leading and trailing blank rows without duplicatin
   const data = structuredClone(seed);
   const project = normalizePortfolio(data)[0];
   const remaining = project.images.slice(1);
-  const placements = automaticPlacements(remaining);
+  const placements = automaticPlacements(remaining, 7);
   Object.values(placements).forEach(p => { p.row = 2; });
   data.settings.project_layout = JSON.stringify(placements);
   data.settings.project_layout_rows = JSON.stringify({ [project.id]: 3 });
@@ -825,4 +827,74 @@ test('MP4 thumbnails open video heroes and mixed projects retain every remaining
   elements['.menu'].children[1].listeners.click();
   const field = elements['#field'];
   assert.ok(field.children.some(figure => figure.children[0].tagName === 'VIDEO'));
+});
+
+test('twelve-column manual layouts render only placed assets and safe white text in reading order', async () => {
+  const data = structuredClone(seed);
+  const project = normalizePortfolio(data)[0];
+  const [hero, first, second] = project.images;
+  data.settings.project_compositions=JSON.stringify({[project.id]:{
+    columns:12,manual:true,hero_id:hero.id,rows:3,
+    placements:{[second.id]:{column:9,span:4,row:1,ratio:1.5},[first.id]:{column:1,span:6,row:2,ratio:2}},
+    texts:{note:{column:1,span:8,row:3,text:'<h1>Plain text</h1>\nSecond line'}}
+  }});
+  const {elements}=await mount(data,true,310,1000,`#project/${project.slug}/${hero.id}`);
+  const grid=elements['.project-grid'];
+  const figures=grid.children.filter(item=>item.tagName==='FIGURE');
+  assert.deepEqual(figures.map(item=>item.children[0].src),[second.url,first.url]);
+  assert.equal(figures[0].style.gridColumn,'9 / span 4');
+  const text=grid.children.find(item=>item.className==='project-text');
+  assert.equal(text.textContent,'<h1>Plain text</h1>\nSecond line');
+  assert.equal(text.style.gridColumn,'1 / span 8');
+});
+
+test('configured hero is separate from the rail thumbnail and direct image links keep their selected hero', async () => {
+  const data=structuredClone(seed);
+  const original=normalizePortfolio(data)[0];
+  const chosen=original.images[1];
+  data.settings.project_compositions=JSON.stringify({[original.id]:{columns:12,manual:false,hero_id:chosen.id,placements:{},texts:{},rows:0}});
+  const normalized=normalizePortfolio(data)[0];
+  assert.equal(normalized.thumbnail.id,original.thumbnail.id);
+  assert.equal(normalized.hero.id,chosen.id);
+  const rail=await mount(data,true);
+  rail.elements['.track'].children[12].listeners.click();
+  assert.equal(rail.elements['.project-hero'].src,chosen.url);
+  const direct=await mount(data,true,310,1000,`#project/${original.slug}/${original.thumbnail.id}`);
+  assert.equal(direct.elements['.project-hero'].src,original.thumbnail.url);
+});
+
+test('resetting to automatic overrides legacy placements and preserves twelve-column row geometry', async () => {
+  const data=structuredClone(seed);
+  const project=normalizePortfolio(data)[0];
+  data.settings.project_layout=JSON.stringify({[project.images[1].id]:{column:2,span:3,row:40}});
+  data.settings.project_compositions=JSON.stringify({[project.id]:{columns:12,manual:false,hero_id:'',placements:{},texts:{},rows:0}});
+  const {elements}=await mount(data,true,310,1000,`#project/${project.slug}`);
+  assert.equal(elements['.project-grid'].classes.has('custom-layout'),false);
+  assert.equal(elements['.project-grid'].children.length,project.images.length-1);
+  const placements=automaticPlacements([{id:'a'},{id:'b'},{id:'c'}]);
+  assert.deepEqual(Object.values(placements).slice(0,3).map(p=>[p.column,p.span,p.row]),[[1,4,1],[5,4,1],[9,4,1]]);
+});
+
+test('legacy conversion uses common column boundaries and ignores an unavailable thumbnail', () => {
+  const images=[{id:'hero'},{id:'left',aspect_ratio:1},{id:'right',aspect_ratio:1}];
+  const settings={project_layout:JSON.stringify({left:{column:1,span:3,row:1},right:{column:4,span:4,row:1}})};
+  const composition=projectComposition({id:'project',thumbnail_id:'unavailable'},settings,images);
+  assert.equal(composition.manual,true);
+  assert.deepEqual(Object.keys(composition.placements),['left','right']);
+  assert.deepEqual(Object.values(composition.placements).map(p=>[p.column,p.span]),[[1,5],[6,7]]);
+});
+
+test('hover slowdown and acceleration cover the same distance at different frame rates', async () => {
+  const distances=[];
+  for(const interval of [1000/60,1000/120,100]) {
+    const {elements,tick}=await mount();
+    const rail=elements['.rail'];
+    const initial=rail.scrollLeft;
+    rail.listeners.pointerenter({pointerType:'mouse'});
+    for(let i=0;i<Math.round(2800/interval);i++) tick(interval);
+    rail.listeners.pointerleave();
+    for(let i=0;i<Math.round(2800/interval);i++) tick(interval);
+    distances.push(rail.scrollLeft-initial);
+  }
+  assert.ok(Math.max(...distances)-Math.min(...distances)<.01);
 });

@@ -64,8 +64,9 @@ finally:
 ```
 
 Cloud content tables are `projects`, `settings`, `images`, `tags`, `image_tags`
-and `image_projects`; their schema is in `backend/schema.sql`. Images have many
-tags and at most one project. `private_config` contains initialization and
+and `image_projects`; their schema is in `backend/schema.sql`. Images can have many tags and many projects. The former single-project unique
+index is removed idempotently on application startup; the pair primary key
+continues to prevent duplicate links. `private_config` contains initialization and
 session secrets: do not retrieve or expose its values for content tasks.
 
 The backend selects cloud mode when `TURSO_DATABASE_URL` is set. Starting the

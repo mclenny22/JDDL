@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import { imagePlacement, projectRows, automaticPlacements } from '../frontend/project-view.js';
+import { imagePlacement, projectRows, automaticPlacements, projectComposition } from '../frontend/project-view.js';
 
 function mount() {
   const elements = new Map();
@@ -47,7 +47,7 @@ function mount() {
   };
   const calls = [];
   const context = vm.createContext({
-    imagePlacement, projectRows, automaticPlacements, document, window: { addEventListener() {} }, Node: Element,
+    imagePlacement, projectRows, automaticPlacements, projectComposition, document, window: { addEventListener() {} }, Node: Element,
     fetch: async (url, options) => {
       calls.push({ url, options });
       return { ok: true, json: async () => ({ authenticated: false }) };
@@ -90,20 +90,19 @@ test('project combobox filters names, selects with keyboard, clears and dismisse
   assert.deepEqual(JSON.parse(run('JSON.stringify(state.projectOptions.map(project => project.id))')), ['beta']);
   assert.match(elements.get('#image-project-options').innerHTML, /Béta &amp; Co/);
   search.listeners.keydown({ key: 'Enter', preventDefault() {} });
-  assert.equal(elements.get('#image-project-id').value, 'beta');
-  assert.equal(panel.hidden, true);
-  assert.equal(document.activeElement, trigger);
+  assert.deepEqual(JSON.parse(run('JSON.stringify([...state.selectedProjects])')), ['alpha', 'beta']);
+  assert.equal(panel.hidden, false);
+  assert.equal(document.activeElement, search);
   run('openProjectSelect()');
   search.value = 'no matches';
   search.listeners.input();
   assert.equal(elements.get('#image-project-empty').hidden, false);
   search.listeners.keydown({ key: 'Enter', preventDefault() {} });
   assert.equal(panel.hidden, false);
-  assert.equal(elements.get('#image-project-id').value, 'beta');
+  assert.deepEqual(JSON.parse(run('JSON.stringify([...state.selectedProjects])')), ['alpha', 'beta']);
   search.value = '';
   search.listeners.input();
-  search.listeners.keydown({ key: 'ArrowDown', preventDefault() {} });
-  search.listeners.keydown({ key: 'Enter', preventDefault() {} });
+  run("selectProject('')");
   assert.equal(elements.get('#image-project-id').value, '');
   run('openProjectSelect()');
   let stopped = false;
@@ -191,7 +190,7 @@ test('project layout drafts use the public hero, preserve saved placements and r
   assert.deepEqual(JSON.parse(run('JSON.stringify(layoutEditor.images.map(image => image.id))')), ['second']);
   assert.equal(run('layoutEditor.custom'), true);
   assert.equal(run('layoutEditor.dirty'), false);
-  assert.match(elements.get('#layout-page').innerHTML, /grid-column:2\/span 3;grid-row:8/);
+  assert.match(elements.get('#layout-page').innerHTML, /grid-column:3\/span 5;grid-row:8/);
   assert.match(elements.get('#layout-hidden-images').textContent, /1 nicht veröffentlichte/);
   elements.get('#layout-mode').listeners.click();
   assert.equal(run('layoutEditor.custom'), false);
@@ -207,12 +206,12 @@ test('grid movement and resizing reject occupied cells and out-of-range placemen
   assert.equal(run("canPlaceImage('a', { column: 2, span: 2, row: 1 })"), true);
   assert.equal(run("canPlaceImage('a', { column: 3, span: 2, row: 1 })"), false);
   assert.equal(run("canPlaceImage('a', { column: 4, span: 2, row: 2 })"), true);
-  for (const placement of [{column:0,span:2,row:1}, {column:7,span:2,row:1}, {column:1,span:0,row:1}, {column:1,span:2,row:1001}, {column:1,span:2,row:0}]) {
+  for (const placement of [{column:0,span:2,row:1}, {column:12,span:2,row:1}, {column:1,span:0,row:1}, {column:1,span:2,row:1001}, {column:1,span:2,row:0}]) {
     assert.equal(run(`canPlaceImage('a', ${JSON.stringify(placement)})`), false);
   }
 });
 
-test('project save includes a dirty layout in the same request and automatic reset sends an empty map', async () => {
+test('project save includes the project-specific twelve-column composition atomically', async () => {
   for (const custom of [true, false]) {
     const { run, elements, calls } = mount();
     run(`openProject(state.data.projects[0]); refresh = async () => {};
@@ -220,7 +219,10 @@ test('project save includes a dirty layout in the same request and automatic res
       layoutEditor.placements = { image: { column: 3, span: 2, row: 5 } };`);
     await elements.get('#project-form').listeners.submit({ preventDefault() {}, submitter: { disabled: false } });
     const request = calls.find(call => call.url === '/api/projects');
-    assert.deepEqual(JSON.parse(request.options.body).image_layouts, custom ? { image: { column: 3, span: 2, row: 5 } } : {});
+    const composition = JSON.parse(request.options.body).composition;
+    assert.equal(composition.manual, custom);
+    assert.equal(composition.columns, 12);
+    assert.deepEqual(composition.placements, { image: { column: 3, span: 2, row: 5 } });
     assert.equal(calls.filter(call => call.url === '/api/settings').length, 0);
   }
 });
@@ -257,7 +259,7 @@ test('thumbnail picker auto-populates and changing the thumbnail preserves unsav
   assert.equal(run('layoutEditor.images[0].id'), 'image');
   assert.equal(run('layoutEditor.custom'), true);
   assert.equal(run('layoutEditor.dirty'), true);
-  assert.deepEqual(JSON.parse(run('JSON.stringify(layoutEditor.retained.second)')), { column: 2, span: 3, row: 9 });
+  assert.deepEqual(JSON.parse(run('JSON.stringify(layoutEditor.placements.image)')), { column: 2, span: 3, row: 9 });
   assert.equal(elements.get('#project-thumbnail-preview').src, '/second.jpg');
   elements.get('#project-thumbnail').value = '';
   elements.get('#project-thumbnail').listeners.change();
@@ -294,7 +296,7 @@ test('project editor replaces the main view, keeps Projects active and returns f
   assert.equal(run('state.view'), 'projects');
 });
 
-test('enabling the seven-column editor retains automatic composition without adding empty rows', () => {
+test('enabling the twelve-column editor retains automatic composition without adding empty rows', () => {
   const { run, elements } = mount();
   run(`state.data.images[0].url = '/hero.jpg';
     for (let i = 0; i < 7; i++) state.data.images.push({ id: 'layout-' + i, original_name: 'Image ' + i, url: '/image.jpg', published: 1, archived: 0, project_ids: ['alpha'] });
@@ -326,8 +328,8 @@ test('row insertion shifts later images once and persists a bottom empty row on 
   assert.equal(run('layoutEditor.rows'), 4);
   await elements.get('#project-form').listeners.submit({ preventDefault() {}, submitter: { disabled: false } });
   const payload = JSON.parse(calls.find(call => call.url === '/api/projects').options.body);
-  assert.equal(payload.layout_rows, 4);
-  assert.equal(payload.image_layouts.second.row, 3);
+  assert.equal(payload.composition.rows, 4);
+  assert.equal(payload.composition.placements.second.row, 3);
   run('removeLayoutRow(2)');
   assert.equal(run('layoutEditor.placements.second.row'), 2);
   assert.equal(run('layoutEditor.rows'), 3);
@@ -343,7 +345,7 @@ test('MP4 upload previews and saves video dimensions with the existing publicati
   const { elements, calls, run } = mount();
   run(`openImage(); selectFile({ type: 'video/mp4', name: 'identity.mp4', size: 1024 });
     el.imagePreview.readyState = 1; el.imagePreview.videoWidth = 1920; el.imagePreview.videoHeight = 1080;
-    el.projectSelection.value = 'alpha'; refresh = async () => {};`);
+    state.selectedProjects.add('alpha'); refresh = async () => {};`);
   const preview = elements.get('#image-preview');
   assert.equal(preview.tagName, 'VIDEO');
   assert.equal(preview.controls, true);
@@ -468,4 +470,76 @@ test('export refresh handles reassigned images and deleted or empty projects', a
   assert.equal(run('state.exportProject'), '');
   assert.equal(picker.value, '');
   assert.equal(run('exportFilteredImages().length'), 4);
+});
+
+test('asset palette removes and reinserts assets, swaps hero into the vacated slot and saves editable white text', async () => {
+  const { run, elements, calls } = mount();
+  run(`state.data.images[0].url = '/hero.jpg';
+    state.data.images.push({id:'second', url:'/second.jpg', original_name:'Second', published:1, archived:0, project_ids:['alpha']});
+    openProject(state.data.projects[0]); refresh = async () => {};`);
+  elements.get('#layout-mode').listeners.click();
+  run(`layoutEditor.selected = 'second'`);
+  elements.get('#layout-remove').listeners.click();
+  assert.match(elements.get('#layout-palette').innerHTML, /data-place-asset="second"/);
+  run(`placeLayoutAsset('second'); changeLayoutHero('second');`);
+  assert.equal(run('layoutEditor.hero.id'), 'second');
+  assert.equal(run('layoutEditor.heroId'), 'second');
+  assert.equal(run('layoutEditor.placements.image.span'), 4);
+  assert.equal(run('layoutEditor.placements.second'), undefined);
+  elements.get('#layout-add-text').listeners.click();
+  const textId = run('layoutEditor.selected');
+  assert.ok(textId.startsWith('text-'));
+  elements.get('#layout-text-content').listeners.input({target:{value:'A note\n<unsafe>'}});
+  elements.get('#layout-wide').listeners.click();
+  assert.match(elements.get('#layout-page').innerHTML, /A note\n&lt;unsafe&gt;/);
+  assert.equal(run(`layoutEditor.texts[layoutEditor.selected].span`), 7);
+  run('insertLayoutRow(1)');
+  await elements.get('#project-form').listeners.submit({preventDefault(){},submitter:{disabled:false}});
+  const saved = JSON.parse(calls.find(call => call.url === '/api/projects').options.body).composition;
+  assert.equal(saved.hero_id, 'second');
+  assert.equal(saved.texts[textId].text, 'A note\n<unsafe>');
+  assert.equal(saved.texts[textId].row, 3);
+});
+
+test('inline multi-edit targets the selection and sends only changed tag relations', async () => {
+  const { run, elements, calls } = mount();
+  run(`state.data.tags = [{id:'shared',name:'Shared'},{id:'alpha-only',name:'Alpha'}];
+    state.data.images[0].tag_ids=['alpha-only'];
+    state.data.images.push({...state.data.images[0],id:'second',tag_ids:['shared']});
+    state.librarySelected = new Set(['image','second']); refresh = async () => {};`);
+  const body = elements.get('#image-table-body');
+  const trigger = {dataset:{imageId:'image',inlineField:'tag_ids'}};
+  await body.listeners.click({target:{closest:selector=>selector==='[data-inline-field]'?trigger:null}});
+  assert.equal(run("state.inlineEdit.mixed.has('shared')"), true);
+  body.listeners.change({target:{matches:()=>false,closest:selector=>selector==='[data-inline-relation]'?{dataset:{inlineRelation:'shared'},checked:true}:null}});
+  await body.listeners.click({target:{closest:selector=>selector==='[data-inline-save]'?{}:null}});
+  const payload=JSON.parse(calls.find(call=>call.url==='/api/images/batch').options.body);
+  assert.deepEqual(payload,{ids:['image','second'],changes:{add_tag_ids:['shared'],remove_tag_ids:[]}});
+});
+
+test('multi-upload uses one request per file and retries only files not yet uploaded', async () => {
+  const { run, elements, calls, context } = mount();
+  run(`openImage();
+    selectFiles([{type:'image/png',name:'one.png',size:100},{type:'video/mp4',name:'two.mp4',size:100}]);
+    mediaDimensions = async () => 1.5; fileDimensions = async () => 16/9; refresh = async () => {};`);
+  const originalFetch = context.fetch;
+  let failed = false;
+  context.fetch = async (url, options) => {
+    if (url === '/api/images' && options.body.get('image').name === 'two.mp4' && !failed) { failed=true; throw new Error('Connection lost'); }
+    return originalFetch(url, options);
+  };
+  const submit = () => elements.get('#image-form').listeners.submit({preventDefault(){},submitter:{disabled:false}});
+  await submit();
+  assert.deepEqual(JSON.parse(run('JSON.stringify(state.selectedFiles.map(file=>file.name))')), ['two.mp4']);
+  await submit();
+  const uploads=calls.filter(call=>call.url==='/api/images').map(call=>call.options.body);
+  assert.deepEqual(uploads.map(form=>form.get('image').name), ['one.png','two.mp4']);
+  assert.equal(Number(uploads[1].get('aspect_ratio')),16/9);
+});
+
+test('library selection survives rendering the other admin sections and export uses the selected project for shared assets', () => {
+  const {run}=mount();
+  run(`state.librarySelected.add('image'); state.data.images[0].project_ids=['alpha','beta']; state.exportProject='beta'; renderAll();`);
+  assert.equal(run("state.librarySelected.has('image')"),true);
+  assert.equal(run('groupedExportImages(state.data.images)[0].project.id'),'beta');
 });

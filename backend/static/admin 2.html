@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="color-scheme" content="light" />
+    <title>AD4K — Verwaltung</title>
+    <link rel="stylesheet" href="/admin-assets/styles.css" />
+  </head>
+  <body class="admin-page">
+    <section class="login-view" id="login-view">
+      <form class="login-card" id="login-form">
+        <h1>AD4K Archiv</h1>
+        <p>Gib das Studio-Passwort ein, um die Website zu verwalten.</p>
+        <label class="field" for="password"><span>Passwort</span><input id="password" name="password" type="password" required autocomplete="current-password" autofocus /></label>
+        <button class="button primary" type="submit">Archiv öffnen</button>
+        <p class="form-error" id="login-error" role="alert"></p>
+      </form>
+    </section>
+
+    <div class="admin-app" id="admin-app" hidden>
+      <header class="admin-topbar">
+        <a class="admin-brand" href="/" target="_blank" rel="noreferrer">AD4K / Archiv</a>
+        <nav class="admin-tabs" aria-label="Verwaltungsbereiche">
+          <button class="admin-tab is-active" type="button" data-view="library" aria-selected="true">Alle Assets</button>
+          <button class="admin-tab" type="button" data-view="projects" aria-selected="false">Projekte</button>
+          <button class="admin-tab" type="button" data-view="portfolio-export" aria-selected="false">Portfolio-Export</button>
+          <button class="admin-tab" type="button" data-view="studio" aria-selected="false">Studio-Informationen</button>
+        </nav>
+        <div class="admin-account">
+          <a href="/" target="_blank" rel="noreferrer">Website öffnen ↗</a>
+          <button class="text-button" id="logout" type="button">Abmelden</button>
+        </div>
+      </header>
+
+      <main class="admin-main">
+        <section data-view-content="library">
+          <div class="admin-heading">
+            <div><p class="admin-eyebrow">Asset-Bibliothek</p><h1>Alle Assets</h1></div>
+            <p class="admin-muted" id="image-count">0 Assets</p>
+          </div>
+          <div class="admin-toolbar">
+            <div class="admin-tools">
+              <label class="admin-search"><span aria-hidden="true">⌕</span><input id="image-search" type="search" placeholder="Assets filtern…" aria-label="Assets filtern" /></label>
+              <div class="menu-wrap">
+                <button class="button" id="tag-filter-button" type="button" aria-expanded="false" aria-controls="tag-filter-menu">Tags <span class="count-badge" id="filter-count" hidden></span></button>
+                <div class="admin-menu" id="tag-filter-menu" hidden>
+                  <p>Nach Tags filtern</p>
+                  <div id="tag-filters"></div>
+                  <button class="clear-button" id="clear-tag-filters" type="button" hidden>Filter zurücksetzen</button>
+                </div>
+              </div>
+            </div>
+            <div class="admin-tools">
+              <button class="button" id="manage-tags-button" type="button">Tags verwalten</button>
+              <button class="button primary" id="add-image-button" type="button">Asset hinzufügen</button>
+            </div>
+          </div>
+          <div class="table-shell">
+            <table id="image-table">
+              <thead><tr><th class="thumb-col">Vorschau</th><th>Name</th><th>Tags</th><th>Projekt</th><th>Status</th><th>Hinzugefügt</th><th class="action-col"><span class="sr-only">Aktionen</span></th></tr></thead>
+              <tbody id="image-table-body"></tbody>
+            </table>
+            <div class="admin-empty" id="library-empty" hidden><h2>Noch keine Assets</h2><p>Füge das erste Asset zum Archiv hinzu – Bild oder MP4-Video.</p><button class="button primary" type="button" data-open-upload>Asset hinzufügen</button></div>
+            <div class="table-footer"><span id="table-result-count">0 Einträge</span></div>
+          </div>
+        </section>
+
+        <section data-view-content="projects" hidden>
+          <div class="admin-heading">
+            <div><p class="admin-eyebrow">Projektübersicht</p><h1>Projekte</h1><p class="export-intro" id="project-order-help">Am Griff ziehen, um Projekte zu sortieren. Mit der Tastatur: Pfeil nach oben / unten. Das erste veröffentlichte Projekt mit Assets startet die Website.</p></div>
+            <button class="button primary" id="add-project-button" type="button">Neues Projekt</button>
+          </div>
+          <div class="table-shell">
+            <table id="project-table">
+              <thead><tr><th class="drag-col"><span class="sr-only">Reihenfolge</span></th><th>Name</th><th>Kunde / Art</th><th>Beschreibung</th><th>Assets</th><th>Status</th><th class="action-col"><span class="sr-only">Aktionen</span></th></tr></thead>
+              <tbody id="project-table-body"></tbody>
+            </table>
+            <div class="admin-empty" id="projects-empty" hidden><h2>Noch keine Projekte</h2><p>Erstelle ein Projekt und ordne ihm Assets zu.</p><button class="button primary" type="button" data-open-project>Neues Projekt</button></div>
+            <div class="table-footer"><span id="project-result-count">0 Einträge</span></div>
+          </div>
+        </section>
+
+        <section data-view-content="studio" hidden>
+          <div class="admin-heading"><div><p class="admin-eyebrow">Öffentliche Website</p><h1>Studio-Informationen</h1></div></div>
+          <form class="plain-form studio-form" id="settings-form">
+            <label class="field" for="setting-eyebrow"><span>Abschnittsüberschrift</span><input id="setting-eyebrow" /></label>
+            <label class="field" for="setting-about"><span>Über das Studio</span><textarea id="setting-about"></textarea></label>
+            <label class="field" for="setting-clients"><span>Ausgewählte Kunden</span><textarea id="setting-clients"></textarea><small>Ein Kunde pro Zeile.</small></label>
+            <label class="field" for="setting-footer-contact"><span>Footer · Kontakt</span><input id="setting-footer-contact" /></label>
+            <label class="field" for="setting-footer-address"><span>Footer · Adresse</span><input id="setting-footer-address" /></label>
+            <label class="field" for="setting-footer-email"><span>Footer · E-Mail</span><input id="setting-footer-email" /></label>
+            <div class="dialog-actions"><button class="button primary" type="submit">Informationen speichern</button></div>
+          </form>
+        </section>
+
+        <section data-view-content="portfolio-export" hidden>
+          <div class="admin-heading export-heading">
+            <div>
+              <p class="admin-eyebrow">Portfolio für Kunden</p>
+              <h1>Portfolio-Export</h1><p class="admin-muted">Der Druckexport enthält nur Bilder; MP4-Videos werden hier nicht aufgeführt.</p>
+              <p class="export-intro">Filtere das Archiv nach Kategorien, wähle die gewünschten Arbeiten aus und erstelle ein nach Projekten gegliedertes PDF im A4-Querformat.</p>
+            </div>
+            <button class="button primary" id="create-portfolio-button" type="button" disabled>Portfolio-PDF erstellen</button>
+          </div>
+
+          <div class="export-config">
+            <label class="field export-title-field" for="portfolio-title">
+              <span>Schwerpunkt der Auswahl</span>
+              <input id="portfolio-title" maxlength="120" placeholder="z. B. Grafikdesign" />
+              <small>Auf dem Titelblatt steht „Eine Auswahl unserer Arbeiten im Bereich [Schwerpunkt].“</small>
+            </label>
+            <div class="field export-category-field">
+              <span>Nach Kategorie filtern</span>
+              <div class="tag-options" id="export-tag-filters"></div>
+              <small>Bei mehreren Kategorien werden Bilder angezeigt, die mindestens einer ausgewählten Kategorie entsprechen.</small>
+            </div>
+          </div>
+
+          <div class="admin-toolbar export-toolbar">
+            <p class="selection-summary" id="export-selection-summary">0 Bilder ausgewählt</p>
+            <div class="admin-tools">
+              <button class="button" id="select-visible-images" type="button">Alle angezeigten Bilder auswählen</button>
+              <button class="button" id="clear-export-selection" type="button" disabled>Auswahl aufheben</button>
+            </div>
+          </div>
+
+          <div class="table-shell">
+            <table id="export-table" class="export-table">
+              <thead><tr><th class="select-col"><span class="sr-only">Auswählen</span></th><th class="thumb-col">Vorschau</th><th>Name</th><th>Kategorien</th><th>Projekt</th><th>Status</th></tr></thead>
+              <tbody id="export-table-body"></tbody>
+            </table>
+            <div class="table-footer"><span id="export-result-count">0 Einträge</span></div>
+          </div>
+        </section>
+        <section id="project-editor" class="project-editor" data-view-content="project-editor" aria-labelledby="project-editor-title" hidden>
+      <form id="project-form">
+        <div class="admin-heading project-editor-heading">
+          <div class="project-editor-identity">
+            <button class="button project-back" type="button" id="project-back" aria-label="Zurück zu den Projekten">←</button>
+            <div><p class="admin-eyebrow">Projekte</p><h1 id="project-editor-title" tabindex="-1">Neues Projekt</h1></div>
+          </div>
+          <div class="project-editor-actions"><button class="button" type="button" id="project-cancel">Abbrechen</button><button class="button primary" type="submit">Projekt speichern</button></div>
+        </div>
+        <div class="project-editor-details">
+        <div class="project-details-fields">
+        <input id="project-id" type="hidden" />
+        <label class="field" for="project-title"><span>Titel</span><input id="project-title" maxlength="160" required /></label>
+        <label class="field" for="project-client"><span>Kunde / Art</span><input id="project-client" /></label>
+        <label class="field" for="project-description"><span>Beschreibung</span><textarea id="project-description"></textarea></label>
+        <div class="field-grid">
+          <label class="check-field"><input id="project-published" type="checkbox" checked /><span>Veröffentlicht</span></label>
+        </div>
+        </div>
+        <div class="field project-thumbnail-field">
+          <label for="project-thumbnail">Vorschaubild</label>
+          <select id="project-thumbnail" aria-describedby="project-thumbnail-help"></select>
+          <small id="project-thumbnail-help">Ohne Auswahl wird automatisch das erste veröffentlichte Projekt-Asset verwendet. Das Vorschaubild erscheint in Selected und öffnet die Projektseite als Hero-Asset.</small>
+          <img id="project-thumbnail-preview" alt="Vorschau des Projekt-Vorschaubilds" hidden />
+        </div>
+        </div>
+        <p class="form-error" id="project-error" role="alert"></p>
+        <section class="project-layout-editor" aria-labelledby="layout-heading">
+          <div class="layout-heading"><h3 id="layout-heading">Asset-Layout</h3><button type="button" class="button" id="layout-mode">7-Spalten-Layout erstellen</button></div>
+          <p class="layout-help" id="layout-help">Vorschau der Projektseite. Das gewählte Vorschaubild oder Video erscheint als Hero-Asset.</p>
+          <div class="layout-tools" id="layout-tools" hidden>
+            <span id="layout-selection">Asset auswählen</span>
+            <button type="button" class="button" id="layout-narrow" aria-label="Ausgewähltes Asset schmaler machen">−</button>
+            <button type="button" class="button" id="layout-wide" aria-label="Ausgewähltes Asset breiter machen">+</button>
+          </div>
+          <div class="layout-viewport"><div class="layout-page" id="layout-page"></div></div>
+          <p class="layout-help" id="layout-hidden-images"></p>
+          <p class="sr-only" id="layout-status" role="status" aria-live="polite"></p>
+        </section>
+      </form>
+        </section>
+
+      </main>
+    </div>
+
+    <dialog id="image-dialog" class="editor-drawer" aria-labelledby="image-dialog-title" aria-describedby="image-dialog-description">
+      <form id="image-form" enctype="multipart/form-data">
+        <div class="dialog-heading"><div><p class="admin-eyebrow">Asset-Details</p><h2 id="image-dialog-title">Asset hinzufügen</h2><p class="drawer-description" id="image-dialog-description">Bilder und MP4-Videos, Zuordnung und Sichtbarkeit verwalten.</p></div><button class="icon-button" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+        <div class="drawer-body">
+        <input id="image-id" type="hidden" />
+        <label class="dropzone" id="dropzone">
+          <input id="image-file" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.avif,.mp4,image/jpeg,image/png,image/webp,image/gif,image/avif,video/mp4" />
+          <img id="image-preview" alt="Vorschau des ausgewählten Bildes" hidden />
+          <span id="dropzone-copy"><strong>Asset auswählen</strong><small>Bilder oder MP4 hierher ziehen · MP4 am besten mit H.264 · lokal max. 20 MB, online unter 4 MB</small></span>
+        </label>
+        <label class="field" for="image-name"><span>Name</span><input id="image-name" maxlength="240" required /></label>
+        <label class="field" for="image-alt"><span>Alternativtext</span><input id="image-alt" placeholder="Beschreibe das Bild oder Video" /></label>
+        <div class="field image-visibility">
+          <label class="check-field"><input id="image-published" type="checkbox" aria-describedby="image-visibility-help" /><span>Veröffentlicht</span></label>
+          <small id="image-visibility-help">Nicht veröffentlichte Assets werden im Archiv gespeichert.</small>
+        </div>
+        <fieldset class="field" id="image-tags-field"><legend>Tags</legend><div class="tag-options" id="image-tag-options"></div></fieldset>
+        <div class="field project-combobox" id="image-project-field">
+          <label id="image-project-label" for="image-project-trigger">Projekt</label>
+          <input id="image-project-id" type="hidden" />
+          <button class="button project-combobox-trigger" id="image-project-trigger" type="button" aria-labelledby="image-project-label image-project-value" aria-haspopup="listbox" aria-expanded="false" aria-controls="image-project-options">
+            <span id="image-project-value">Kein Projekt</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 9 4-4 4 4m-8 6 4 4 4-4" /></svg>
+          </button>
+          <div class="project-combobox-panel" id="image-project-panel" hidden>
+            <div class="project-combobox-search">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></svg>
+              <input id="image-project-search" type="text" role="combobox" aria-label="Projekt suchen" aria-autocomplete="list" aria-expanded="false" aria-controls="image-project-options" placeholder="Projekt suchen…" autocomplete="off" />
+            </div>
+            <div id="image-project-options" role="listbox" aria-labelledby="image-project-label"></div>
+            <p class="project-combobox-empty" id="image-project-empty" hidden>Kein Projekt gefunden.</p>
+          </div>
+        </div>
+        <p class="form-error" id="image-error" role="alert"></p>
+        </div>
+        <div class="dialog-actions drawer-footer"><button class="button" type="button" data-close-dialog>Abbrechen</button><button class="button primary" type="submit">Asset speichern</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="tags-dialog" aria-labelledby="tags-dialog-title">
+      <div class="dialog-panel">
+        <div class="dialog-heading"><div><p class="admin-eyebrow">Tag-Verwaltung</p><h2 id="tags-dialog-title">Tags verwalten</h2></div><button class="icon-button" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+        <form class="inline-form" id="new-tag-form"><input id="new-tag-name" maxlength="60" placeholder="Neuer Tag-Name" required /><button class="button primary" type="submit">Tag hinzufügen</button></form>
+        <p class="form-error" id="tag-error" role="alert"></p>
+        <div class="manager-list" id="tag-manager-list"></div>
+      </div>
+    </dialog>
+
+    <div class="row-menu" id="row-menu" role="menu" aria-label="Aktionen" hidden>
+      <button class="row-menu-item" type="button" role="menuitem" tabindex="-1" data-row-action="edit">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m16 3 5 5M4 20l4-1L21 6a2.8 2.8 0 0 0-4-4L4 15z" /></svg>
+        Bearbeiten
+      </button>
+      <div class="row-menu-separator" role="separator"></div>
+      <button class="row-menu-item danger" type="button" role="menuitem" tabindex="-1" data-row-action="delete">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" /></svg>
+        Löschen
+      </button>
+    </div>
+    <div class="toast" id="toast" role="status" hidden></div>
+    <script type="module" src="/admin-assets/admin.js"></script>
+  </body>
+</html>

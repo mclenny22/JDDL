@@ -1,5 +1,7 @@
 // The CMS is the only source of public project and image content.
 export function normalizePortfolio(data) {
+  let compositions = {};
+  try { compositions = JSON.parse(data.settings?.project_compositions || '{}'); } catch {}
   const publicImages = (data.images || []).filter(image => image.published && !image.archived && image.url);
   return (data.projects || [])
     .filter(project => project.published)
@@ -11,7 +13,11 @@ export function normalizePortfolio(data) {
       })),
     }))
     .filter(project => project.images.length)
-    .map(project => ({ ...project, thumbnail: project.images.find(image => image.id === project.thumbnail_id) || project.images[0] }));
+    .map(project => {
+      const thumbnail = project.images.find(image => image.id === project.thumbnail_id) || project.images[0];
+      const hero = project.images.find(image => image.id === compositions[project.id]?.hero_id) || thumbnail;
+      return { ...project, thumbnail, hero };
+    });
 }
 
 export async function loadPortfolio() {

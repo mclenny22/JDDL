@@ -61,6 +61,7 @@ def initialize_cloud(seed_path, schema_path):
     # Serialize cold-start initialization. Seed only once, even if all content
     # is later intentionally removed through the CMS.
     with CloudConnection() as db:
+        db.execute('DROP INDEX IF EXISTS one_project_per_image')
         if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='private_config'").fetchone():
             if db.execute("SELECT 1 FROM private_config WHERE key='initialized'").fetchone():
                 return

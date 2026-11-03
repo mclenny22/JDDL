@@ -229,7 +229,7 @@ async function start() {
     const parts = location.hash.match(/^#project\/([^/]+)(?:\/([^/]+))?$/);
     if (parts) {
       const project = projects.find(item => encodeURIComponent(item.slug || item.id) === parts[1]);
-      if (project) openProject(project, project.images.find(item => encodeURIComponent(item.id) === parts[2]) || project.thumbnail);
+      if (project) openProject(project, project.images.find(item => encodeURIComponent(item.id) === parts[2]) || project.hero);
       return;
     }
     if (!['', '#index', '#index/field', '#about'].includes(location.hash)) return;
@@ -317,7 +317,7 @@ async function start() {
   let previous = performance.now();
   let wheelTarget = null;
   let hovering = false;
-  const idleRailSpeed = 10;
+  const idleRailSpeed = 20;
   let railSpeed = idleRailSpeed;
   let driftPosition = null;
   let manualUntil = 0;
@@ -341,7 +341,7 @@ async function start() {
       const tile = document.createElement('a');
       tile.className = 'tile';
       tile.dataset.project = index;
-      tile.href = `#project/${encodeURIComponent(project.slug || project.id)}/${encodeURIComponent(project.thumbnail.id)}`;
+      tile.href = `#project/${encodeURIComponent(project.slug || project.id)}/${encodeURIComponent(project.hero.id)}`;
       tile.setAttribute('aria-label', project.title);
       tile.setAttribute('aria-hidden', 'true');
       tile.tabIndex = -1;
@@ -349,7 +349,7 @@ async function start() {
       const open = event => {
         if (event?.metaKey || event?.ctrlKey || event?.shiftKey || event?.altKey) return;
         event?.preventDefault?.();
-        openProject(project, project.thumbnail, tile);
+        openProject(project, project.hero, tile);
       };
       tile.addEventListener('click', open);
       tile.addEventListener('keydown', event => { if (event.key === ' ') { event.preventDefault(); open(event); } });
@@ -445,7 +445,7 @@ async function start() {
       const alternatives = projects.filter(project => project.id !== detailProject?.id);
       const choices = alternatives.length ? alternatives : projects;
       const project = choices[Math.floor(Math.random() * choices.length)];
-      openProject(project, project.thumbnail);
+      openProject(project, project.hero);
       return;
     }
     transitionTo(active, index === 1, button, index === 3);
@@ -499,8 +499,11 @@ async function start() {
     const drifting = !menuOpen && !showingIndex && !showingAbout && !detailProject && !detail.isTransitioning() && !transitioning && !pageTransition && !reducedMotion.matches && !document.hidden && !pointerDown && wheelTarget === null && now >= manualUntil;
     rail.classList.toggle('drifting', drifting);
     if (drifting) {
-      railSpeed += ((hovering ? .35 : idleRailSpeed) - railSpeed) * (1 - Math.exp(-delta / 350));
-      driftPosition = (driftPosition ?? rail.scrollLeft) + railSpeed * delta / 1000;
+      const targetSpeed = hovering ? 5 : idleRailSpeed;
+      const easing = Math.exp(-delta / 700);
+      const distance = targetSpeed * delta / 1000 + (railSpeed - targetSpeed) * .7 * (1 - easing);
+      railSpeed = targetSpeed + (railSpeed - targetSpeed) * easing;
+      driftPosition = (driftPosition ?? rail.scrollLeft) + distance;
       rail.scrollLeft = driftPosition;
       onScroll();
     } else {

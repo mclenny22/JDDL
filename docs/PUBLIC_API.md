@@ -72,15 +72,15 @@ The response contains four top-level fields:
 | `projects` | Published projects, ordered by `sort_order`, then title. Fields include `id`, `slug`, `title`, `client`, `description`, `thumbnail_id`, `published`, `sort_order`, `created_at`, and `updated_at`. |
 | `images` | Published, unarchived images. Fields include `id`, `url`, `alt_text`, `aspect_ratio` (width / height), `original_name`, `filename`, `remote_url`, `mime_type`, `published`, `archived`, timestamps, `project_ids`, and `tag_ids`. |
 | `tags` | Tags with `id`, `slug`, `name`, and `sort_order`. |
-| `settings` | Studio settings as a key/value object, including `about`, `footer_contact`, `footer_address`, `footer_email` and optional `project_layout` (a JSON string mapping image IDs to `{column, span, row}` placements in the seven-column detail grid; composed layouts also store `ratio` and may use twelfth-column fractions), plus optional `project_layout_rows` (a JSON string mapping project IDs to their explicit row count, including empty rows). |
+| `settings` | Studio settings as a key/value object, including `about`, `footer_contact`, `footer_address`, `footer_email` and optional `project_compositions` (described below), plus legacy `project_layout` (a JSON string mapping image IDs to `{column, span, row}` placements in the seven-column detail grid; composed layouts also store `ratio` and may use twelfth-column fractions), plus optional `project_layout_rows` (a JSON string mapping project IDs to their explicit row count, including empty rows). |
 
 A project’s `thumbnail_id` is its optional explicit thumbnail choice (empty means automatic).
 Use the matching published, unarchived image assigned to that project; if no eligible
 match exists, use its first assigned public image. Keep the original image order.
 
 IDs are strings. Publication/archive flags are SQLite integers (`0` / `1`).
-Each image has at most one project assignment; `project_ids` is still an array
-for compatibility. An image can have many tags. The image library can contain
+Each image can have multiple project assignments in `project_ids` and many tags.
+A shared asset appears once per assigned project when joined against projects. The image library can contain
 unassigned images and images assigned to unpublished projects; join against
 the returned projects when building project galleries. Tags are returned even
 when unused. Private database configuration and session secrets are excluded.
@@ -111,3 +111,42 @@ For Vercel, set optional variables in the relevant environment and redeploy.
 Use the appropriate CMS URL for each preview environment. Never put
 `TURSO_AUTH_TOKEN`, `ADMIN_PASSWORD`, or Blob write credentials into another
 frontend. Other frontends connect to this API; CMS edits stay in `/admin`.
+
+
+## Project compositions (twelve columns)
+
+`settings.project_compositions` is a JSON string mapping project IDs to:
+
+```json
+{
+  "columns": 12,
+  "manual": true,
+  "hero_id": "assigned-image-id",
+  "rows": 3,
+  "placements": {
+    "another-image-id": {"column": 1, "span": 4, "row": 1, "ratio": 0.8}
+  },
+  "texts": {
+    "text-note": {"column": 1, "span": 8, "row": 2, "text": "Project note"}
+  }
+}
+```
+
+In automatic mode (`manual: false`) all eligible assigned images except the hero
+use the standard twelve-column row patterns. In manual mode only placed images
+and text blocks appear below the hero. Coordinates and widths are whole columns;
+`column + span` must not exceed 13. Rows are 1–1000. Elements cannot overlap in a
+row. Text blocks are plain white text, not HTML (maximum 10,000 characters each,
+200 blocks per project). An empty `hero_id` follows the project's thumbnail;
+otherwise the hero can differ from the Selected thumbnail. A direct image link
+still chooses its specified image as hero. Compositions for unpublished projects
+are excluded from public settings. Existing seven-column settings remain readable.
+
+The authenticated `/api/projects` endpoint accepts this object as `composition`
+and saves it with project metadata. Each project retains its own composition,
+including when an image is assigned to multiple projects. No new database table
+is needed. The authenticated `/api/images/batch` endpoint accepts `ids` and
+`changes`: `published` updates visibility, `project_ids` / `tag_ids` replace a
+relation set, and `add_project_ids`, `remove_project_ids`, `add_tag_ids`,
+`remove_tag_ids` change only the specified relations. All selected assets update
+in one transaction; unknown assets, tags or projects reject the complete request.

@@ -135,16 +135,7 @@ def initialize() -> None:
         )
         if new_images:
             seed_images(db, seed)
-        db.execute(
-            """DELETE FROM image_projects
-               WHERE EXISTS (
-                 SELECT 1 FROM image_projects AS preferred
-                 WHERE preferred.image_id = image_projects.image_id
-                   AND (preferred.sort_order < image_projects.sort_order
-                     OR (preferred.sort_order = image_projects.sort_order AND preferred.project_id < image_projects.project_id))
-               )"""
-        )
-        db.execute("CREATE UNIQUE INDEX IF NOT EXISTS one_project_per_image ON image_projects(image_id)")
+        db.execute("DROP INDEX IF EXISTS one_project_per_image")
 
 
 def seed_images(db: sqlite3.Connection, seed: dict) -> None:
@@ -205,6 +196,10 @@ def public_payload(admin: bool = False) -> dict:
         image_where = "" if admin else "WHERE archived = 0 AND published = 1"
         projects = [dict(row) for row in projects_db.execute(f"SELECT * FROM projects {project_where} ORDER BY sort_order, title")]
         settings = {row["key"]: row["value"] for row in projects_db.execute("SELECT key, value FROM settings")}
+        if not admin and "project_compositions" in settings:
+            published_ids = {project["id"] for project in projects}
+            compositions = json.loads(settings["project_compositions"])
+            settings["project_compositions"] = json.dumps({key: value for key, value in compositions.items() if key in published_ids})
         thumbnails = json.loads(settings.get("project_thumbnails", "{}"))
         for project in projects:
             project["thumbnail_id"] = thumbnails.get(project["id"], "")
@@ -390,6 +385,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.save_settings(self.read_json())
             if path == "/api/images":
                 return self.upload_image()
+            if path == "/api/images/batch":
+                return self.batch_images(self.read_json())
         except (ValueError, json.JSONDecodeError, sqlite3.IntegrityError) as error:
             return self.json_response({"error": str(error)}, 400)
         self.send_error(404)
@@ -435,6 +432,12 @@ class Handler(SimpleHTTPRequestHandler):
         if not title:
             raise ValueError("Bitte gib einen Projekttitel ein")
         project_id = str(payload.get("id") or slugify(title))
+        composition = payload.get("composition")
+        if composition is not None:
+            with connect(IMAGES_DB) as images_db:
+                assigned = {row["image_id"] for row in images_db.execute(
+                    "SELECT image_id FROM image_projects WHERE project_id = ?", (project_id,))}
+            self.validate_composition(composition, assigned)
         thumbnail = payload.get("thumbnail_id", "")
         if "thumbnail_id" in payload:
             if not isinstance(thumbnail, str):
@@ -481,6 +484,12 @@ class Handler(SimpleHTTPRequestHandler):
                    sort_order=excluded.sort_order, updated_at=CURRENT_TIMESTAMP""",
                 values,
             )
+            if composition is not None:
+                record = db.execute("SELECT value FROM settings WHERE key='project_compositions'").fetchone()
+                compositions = json.loads(record["value"]) if record else {}
+                compositions[project_id] = composition
+                db.execute("INSERT INTO settings VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                           ("project_compositions", json.dumps(compositions)))
             if "thumbnail_id" in payload:
                 record = db.execute("SELECT value FROM settings WHERE key = 'project_thumbnails'").fetchone()
                 thumbnails = json.loads(record["value"]) if record else {}
@@ -562,6 +571,38 @@ class Handler(SimpleHTTPRequestHandler):
             if not result.rowcount:
                 return self.json_response({"error": "Tag nicht gefunden"}, 404)
         self.json_response({"deleted": True})
+
+    @staticmethod
+    def validate_composition(value: dict, assigned: set) -> None:
+        if not isinstance(value, dict) or set(value) - {"columns", "manual", "hero_id", "placements", "texts", "rows"}:
+            raise ValueError("Ungültiges Projektlayout")
+        if value.get("columns") != 12 or not isinstance(value.get("manual"), bool):
+            raise ValueError("Das Layout benötigt zwölf Spalten")
+        if not isinstance(value.get("hero_id"), str) or (value["hero_id"] and value["hero_id"] not in assigned):
+            raise ValueError("Das Hero-Asset muss diesem Projekt zugeordnet sein")
+        placements, texts, rows = value.get("placements"), value.get("texts"), value.get("rows")
+        if not isinstance(placements, dict) or not set(placements).issubset(assigned) or not isinstance(texts, dict) or len(texts) > 200:
+            raise ValueError("Ungültige Layout-Elemente")
+        if set(placements) & set(texts):
+            raise ValueError("Layout-Elemente benötigen eindeutige IDs")
+        if not isinstance(rows, int) or isinstance(rows, bool) or not 0 <= rows <= 1000:
+            raise ValueError("Ungültige Zeilenanzahl")
+        occupied = []
+        for item in [*placements.values(), *texts.values()]:
+            if not isinstance(item, dict) or set(item) - {"column", "span", "row", "ratio", "text"}:
+                raise ValueError("Ungültiges Layout-Element")
+            for key, maximum in (("column", 12), ("span", 12), ("row", rows)):
+                if not isinstance(item.get(key), int) or isinstance(item[key], bool) or not 1 <= item[key] <= maximum:
+                    raise ValueError("Spalte und Breite: 1–12; Zeile: innerhalb des Layouts")
+            if item["column"] + item["span"] > 13:
+                raise ValueError("Das Element muss innerhalb der zwölf Spalten bleiben")
+            if "ratio" in item and (not isinstance(item["ratio"], (int, float)) or isinstance(item["ratio"], bool) or not math.isfinite(item["ratio"]) or not 0 < item["ratio"] <= 100):
+                raise ValueError("Ungültiges Bildformat")
+            if any(other["row"] == item["row"] and other["column"] < item["column"] + item["span"] and item["column"] < other["column"] + other["span"] for other in occupied):
+                raise ValueError("Layout-Elemente dürfen sich nicht überlappen")
+            occupied.append(item)
+        if any(not isinstance(item.get("text"), str) or len(item["text"]) > 10000 for item in texts.values()):
+            raise ValueError("Ein Textblock darf höchstens 10000 Zeichen enthalten")
 
     @staticmethod
     def validate_placement(placement: dict, composed: bool = False) -> None:
@@ -653,7 +694,13 @@ class Handler(SimpleHTTPRequestHandler):
         project_ids = project_ids_json if isinstance(project_ids_json, list) else json.loads(project_ids_json or "[]")
         if not isinstance(project_ids, list):
             raise ValueError("Die Projektauswahl muss eine Liste sein")
-        project_ids = project_ids[:1]
+        if any(not isinstance(item, str) for item in project_ids):
+            raise ValueError("Ungültige Projektauswahl")
+        project_ids = list(dict.fromkeys(project_ids))
+        with connect(PROJECTS_DB) as projects_db:
+            valid = {row["id"] for row in projects_db.execute("SELECT id FROM projects")}
+        if not set(project_ids).issubset(valid):
+            raise ValueError("Projekt nicht gefunden")
         db.execute("DELETE FROM image_tags WHERE image_id = ?", (image_id,))
         db.execute("DELETE FROM image_projects WHERE image_id = ?", (image_id,))
         for position, name in enumerate(names):
@@ -684,6 +731,47 @@ class Handler(SimpleHTTPRequestHandler):
             tag_names = payload.get("tag_names", "")
             self.replace_image_links(db, image_id, tag_names, payload.get("project_ids", []))
         self.json_response({"image": image_id})
+
+    def batch_images(self, payload: dict) -> None:
+        ids, changes = payload.get("ids"), payload.get("changes")
+        if not isinstance(ids, list) or not ids or len(ids) > 1000 or any(not isinstance(item, str) for item in ids):
+            raise ValueError("Wähle zwischen 1 und 1000 Assets aus")
+        relation_fields = {f"{prefix}{field}" for prefix in ("", "add_", "remove_") for field in ("project_ids", "tag_ids")}
+        if not isinstance(changes, dict) or not changes or set(changes) - {"published", *relation_fields}:
+            raise ValueError("Ungültige Änderungen")
+        for field in relation_fields:
+            if field in changes and (not isinstance(changes[field], list) or any(not isinstance(item, str) for item in changes[field])):
+                raise ValueError("Ungültige Auswahl")
+        if "published" in changes and not isinstance(changes["published"], bool):
+            raise ValueError("Ungültiger Status")
+        with connect(PROJECTS_DB) as projects_db:
+            projects = {row["id"] for row in projects_db.execute("SELECT id FROM projects")}
+        if any(not set(changes.get(prefix + "project_ids", [])).issubset(projects) for prefix in ("", "add_", "remove_")):
+            raise ValueError("Projekt nicht gefunden")
+        with connect(IMAGES_DB) as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing = {row["id"] for row in db.execute("SELECT id FROM images")}
+            tags = {row["id"] for row in db.execute("SELECT id FROM tags")}
+            if not set(ids).issubset(existing) or any(not set(changes.get(prefix + "tag_ids", [])).issubset(tags) for prefix in ("", "add_", "remove_")):
+                raise ValueError("Asset oder Tag nicht gefunden; bitte neu laden")
+            for image_id in dict.fromkeys(ids):
+                if "published" in changes:
+                    db.execute("UPDATE images SET published=?, archived=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                               (int(changes["published"]), int(not changes["published"]), image_id))
+                for field, table, column in (("project_ids", "image_projects", "project_id"), ("tag_ids", "image_tags", "tag_id")):
+                    if not any(prefix + field in changes for prefix in ("", "add_", "remove_")):
+                        continue
+                    current = [row[column] for row in db.execute(f"SELECT {column} FROM {table} WHERE image_id=?", (image_id,))]
+                    relations = list(dict.fromkeys([*changes.get(field, current), *changes.get("add_" + field, [])]))
+                    relations = [relation for relation in relations if relation not in changes.get("remove_" + field, [])]
+                    # Only this relation changes. Other fields and relations are retained.
+                    db.execute(f"DELETE FROM {table} WHERE image_id=?", (image_id,))
+                    for position, relation in enumerate(relations):
+                        if field == "project_ids":
+                            db.execute("INSERT INTO image_projects VALUES (?, ?, ?)", (image_id, relation, position))
+                        else:
+                            db.execute("INSERT INTO image_tags VALUES (?, ?)", (image_id, relation))
+        self.json_response({"updated": len(set(ids))})
 
     def delete_image(self, image_id: str) -> None:
         with connect(IMAGES_DB) as db:

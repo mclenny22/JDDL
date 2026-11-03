@@ -47,5 +47,5 @@
                 PRIMARY KEY (image_id, project_id)
             );
             
-CREATE UNIQUE INDEX IF NOT EXISTS one_project_per_image ON image_projects(image_id);
+DROP INDEX IF EXISTS one_project_per_image;
 CREATE TABLE IF NOT EXISTS private_config (key TEXT PRIMARY KEY, value TEXT NOT NULL);

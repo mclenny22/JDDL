@@ -1,4 +1,4 @@
-import { imagePlacement, projectRows, automaticPlacements } from "/project-view.js";
+import { projectRows, automaticPlacements, projectComposition } from "/project-view.js";
 
 const $ = (selector) => document.querySelector(selector);
 const state = {
@@ -9,6 +9,11 @@ const state = {
   search: "",
   selectedTags: new Set(),
   selectedFile: null,
+  selectedFiles: [],
+  selectedProjects: new Set(),
+  librarySelected: new Set(),
+  inlineEdit: null,
+  batchBusy: false,
   rowMenu: null,
   projectOptions: [],
   projectOptionIndex: -1,
@@ -201,13 +206,14 @@ function filteredImages() {
 function renderImages() {
   closeRowMenu();
   const images = filteredImages();
+  updateLibrarySelection();
   const filtering = Boolean(state.search.trim()) || state.selectedTags.size > 0;
   $("#image-count").textContent = `${images.length} ${images.length === 1 ? "Asset" : "Assets"}`;
   $("#table-result-count").textContent = `${images.length} ${images.length === 1 ? "Eintrag" : "Einträge"}`;
   el.imageTable.hidden = !images.length && !filtering;
   el.libraryEmpty.hidden = images.length || filtering;
   if (!images.length && filtering) {
-    el.imageBody.innerHTML = '<tr><td colspan="7"><div class="admin-empty"><h2>Keine Ergebnisse</h2><p>Ändere die Suche oder die Filter.</p></div></td></tr>';
+    el.imageBody.innerHTML = '<tr><td colspan="8"><div class="admin-empty"><h2>Keine Ergebnisse</h2><p>Ändere die Suche oder die Filter.</p></div></td></tr>';
     return;
   }
   el.imageBody.innerHTML = images.map((image) => {
@@ -215,15 +221,17 @@ function renderImages() {
     const projects = projectNames(image);
     const status = image.archived ? "Archiviert" : image.published ? "Veröffentlicht" : "Entwurf";
     return `<tr>
+      <td><input type="checkbox" data-library-select="${escapeHtml(image.id)}" aria-label="${escapeHtml(image.original_name)} auswählen" ${state.librarySelected.has(image.id) ? "checked" : ""} /></td>
       <td>${mediaMarkup(image, "admin-thumb")}</td>
       <td><button class="cell-button" data-edit-field="name" data-image-id="${image.id}"><span class="file-name">${escapeHtml(image.original_name)}</span><small>${escapeHtml(image.alt_text || "Kein Alternativtext")}</small></button></td>
-      <td><button class="cell-button" data-edit-field="tags" data-image-id="${image.id}"><span class="tags">${tags.length ? tags.map((name) => `<span class="tag">${escapeHtml(name)}</span>`).join("") : '<span class="admin-muted">Tags auswählen</span>'}</span></button></td>
-      <td><button class="cell-button" data-edit-field="project" data-image-id="${image.id}">${projects.length ? escapeHtml(projects[0]) : '<span class="admin-muted">Projekt auswählen</span>'}</button></td>
-      <td><span class="status">${status}</span></td>
+      <td><button class="cell-button" data-inline-field="tag_ids" data-image-id="${image.id}"><span class="tags">${tags.length ? tags.map((name) => `<span class="tag">${escapeHtml(name)}</span>`).join("") : '<span class="admin-muted">Tags auswählen</span>'}</span></button>${inlineEditorMarkup(image.id, "tag_ids")}</td>
+      <td><button class="cell-button" data-inline-field="project_ids" data-image-id="${image.id}">${projects.length ? escapeHtml(projects.join(", ")) : '<span class="admin-muted">Projekt auswählen</span>'}</button>${inlineEditorMarkup(image.id, 'project_ids')}</td>
+      <td><button type="button" class="cell-button" data-inline-field="published" data-image-id="${escapeHtml(image.id)}"><span class="status">${status}</span></button>${inlineEditorMarkup(image.id, "published")}</td>
       <td class="admin-muted">${formatDate(image.created_at)}</td>
       <td><div class="row-actions">${rowMenuTrigger("image", image.id, image.original_name)}</div></td>
     </tr>`;
   }).join("");
+  el.imageBody.querySelectorAll('[data-inline-relation]').forEach(input => { input.indeterminate = state.inlineEdit?.mixed.has(input.dataset.inlineRelation) && !state.inlineEdit.touched.has(input.dataset.inlineRelation); if (state.inlineEdit?.touched.has(input.dataset.inlineRelation)) input.checked = state.inlineEdit.touched.get(input.dataset.inlineRelation); });
 }
 
 function renderProjects() {
@@ -408,7 +416,7 @@ function renderExportImages() {
       <td>${mediaMarkup(image, "admin-thumb")}</td>
       <td><span class="file-name">${escapeHtml(image.original_name)}</span><small class="row-subtitle">${escapeHtml(image.alt_text || "Kein Alternativtext")}</small></td>
       <td><span class="tags">${tags.length ? tags.map((name) => `<span class="tag">${escapeHtml(name)}</span>`).join("") : '<span class="admin-muted">Keine Kategorien</span>'}</span></td>
-      <td>${projects.length ? escapeHtml(projects[0]) : '<span class="admin-muted">Kein Projekt</span>'}</td>
+      <td>${projects.length ? escapeHtml(projects.join(", ")) : '<span class="admin-muted">Kein Projekt</span>'}</td>
       <td><span class="status">${status}</span></td>
     </tr>`;
   }).join("");
@@ -434,7 +442,7 @@ function chunk(items, size) {
 function groupedExportImages(images) {
   const groups = new Map();
   images.forEach((image) => {
-    const projectId = image.project_ids[0] || "__unassigned";
+    const projectId = (state.exportProject && image.project_ids.includes(state.exportProject) ? state.exportProject : image.project_ids[0]) || "__unassigned";
     if (!groups.has(projectId)) groups.set(projectId, []);
     groups.get(projectId).push(image);
   });
@@ -564,6 +572,7 @@ function renderAll() {
 async function refresh() {
   state.data = await api("/api/admin/bootstrap");
   const imageIds = new Set(state.data.images.map((image) => image.id));
+  state.librarySelected = new Set([...state.librarySelected].filter(id => imageIds.has(id)));
   state.exportSelected = new Set([...state.exportSelected].filter((id) => imageIds.has(id)));
   renderAll();
 }
@@ -594,9 +603,9 @@ function renderProjectOptions() {
   const query = el.projectSearch.value.trim().toLocaleLowerCase("de");
   state.projectOptions = [{ id: "", title: "Kein Projekt" }, ...state.data.projects]
     .filter((project) => project.title.toLocaleLowerCase("de").includes(query));
-  el.imageProjects.innerHTML = state.projectOptions.map((project, index) => `<button class="project-combobox-option" id="image-project-option-${index}" type="button" role="option" tabindex="-1" data-project-id="${escapeHtml(project.id)}" aria-selected="${project.id === el.projectSelection.value}"><span>${escapeHtml(project.title)}</span><span class="project-option-check" aria-hidden="true">${project.id === el.projectSelection.value ? "✓" : ""}</span></button>`).join("");
+  el.imageProjects.innerHTML = state.projectOptions.map((project, index) => `<button class="project-combobox-option" id="image-project-option-${index}" type="button" role="option" tabindex="-1" data-project-id="${escapeHtml(project.id)}" aria-selected="${(project.id ? state.selectedProjects.has(project.id) : !state.selectedProjects.size)}"><span>${escapeHtml(project.title)}</span><span class="project-option-check" aria-hidden="true">${(project.id ? state.selectedProjects.has(project.id) : !state.selectedProjects.size) ? "✓" : ""}</span></button>`).join("");
   el.projectEmpty.hidden = Boolean(state.projectOptions.length);
-  const selected = state.projectOptions.findIndex((project) => project.id === el.projectSelection.value);
+  const selected = state.projectOptions.findIndex((project) => (project.id ? state.selectedProjects.has(project.id) : !state.selectedProjects.size));
   setProjectOption(state.projectOptions.length ? Math.max(0, selected) : -1);
 }
 
@@ -620,9 +629,13 @@ function openProjectSelect(last = false) {
 }
 
 function selectProject(id) {
-  el.projectSelection.value = id;
-  el.projectValue.textContent = projectFor(id)?.title || "Kein Projekt";
-  closeProjectSelect(true);
+  if (!id) state.selectedProjects.clear();
+  else if (state.selectedProjects.has(id)) state.selectedProjects.delete(id);
+  else state.selectedProjects.add(id);
+  el.projectSelection.value = [...state.selectedProjects][0] || '';
+  el.projectValue.textContent = [...state.selectedProjects].map(id => projectFor(id)?.title).filter(Boolean).join(', ') || 'Kein Projekt';
+  renderProjectOptions();
+  el.projectSearch.focus({ preventScroll: true });
 }
 
 el.projectTrigger.addEventListener("click", () => {
@@ -665,6 +678,8 @@ $("#image-project-field").addEventListener("focusout", (event) => {
 function openImage(image = null, field = "name") {
   releasePreviewURL();
   state.selectedFile = null;
+  state.selectedFiles = [];
+  $("#upload-queue").textContent = "";
   el.imageForm.reset();
   $("#image-error").textContent = "";
   $("#image-id").value = image?.id || "";
@@ -673,8 +688,9 @@ function openImage(image = null, field = "name") {
   $("#image-alt").value = image?.alt_text || "";
   $("#image-published").checked = Boolean(image?.published && !image?.archived);
   renderRelationOptions(el.imageTags, state.data.tags, image?.tag_ids || [], "image-tag");
+  state.selectedProjects = new Set(image?.project_ids || []);
   el.projectSelection.value = image?.project_ids[0] || "";
-  el.projectValue.textContent = projectFor(el.projectSelection.value)?.title || "Kein Projekt";
+  el.projectValue.textContent = [...state.selectedProjects].map(id => projectFor(id)?.title).join(", ") || "Kein Projekt";
   closeProjectSelect();
   state.selectedFile = null;
   el.imageFile.disabled = Boolean(image);
@@ -940,9 +956,9 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-el.imageFile.addEventListener("change", () => selectFile(el.imageFile.files[0]));
+el.imageFile.addEventListener("change", () => selectFiles(el.imageFile.files));
 el.dropzone.addEventListener("dragover", (event) => { if (!el.imageFile.disabled) event.preventDefault(); });
-el.dropzone.addEventListener("drop", (event) => { if (!el.imageFile.disabled) { event.preventDefault(); selectFile(event.dataTransfer.files[0]); } });
+el.dropzone.addEventListener("drop", (event) => { if (!el.imageFile.disabled) { event.preventDefault(); selectFiles(event.dataTransfer.files); } });
 
 el.imageForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -958,8 +974,7 @@ el.imageForm.addEventListener("submit", async (event) => {
   error.textContent = "";
   try {
     const tagIds = [...document.querySelectorAll('input[name="image-tag"]:checked')].map((input) => input.value);
-    const selectedProject = el.projectSelection.value;
-    const projectIds = selectedProject ? [selectedProject] : [];
+    const projectIds = [...state.selectedProjects];
     // Keep existing metadata; new uploads derive their ratio from the actual image.
     let aspectRatio = state.data.images.find((image) => image.id === id)?.aspect_ratio || 1;
     if (!id) {
@@ -978,15 +993,25 @@ el.imageForm.addEventListener("submit", async (event) => {
     if (id) {
       await api(`/api/images/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(shared) });
     } else {
-      const form = new FormData();
-      form.append("image", state.selectedFile);
-      Object.entries(shared).forEach(([key, value]) => form.append(key, Array.isArray(value) ? JSON.stringify(value) : String(value)));
-      await api("/api/images", { method: "POST", body: form });
+      const queue = state.selectedFiles.length ? state.selectedFiles : [state.selectedFile];
+      while (queue.length) {
+        const file = queue[0];
+        submit.textContent = `Lädt hoch… ${queue.length} verbleibend`;
+        const ratio = file === state.selectedFile ? aspectRatio : await fileDimensions(file);
+        const form = new FormData();
+        form.append("image", file);
+        const fields = { ...shared, aspect_ratio: ratio, original_name: state.selectedFiles.length > 1 || file !== state.selectedFile ? file.name : shared.original_name };
+        Object.entries(fields).forEach(([key, value]) => form.append(key, Array.isArray(value) ? JSON.stringify(value) : String(value)));
+        await api("/api/images", { method: "POST", body: form });
+        queue.shift();
+        state.selectedFiles = queue;
+        $("#upload-queue").textContent = queue.map(item => item.name).join(' · ');
+      }
     }
     el.imageDialog.close();
     await refresh();
     notify(id ? "Asset aktualisiert" : "Asset hinzugefügt");
-  } catch (reason) { error.textContent = reason.message; }
+  } catch (reason) { error.textContent = reason.message; if (!id) { await refresh(); error.textContent += " Bereits hochgeladene Assets bleiben gespeichert; erneut speichern setzt die Warteschlange fort."; } }
   finally {
     submit.disabled = false;
     submit.textContent = label;
@@ -1004,7 +1029,7 @@ el.projectForm.addEventListener("submit", async (event) => {
     await api("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: id || undefined, title: $("#project-title").value, client: $("#project-client").value, description: $("#project-description").value, sort_order: id ? projectFor(id)?.sort_order || 0 : Math.max(-10, ...state.data.projects.map((project) => project.sort_order || 0)) + 10, published: $("#project-published").checked, thumbnail_id: $("#project-thumbnail").value, ...(layoutEditor.dirty ? { image_layouts: layoutEditor.custom ? { ...layoutEditor.retained, ...layoutEditor.placements } : {}, ...(layoutEditor.composed ? { layout_rows: layoutEditor.custom ? layoutEditor.rows : 0 } : {}) } : {}) }),
+      body: JSON.stringify({ id: id || undefined, title: $("#project-title").value, client: $("#project-client").value, description: $("#project-description").value, sort_order: id ? projectFor(id)?.sort_order || 0 : Math.max(-10, ...state.data.projects.map((project) => project.sort_order || 0)) + 10, published: $("#project-published").checked, thumbnail_id: $("#project-thumbnail").value, ...(layoutEditor.dirty ? { composition: { columns: 12, manual: layoutEditor.custom, hero_id: layoutEditor.heroId || "", placements: layoutEditor.placements, texts: layoutEditor.texts, rows: layoutEditor.rows } } : {}) }),
     });
     await refresh();
     closeProjectEditor();
@@ -1077,7 +1102,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
 api("/api/session").then((session) => { if (session.authenticated) return bootstrap(); }).catch(() => {});
 
 // Drafts stay local to the project editor until the project is saved.
-const layoutEditor = { images: [], placements: {}, custom: false, dirty: false, selected: null, drag: null, rows: 0, composed: false };
+const layoutEditor = { texts: {}, visible: [], heroId: '', images: [], placements: {}, custom: false, dirty: false, selected: null, drag: null, rows: 0, composed: false };
 function openThumbnailPicker(project) {
   const images = state.data.images.filter(image => image.project_ids.includes(project?.id) && image.published && !image.archived && image.url);
   const picker = $('#project-thumbnail');
@@ -1092,68 +1117,86 @@ function updateThumbnailPreview(images) {
   setMediaPreview(preview, image);
 }
 $('#project-thumbnail').addEventListener('change', () => {
-  const custom = layoutEditor.custom;
-  const dirty = layoutEditor.dirty;
-  const composed = layoutEditor.composed;
-  const rows = layoutEditor.rows;
-  const draft = { ...layoutEditor.retained, ...layoutEditor.placements };
-  openLayoutEditor({ id: $('#project-id').value, thumbnail_id: $('#project-thumbnail').value }, draft);
-  layoutEditor.custom = custom;
-  layoutEditor.dirty = dirty;
-  layoutEditor.composed = composed;
-  layoutEditor.rows = Math.max(rows, ...Object.values(layoutEditor.placements).map(p => p.row));
   updateThumbnailPreview(layoutEditor.visible);
-  renderLayoutEditor();
+  if (!layoutEditor.heroId) changeLayoutHero($('#project-thumbnail').value || layoutEditor.visible[0]?.id || '', false);
 });
-function openLayoutEditor(project, draft = null) {
+function openLayoutEditor(project) {
   const assigned = state.data.images.filter(image => image.project_ids.includes(project?.id));
   const visible = assigned.filter(image => image.published && !image.archived && image.url);
-  let saved = {};
-  try { saved = JSON.parse(state.data.settings.project_layout || '{}') || {}; } catch {}
-  if (draft) saved = draft;
+  const composition = projectComposition(project || { id: '' }, state.data.settings, visible);
+  const assignedIds = new Set(assigned.map(image => image.id));
+  composition.placements = Object.fromEntries(Object.entries(composition.placements).filter(([id]) => assignedIds.has(id)));
   layoutEditor.visible = visible;
-  layoutEditor.hero = visible.find(image => image.id === project?.thumbnail_id) || visible[0];
+  layoutEditor.heroId = composition.hero_id;
+  layoutEditor.hero = visible.find(image => image.id === (composition.hero_id || project?.thumbnail_id)) || visible[0];
   layoutEditor.images = visible.filter(image => image !== layoutEditor.hero);
-  layoutEditor.custom = layoutEditor.images.some(image => saved[image.id] && Object.keys(saved[image.id]).length);
-  const automatic = automaticPlacements(layoutEditor.images);
-  let rowCounts = {};
-  try { rowCounts = JSON.parse(state.data.settings.project_layout_rows || '{}') || {}; } catch {}
-  layoutEditor.composed = Boolean(rowCounts[project?.id]) || layoutEditor.images.some(image => saved[image.id]?.ratio);
-  layoutEditor.placements = layoutEditor.custom ? Object.fromEntries(layoutEditor.images.map((image, index) => [image.id, saved[image.id] || !layoutEditor.composed ? imagePlacement(image, index, saved) : automatic[image.id]])) : automatic;
-  // Keep placements for the hero and unpublished assignments while editing the visible grid.
-  layoutEditor.retained = Object.fromEntries(assigned.filter(image => !layoutEditor.images.includes(image) && saved[image.id]).map((image, index) => [image.id, imagePlacement(image, index, saved)]));
-  $('#layout-status').textContent = '';
+  layoutEditor.custom = composition.manual;
+  layoutEditor.composed = true;
+  layoutEditor.texts = composition.texts;
+  layoutEditor.placements = composition.manual ? composition.placements : automaticPlacements(layoutEditor.images);
+  layoutEditor.retained = {};
+  layoutEditor.rows = Math.max(composition.rows, 0, ...Object.values(layoutEditor.placements).map(p => p.row));
   layoutEditor.dirty = false;
   layoutEditor.selected = null;
   layoutEditor.drag = null;
-  layoutEditor.rows = Math.min(1000, Math.max(Number(rowCounts[project?.id]) || 0, 0, ...Object.values(layoutEditor.placements).map(p => p.row)));
-  $('#layout-hidden-images').textContent = `${assigned.length - visible.length} nicht veröffentlichte Assets werden auf der Website nicht angezeigt. Zuordnungen und Veröffentlichung unter „Alle Assets“ bearbeiten.`;
+  $('#layout-status').textContent = '';
+  $('#layout-hidden-images').textContent = `${assigned.length - visible.length} nicht veröffentlichte Assets werden auf der Website nicht angezeigt.`;
   renderLayoutEditor();
+}
+function changeLayoutHero(id, explicit = true) {
+  const next = layoutEditor.visible.find(image => image.id === id);
+  if (!next) return;
+  const previous = layoutEditor.hero;
+  layoutEditor.hero = next;
+  const placement = layoutEditor.placements[next.id];
+  delete layoutEditor.placements[next.id];
+  if (previous && previous !== next) {
+    if (placement) layoutEditor.placements[previous.id] = placement;
+    else if (layoutEditor.custom) placeLayoutAsset(previous.id);
+  }
+  layoutEditor.hero = next;
+  if (explicit) layoutEditor.heroId = next.id;
+  layoutEditor.images = layoutEditor.visible.filter(image => image !== next);
+  if (!layoutEditor.custom) layoutEditor.placements = automaticPlacements(layoutEditor.images);
+  layoutEditor.rows = Math.max(layoutEditor.rows, 0, ...Object.values(layoutEditor.placements).map(p => p.row));
+  layoutEditor.dirty = true;
+  renderLayoutEditor();
+}
+function allLayoutPlacements() { return { ...layoutEditor.placements, ...layoutEditor.texts }; }
+function placeLayoutAsset(id, position = null) {
+  const image = layoutEditor.visible.find(image => image.id === id);
+  if (!image || image === layoutEditor.hero || layoutEditor.placements[id]) return;
+  let placement = position || { column: 1, span: 4, row: 1, ratio: Number(image.aspect_ratio) || 1 };
+  if (!position) {
+    while (placement.row <= layoutEditor.rows && !canPlaceImage(id, placement)) placement.row++;
+  }
+  commitLayoutPlacement(id, placement);
 }
 function renderLayoutEditor(focusId) {
   const editor = layoutEditor;
-  $('#layout-mode').hidden = !editor.images.length;
-  $('#layout-mode').textContent = editor.custom ? 'Automatisches Layout' : '7-Spalten-Layout erstellen';
-  $('#layout-tools').hidden = !editor.custom || !editor.images.length;
+  $('#layout-mode').hidden = !editor.visible.length;
+  $('#layout-mode').textContent = editor.custom ? 'Automatisches Layout' : '12-Spalten-Layout erstellen';
+  $('#layout-tools').hidden = !editor.custom;
+  renderLayoutPalette();
   $('#layout-help').textContent = editor.custom
     ? 'Mit + eine Zeile einfügen. Assets ziehen; am rechten Griff die Breite ändern. Tastatur: Pfeiltasten verschieben, Umschalt + Links/Rechts ändert die Breite. Escape bricht das Ziehen ab. Änderungen werden mit dem Projekt gespeichert.'
-    : 'Vorschau der Projektseite. Für freie Platzierung das 7-Spalten-Layout erstellen. Das gewählte Vorschaubild wird als Hero-Asset dargestellt.';
+    : 'Vorschau der Projektseite. Für freie Platzierung das 12-Spalten-Layout erstellen. Das gewählte Hero-Asset wird darüber dargestellt.';
   const imageMarkup = image => mediaMarkup(image, "", image.alt_text || image.original_name);
   const hero = editor.hero ? `<div class="layout-meta"><span>${escapeHtml($('#project-title').value)}</span><span>${escapeHtml($('#project-client').value)}</span></div><div class="layout-hero">${imageMarkup(editor.hero)}<span>Hero · volle Breite</span></div>` : '<p class="layout-empty">Noch keine veröffentlichten Assets zugeordnet. Assets unter „Alle Assets“ diesem Projekt zuordnen.</p>';
   let body = '';
-  if (editor.custom && editor.images.length) {
+  if (editor.custom) {
     const insertButton = (row, top = false) => `<button type="button" class="layout-row-add${top ? ' is-top' : ''}" data-insert-row="${row}" aria-label="Zeile ${row} einfügen" ${editor.rows >= 1000 ? 'disabled' : ''}>+</button>`;
-    const occupied = new Set(Object.values(editor.placements).map(p => p.row));
-    const rows = Array.from({ length: editor.rows }, (_, index) => {
+    const occupied = new Set(Object.values(allLayoutPlacements()).map(p => p.row));
+    const rows = Array.from({ length: Math.max(1, editor.rows) }, (_, index) => {
       const row = index + 1;
       return `<div class="layout-row${occupied.has(row) ? '' : ' is-empty'}" data-layout-row="${row}" style="grid-row:${row}">${row === 1 ? insertButton(1, true) : ''}${insertButton(row + 1)}${!occupied.has(row) ? `<span class="layout-row-empty" aria-hidden="true">Freie Zeile</span><button type="button" class="layout-row-remove" data-remove-row="${row}" aria-label="Leere Zeile ${row} entfernen">×</button>` : ''}</div>`;
     }).join('');
-    body = `<div class="layout-grid${editor.composed ? ' composed-layout' : ''}">${rows}${editor.images.map(image => {
+    body = `<div class="layout-grid${editor.composed ? ' composed-layout' : ''}">${rows}${editor.images.filter(image => editor.placements[image.id]).map(image => {
       const p = editor.placements[image.id];
-      const column = editor.composed ? Math.round((p.column - 1) * 12) + 1 : p.column;
-      const span = editor.composed ? Math.round(p.span * 12) : p.span;
+      const column = p.column;
+      const span = p.span;
       return `<div class="layout-tile" data-layout-image="${escapeHtml(image.id)}" style="grid-column:${column}/span ${span};grid-row:${p.row};${p.ratio ? `--layout-ratio:${p.ratio}` : ''}"><button type="button" class="layout-move" aria-describedby="layout-help" aria-label="${escapeHtml(image.original_name)} verschieben">${imageMarkup(image)}<span class="layout-tile-label">${escapeHtml(image.original_name)}</span></button><button type="button" class="layout-resize" aria-label="Breite von ${escapeHtml(image.original_name)} ändern" aria-describedby="layout-help">↔</button></div>`;
-    }).join('')}<div class="layout-target" hidden aria-hidden="true"></div></div>`;
+    }).join('')}${Object.entries(editor.texts).map(([id, p]) => `<div class="layout-tile layout-text-tile" data-layout-image="${escapeHtml(id)}" style="grid-column:${p.column}/span ${p.span};grid-row:${p.row}"><button type="button" class="layout-move" aria-label="Textblock verschieben" aria-describedby="layout-help"><span class="layout-white-text">${escapeHtml(p.text)}</span></button><button type="button" class="layout-resize" aria-label="Textbreite ändern">↔</button></div>`).join('')}<div class="layout-target" hidden aria-hidden="true"></div></div>`;
   } else {
     body = `<div class="layout-auto">${projectRows(editor.images).map(({ image, span, ratio }) => `<div style="grid-column:span ${span};--preview-ratio:${ratio}">${imageMarkup(image)}</div>`).join('')}</div>`;
   }
@@ -1163,21 +1206,23 @@ function renderLayoutEditor(focusId) {
 }
 function updateLayoutSelection() {
   const id = layoutEditor.selected;
-  const placement = layoutEditor.placements[id];
+  const placement = allLayoutPlacements()[id];
   $('#layout-page').querySelectorAll('[data-layout-image]').forEach(tile => tile.classList.toggle('is-selected', tile.dataset.layoutImage === id));
   $('#layout-selection').textContent = placement ? `Spalte ${Number(placement.column.toFixed(2))} · Breite ${Number(placement.span.toFixed(2))} · Zeile ${placement.row}` : 'Asset auswählen';
   $('#layout-narrow').disabled = !placement || placement.span <= 1;
-  $('#layout-wide').disabled = !placement || placement.column + placement.span >= 8;
+  $('#layout-wide').disabled = !placement || placement.column + placement.span >= 13;
 }
-function canPlaceImage(id, placement, placements = layoutEditor.placements) {
-  return placement.column >= 1 && placement.span >= 1 && placement.column + placement.span <= 8 + 1e-6 && placement.row >= 1 && placement.row <= 1000 && !Object.entries(placements).some(([otherId, other]) => otherId !== id && other.row === placement.row && other.column < placement.column + placement.span - 1e-6 && placement.column < other.column + other.span - 1e-6);
+function canPlaceImage(id, placement, placements = allLayoutPlacements()) {
+  return placement.column >= 1 && placement.span >= 1 && placement.column + placement.span <= 13 + 1e-6 && placement.row >= 1 && placement.row <= 1000 && !Object.entries(placements).some(([otherId, other]) => otherId !== id && other.row === placement.row && other.column < placement.column + placement.span - 1e-6 && placement.column < other.column + other.span - 1e-6);
 }
 function commitLayoutPlacement(id, placement) {
   if (!canPlaceImage(id, placement)) {
     $('#layout-status').textContent = 'Hier ist kein Platz. Wähle eine freie Position im Raster.';
     return false;
   }
-  layoutEditor.placements[id] = placement;
+  if (layoutEditor.texts[id]) layoutEditor.texts[id] = placement;
+  else layoutEditor.placements[id] = placement;
+  layoutEditor.selected = id;
   layoutEditor.dirty = true;
   layoutEditor.rows = Math.min(1000, Math.max(layoutEditor.rows, placement.row));
   renderLayoutEditor(id);
@@ -1189,12 +1234,13 @@ $('#layout-mode').addEventListener('click', () => {
   layoutEditor.dirty = true;
   layoutEditor.composed = true;
   layoutEditor.placements = automaticPlacements(layoutEditor.images);
+  layoutEditor.texts = {};
   layoutEditor.rows = Math.max(0, ...Object.values(layoutEditor.placements).map(p => p.row));
   renderLayoutEditor();
 });
 function insertLayoutRow(row) {
   if (!Number.isInteger(row) || row < 1 || row > layoutEditor.rows + 1 || layoutEditor.rows >= 1000) return;
-  for (const placement of Object.values(layoutEditor.placements)) if (placement.row >= row) placement.row++;
+  for (const placement of Object.values(allLayoutPlacements())) if (placement.row >= row) placement.row++;
   layoutEditor.rows++;
   layoutEditor.dirty = true;
   layoutEditor.composed = true;
@@ -1203,8 +1249,8 @@ function insertLayoutRow(row) {
   $('#layout-status').textContent = `Leere Zeile ${row} eingefügt.`;
 }
 function removeLayoutRow(row) {
-  if (!Number.isInteger(row) || row < 1 || row > layoutEditor.rows || Object.values(layoutEditor.placements).some(p => p.row === row)) return;
-  for (const placement of Object.values(layoutEditor.placements)) if (placement.row > row) placement.row--;
+  if (!Number.isInteger(row) || row < 1 || row > layoutEditor.rows || Object.values(allLayoutPlacements()).some(p => p.row === row)) return;
+  for (const placement of Object.values(allLayoutPlacements())) if (placement.row > row) placement.row--;
   layoutEditor.rows--;
   layoutEditor.dirty = true;
   renderLayoutEditor();
@@ -1214,7 +1260,7 @@ function removeLayoutRow(row) {
 for (const [selector, delta] of [['#layout-narrow', -1], ['#layout-wide', 1]]) {
   $(selector).addEventListener('click', () => {
     const id = layoutEditor.selected;
-    if (id) commitLayoutPlacement(id, { ...layoutEditor.placements[id], span: layoutEditor.placements[id].span + delta });
+    if (id) commitLayoutPlacement(id, { ...allLayoutPlacements()[id], span: allLayoutPlacements()[id].span + delta });
   });
 }
 $('#layout-page').addEventListener('click', event => {
@@ -1226,6 +1272,7 @@ $('#layout-page').addEventListener('click', event => {
   if (!tile) return;
   layoutEditor.selected = tile.dataset.layoutImage;
   updateLayoutSelection();
+  renderLayoutPalette();
 });
 $('#layout-page').addEventListener('keydown', event => {
   if (event.key === 'Escape' && layoutEditor.drag) {
@@ -1236,7 +1283,7 @@ $('#layout-page').addEventListener('keydown', event => {
   event.preventDefault();
   const id = tile.dataset.layoutImage;
   layoutEditor.selected = id;
-  const next = { ...layoutEditor.placements[id] };
+  const next = { ...allLayoutPlacements()[id] };
   const horizontal = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0;
   if (event.shiftKey || event.target.closest('.layout-resize')) next.span += horizontal;
   else { next.column += horizontal; next.row += event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0; }
@@ -1250,7 +1297,7 @@ $('#layout-page').addEventListener('pointerdown', event => {
   updateLayoutSelection();
   const grid = tile.closest('.layout-grid');
   const rect = tile.getBoundingClientRect();
-  const drag = layoutEditor.drag = { id, pointerId: event.pointerId, tile, grid, original: { ...layoutEditor.placements[id] }, next: null, resize: Boolean(event.target.closest('.layout-resize')), offsetX: event.clientX - rect.left, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false };
+  const drag = layoutEditor.drag = { id, pointerId: event.pointerId, tile, grid, original: { ...allLayoutPlacements()[id] }, next: null, resize: Boolean(event.target.closest('.layout-resize')), offsetX: event.clientX - rect.left, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false };
   tile.setPointerCapture(event.pointerId);
   const scroll = () => {
     if (layoutEditor.drag !== drag) return;
@@ -1271,12 +1318,12 @@ function updateLayoutDrag() {
   const drag = layoutEditor.drag;
   if (!drag?.moved) return;
   const rect = drag.grid.getBoundingClientRect();
-  const gap = rect.width * .01064 / (layoutEditor.composed ? 1.01064 : 1);
-  const unit = (rect.width + (layoutEditor.composed ? 0 : gap)) / 7;
+  const gap = rect.width * .01064;
+  const unit = (rect.width + gap) / 12;
   const next = { ...drag.original };
-  if (drag.resize) next.span = Math.max(1, Math.min(8 - next.column, Math.round((drag.x - rect.left - (next.column - 1) * unit + gap) / unit)));
+  if (drag.resize) next.span = Math.max(1, Math.min(13 - next.column, Math.round((drag.x - rect.left - (next.column - 1) * unit + gap) / unit)));
   else {
-    next.column = Math.max(1, Math.min(8 - next.span, Math.round((drag.x - rect.left - drag.offsetX) / unit) + 1));
+    next.column = Math.max(1, Math.min(13 - next.span, Math.round((drag.x - rect.left - drag.offsetX) / unit) + 1));
     const rows = [...drag.grid.querySelectorAll('[data-layout-row]')];
     const row = rows.find(row => { const r = row.getBoundingClientRect(); return drag.y >= r.top && drag.y < r.bottom; });
     if (!row) { drag.next = null; drag.grid.querySelector('.layout-target').hidden = true; return; }
@@ -1321,3 +1368,162 @@ for (const selector of ['#project-title', '#project-client']) {
     }
   });
 }
+
+function selectFiles(files) {
+  const queue = [...files];
+  if (!queue.length) return;
+  const limit = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 20 : 4) * 1024 * 1024;
+  const invalid = queue.find(file => !['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'video/mp4'].includes(file.type) || file.size > limit);
+  if (invalid) { $('#image-error').textContent = `${invalid.name}: Format nicht unterstützt oder Datei zu groß (max. ${limit / 1024 / 1024} MB pro Datei).`; return; }
+  state.selectedFiles = queue;
+  selectFile(queue[0]);
+  $('#upload-queue').textContent = `${queue.length} ${queue.length === 1 ? 'Datei' : 'Dateien'} · ${queue.map(file => file.name).join(' · ')}`;
+}
+async function fileDimensions(file) {
+  const url = URL.createObjectURL(file);
+  const preview = document.createElement(file.type === 'video/mp4' ? 'video' : 'img');
+  preview.preload = 'metadata'; preview.muted = true; preview.src = url;
+  try { return await mediaDimensions(preview); }
+  finally { preview.pause?.(); preview.removeAttribute('src'); preview.load?.(); URL.revokeObjectURL(url); }
+}
+
+function updateLibrarySelection() {
+  const ids = filteredImages().map(image => image.id);
+  const count = ids.filter(id => state.librarySelected.has(id)).length;
+  const checkbox = $('#library-select-all');
+  checkbox.checked = ids.length > 0 && count === ids.length;
+  checkbox.indeterminate = count > 0 && count < ids.length;
+  $('#library-selection-count').textContent = `${state.librarySelected.size} ausgewählt`;
+  $('#library-clear-selection').hidden = !state.librarySelected.size;
+}
+function inlineEditorMarkup(id, field) {
+  const edit = state.inlineEdit;
+  if (!edit || edit.anchor !== id || edit.field !== field) return '';
+  let options;
+  if (field === 'published') options = `<label class="field"><span>Status für ${edit.ids.length} Assets</span><select data-inline-status><option value="">Bitte wählen</option><option value="true" ${edit.status === true ? 'selected' : ''}>Veröffentlicht</option><option value="false" ${edit.status === false ? 'selected' : ''}>Archiviert</option></select></label>`;
+  else {
+    const values = field === 'tag_ids' ? state.data.tags : state.data.projects;
+    options = `<p>${edit.ids.length} Assets · Gemischte Zuordnungen bleiben bis zur Änderung erhalten.</p>` + values.map(item => `<label class="tag-check"><input type="checkbox" data-inline-relation="${escapeHtml(item.id)}" ${edit.values.has(item.id) ? 'checked' : ''} /><span>${escapeHtml(item.name || item.title)}${edit.mixed.has(item.id) ? ' (teilweise)' : ''}</span></label>`).join('');
+  }
+  return `<div class="cell-editor" role="group" aria-label="${field === 'tag_ids' ? 'Tags' : field === 'project_ids' ? 'Projekte' : 'Status'} bearbeiten">${options}<div class="cell-editor-actions"><button type="button" class="button primary" data-inline-save ${state.batchBusy ? 'disabled' : ''}>Übernehmen</button><button type="button" class="button" data-inline-cancel>Abbrechen</button></div><p class="form-error" id="inline-error" role="alert"></p></div>`;
+}
+el.imageBody.addEventListener('change', event => {
+  const selected = event.target.closest('[data-library-select]');
+  if (selected) {
+    selected.checked ? state.librarySelected.add(selected.dataset.librarySelect) : state.librarySelected.delete(selected.dataset.librarySelect);
+    if (!state.batchBusy) state.inlineEdit = null; renderImages(); return;
+  }
+  if (event.target.matches('[data-inline-status]')) state.inlineEdit.status = event.target.value === '' ? null : event.target.value === 'true';
+  const relation = event.target.closest('[data-inline-relation]');
+  if (relation) state.inlineEdit.touched.set(relation.dataset.inlineRelation, relation.checked);
+});
+el.imageBody.addEventListener('click', async event => {
+  if (event.target.closest('[data-inline-cancel]')) { state.inlineEdit = null; renderImages(); return; }
+  if (event.target.closest('[data-inline-save]')) {
+    if (state.batchBusy) return;
+    const edit = state.inlineEdit;
+    const changes = {};
+    if (edit.field === 'published') {
+      if (edit.status === null) { $('#inline-error').textContent = 'Wähle einen Status.'; return; }
+      changes.published = edit.status;
+    } else {
+      changes[`add_${edit.field}`] = [...edit.touched].filter(([, checked]) => checked).map(([id]) => id);
+      changes[`remove_${edit.field}`] = [...edit.touched].filter(([, checked]) => !checked).map(([id]) => id);
+    }
+    state.batchBusy = true; renderImages();
+    try {
+      await api('/api/images/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: edit.ids, changes }) });
+      state.inlineEdit = null; await refresh(); notify(`${edit.ids.length} Assets aktualisiert`);
+    } catch (error) { $('#inline-error').textContent = error.message; }
+    finally { state.batchBusy = false; const message = $("#inline-error")?.textContent; if (state.inlineEdit) { renderImages(); $("#inline-error").textContent = message; } }
+    return;
+  }
+  const trigger = event.target.closest('[data-inline-field]');
+  if (!trigger || state.batchBusy) return;
+  const id = trigger.dataset.imageId, field = trigger.dataset.inlineField;
+  const ids = state.librarySelected.has(id) ? [...state.librarySelected] : [id];
+  const images = state.data.images.filter(image => ids.includes(image.id));
+  const values = field === 'published' ? [] : [...new Set(images.flatMap(image => image[field]))];
+  const common = values.filter(value => images.every(image => image[field].includes(value)));
+  const statuses = new Set(images.map(image => Boolean(image.published && !image.archived)));
+  state.inlineEdit = { anchor: id, ids, field, values: new Set(common), mixed: new Set(values.filter(value => !common.includes(value))), touched: new Map(), status: statuses.size === 1 ? [...statuses][0] : null };
+  renderImages();
+  el.imageBody.querySelector('.cell-editor input, .cell-editor select, .cell-editor button')?.focus();
+});
+$('#library-select-all').addEventListener('change', event => {
+  filteredImages().forEach(image => event.target.checked ? state.librarySelected.add(image.id) : state.librarySelected.delete(image.id));
+  state.inlineEdit = null; renderImages();
+});
+$('#library-clear-selection').addEventListener('click', () => { state.librarySelected.clear(); state.inlineEdit = null; renderImages(); });
+el.imageBody.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || !state.inlineEdit || state.batchBusy) return;
+  event.preventDefault();
+  const { anchor, field } = state.inlineEdit;
+  state.inlineEdit = null; renderImages();
+  el.imageBody.querySelector(`[data-image-id="${anchor}"][data-inline-field="${field}"]`)?.focus();
+});
+
+function renderLayoutPalette() {
+  const editor = layoutEditor;
+  $('#layout-sidebar').hidden = !editor.custom;
+  $('#layout-hero-select').innerHTML = editor.visible.map(image => `<option value="${escapeHtml(image.id)}" ${image === editor.hero ? 'selected' : ''}>${escapeHtml(image.original_name)}</option>`).join('');
+  $('#layout-palette').innerHTML = editor.images.filter(image => !editor.placements[image.id]).map(image => `<div class="palette-asset" draggable="true" data-palette-image="${escapeHtml(image.id)}">${mediaMarkup(image)}<span>${escapeHtml(image.original_name)}</span><button type="button" class="button" data-place-asset="${escapeHtml(image.id)}">Einfügen</button></div>`).join('') || '<p class="admin-muted">Alle Assets sind platziert. Entfernte Assets erscheinen hier wieder.</p>';
+  const id = editor.selected;
+  $('#layout-remove').disabled = !id;
+  $('#layout-clear-images').disabled = !Object.keys(editor.placements).length;
+  $('#layout-text-field').hidden = !editor.texts[id];
+  $('#layout-text-content').value = editor.texts[id]?.text || '';
+}
+$('#layout-hero-select').addEventListener('change', event => changeLayoutHero(event.target.value));
+$('#layout-palette').addEventListener('click', event => {
+  const button = event.target.closest('[data-place-asset]');
+  if (button) placeLayoutAsset(button.dataset.placeAsset);
+});
+$('#layout-palette').addEventListener('dragstart', event => {
+  const tile = event.target.closest('[data-palette-image]');
+  if (tile) { event.dataTransfer.setData('text/x-jddl-asset', tile.dataset.paletteImage); event.dataTransfer.effectAllowed = 'copy'; }
+});
+$('#layout-page').addEventListener('dragover', event => { if (layoutEditor.custom && [...event.dataTransfer.types].includes('text/x-jddl-asset')) event.preventDefault(); });
+$('#layout-page').addEventListener('drop', event => {
+  if (!layoutEditor.custom) return;
+  const id = event.dataTransfer.getData('text/x-jddl-asset');
+  if (!id) return;
+  event.preventDefault();
+  const grid = $('#layout-page .layout-grid');
+  const rect = grid.getBoundingClientRect();
+  const row = [...grid.querySelectorAll('[data-layout-row]')].find(item => { const r = item.getBoundingClientRect(); return event.clientY >= r.top && event.clientY <= r.bottom; });
+  if (!row) { $('#layout-status').textContent = 'Zum Platzieren eine Rasterzeile auswählen oder zuerst eine Zeile einfügen.'; return; }
+  const unit = rect.width * 1.01064 / 12;
+  const column = Math.max(1, Math.min(9, Math.floor((event.clientX - rect.left) / unit) + 1));
+  const image = layoutEditor.images.find(image => image.id === id);
+  if (image) placeLayoutAsset(id, { column, span: 4, row: Number(row.dataset.layoutRow), ratio: Number(image.aspect_ratio) || 1 });
+});
+$('#layout-remove').addEventListener('click', () => {
+  const id = layoutEditor.selected;
+  if (!id) return;
+  delete layoutEditor.placements[id]; delete layoutEditor.texts[id];
+  layoutEditor.selected = null; layoutEditor.dirty = true; renderLayoutEditor();
+});
+$('#layout-clear-images').addEventListener('click', () => {
+  layoutEditor.placements = {};
+  layoutEditor.rows = Math.max(1, ...Object.values(layoutEditor.texts).map(p => p.row));
+  layoutEditor.selected = null; layoutEditor.dirty = true; renderLayoutEditor();
+});
+$('#layout-add-text').addEventListener('click', () => {
+  if (Object.keys(layoutEditor.texts).length >= 200) { notify('Pro Projekt sind bis zu 200 Textblöcke möglich.'); return; }
+  const id = `text-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const placement = { column: 1, span: 6, row: 1, text: 'Text eingeben' };
+  while (placement.row <= layoutEditor.rows && !canPlaceImage(id, placement)) placement.row++;
+  if (!canPlaceImage(id, placement)) return;
+  layoutEditor.texts[id] = placement;
+  layoutEditor.rows = Math.max(layoutEditor.rows, placement.row);
+  layoutEditor.selected = id; layoutEditor.dirty = true; renderLayoutEditor();
+  $('#layout-text-content').focus();
+});
+$('#layout-text-content').addEventListener('input', event => {
+  const text = layoutEditor.texts[layoutEditor.selected];
+  if (!text) return;
+  text.text = event.target.value; layoutEditor.dirty = true;
+  const preview = $('#layout-page .is-selected .layout-white-text');
+  if (preview) preview.textContent = text.text;
+});
