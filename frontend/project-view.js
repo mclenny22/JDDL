@@ -167,7 +167,7 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
     block.append(text, name);
     return block;
   }
-  function render(project, image) {
+  function render(project, image, layoutDefault = false) {
     info.replaceChildren();
     const identity = document.createElement('div');
     identity.className = 'project-meta';
@@ -222,7 +222,9 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
     let compositions = {};
     try { compositions = JSON.parse(settings.project_compositions || '{}'); } catch {}
     const composition = compositions[project.id];
-    const remaining = project.images.filter(item => item.id !== image.id);
+    const showHero = !composition?.hero_hidden || !layoutDefault;
+    hero.hidden = !showHero;
+    const remaining = project.images.filter(item => !showHero || item.id !== image.id);
     const custom = !composition && remaining.some(item => layout[item.id] && Object.keys(layout[item.id]).length);
     grid.classList.toggle('custom-layout', custom);
     let rowCounts = {};
@@ -268,13 +270,13 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
       grid.replaceChildren();
       grid.classList.remove('custom-layout', 'composed-layout');
       const entries = [
-        ...Object.entries(composition.placements).filter(([id]) => id !== image.id).map(([id, placement]) => ({ placement, image: project.images.find(item => item.id === id) })).filter(item => item.image),
+        ...Object.entries(composition.placements).filter(([id]) => !showHero || id !== image.id).map(([id, placement]) => ({ placement, image: project.images.find(item => item.id === id) })).filter(item => item.image),
         ...Object.values(composition.texts).map(placement => ({ placement, text: placement.text })),
       ];
       // Direct image links can promote a placed asset to hero. Keep the chosen
       // project hero in the body so that following such a link loses no content.
       const defaultHero = project.images.find(item => item.id === (composition.hero_id || project.thumbnail?.id));
-      if (defaultHero && defaultHero.id !== image.id && !composition.placements[defaultHero.id]) {
+      if (showHero && !composition.hero_hidden && defaultHero && defaultHero.id !== image.id && !composition.placements[defaultHero.id]) {
         entries.push({ image: defaultHero, placement: { column: 1, span: 12, row: composition.rows + 1, ratio: Number(defaultHero.aspect_ratio) || 1 } });
       }
       const occupied = new Set(entries.map(item => item.placement.row));
@@ -304,14 +306,14 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
     view.focus({ preventScroll: true });
     content.setAttribute('aria-label', project.title);
   }
-  function open(project, selectedImage, source = null, onSwitch = () => {}) {
+  function open(project, selectedImage, source = null, onSwitch = () => {}, layoutDefault = false) {
     const image = selectedImage || project.hero || project.thumbnail || project.images[0];
     const origin = imageFor(source);
     transitionView(() => {
       sourceLink = source;
-      render(project, image);
+      render(project, image, layoutDefault);
       onSwitch();
-    }, origin, () => hero);
+    }, project.heroHidden && layoutDefault ? null : origin, () => hero.hidden ? null : hero);
   }
   function close(onSwitch = () => {}) {
     if (transition) {
@@ -323,7 +325,7 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
     // A return to a different image or an offscreen source uses a quiet fade.
     const target = imageFor(source);
     const rect = hero.getBoundingClientRect();
-    const visibleHero = rect.bottom > 0 && rect.top < window.innerHeight;
+    const visibleHero = !hero.hidden && rect.bottom > 0 && rect.top < window.innerHeight;
     transitionView(() => {
       view.hidden = true;
       document.documentElement.classList.remove('project-open');

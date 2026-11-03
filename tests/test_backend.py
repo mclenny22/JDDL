@@ -105,6 +105,21 @@ class BackendIntegrationTests(unittest.TestCase):
             self.assertEqual(self.request('POST', '/api/projects', {**first, 'title': 'Must not save', 'composition': invalid})[0], 400)
         self.assertEqual(json.loads(self.request('GET', '/api/public')[2]), saved)
 
+    def test_optional_hero_removal_is_saved_and_validated_without_changing_assignments(self):
+        self.login()
+        data = server.public_payload(admin=True)
+        project = data['projects'][0]
+        image = next(item for item in data['images'] if project['id'] in item['project_ids'])
+        composition = {'columns': 12, 'manual': True, 'hero_id': image['id'], 'hero_hidden': True,
+                       'rows': 1, 'placements': {}, 'texts': {}}
+        self.assertEqual(self.request('POST', '/api/projects', {**project, 'composition': composition})[0], 200)
+        saved = server.public_payload(admin=True)
+        self.assertTrue(json.loads(saved['settings']['project_compositions'])[project['id']]['hero_hidden'])
+        self.assertEqual(saved['images'], data['images'])
+        invalid = {**composition, 'hero_hidden': 'yes'}
+        self.assertEqual(self.request('POST', '/api/projects', {**project, 'composition': invalid})[0], 400)
+        self.assertEqual(server.public_payload(admin=True), saved)
+
     def test_unpublished_project_text_is_not_part_of_public_content(self):
         self.login()
         project = server.public_payload(admin=True)['projects'][0]

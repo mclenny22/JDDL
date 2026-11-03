@@ -138,7 +138,10 @@ and text blocks appear below the hero. Coordinates and widths are whole columns;
 `column + span` must not exceed 13. Rows are 1–1000. Elements cannot overlap in a
 row. Text blocks are plain white text, not HTML (maximum 10,000 characters each,
 200 blocks per project). An empty `hero_id` follows the project's thumbnail;
-otherwise the hero can differ from the Selected thumbnail. A direct image link
+otherwise the hero can differ from the Selected thumbnail. Optional `hero_hidden`
+is a boolean: `true` omits the hero for default project visits at
+`#project/<slug>`. Existing compositions without this field keep their hero.
+A direct image link
 still chooses its specified image as hero. Compositions for unpublished projects
 are excluded from public settings. Existing seven-column settings remain readable.
 

@@ -16,7 +16,7 @@ export function normalizePortfolio(data) {
     .map(project => {
       const thumbnail = project.images.find(image => image.id === project.thumbnail_id) || project.images[0];
       const hero = project.images.find(image => image.id === compositions[project.id]?.hero_id) || thumbnail;
-      return { ...project, thumbnail, hero };
+      return { ...project, thumbnail, hero, heroHidden: Boolean(compositions[project.id]?.hero_hidden) };
     });
 }
 

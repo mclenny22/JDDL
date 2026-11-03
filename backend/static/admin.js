@@ -731,6 +731,8 @@ window.addEventListener('resize', updateProjectHeaderInset);
 if (typeof ResizeObserver !== 'undefined') new ResizeObserver(updateProjectHeaderInset).observe($('.admin-topbar'));
 
 function closeProjectEditor() {
+  $('#layout-asset-dialog').close();
+  $('#layout-text-dialog').close();
   setView('projects');
   window.scrollTo?.({ top: state.projectReturnScroll, behavior: 'instant' });
   const previous = state.projectReturnFocus;
@@ -1029,7 +1031,7 @@ el.projectForm.addEventListener("submit", async (event) => {
     await api("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: id || undefined, title: $("#project-title").value, client: $("#project-client").value, description: $("#project-description").value, sort_order: id ? projectFor(id)?.sort_order || 0 : Math.max(-10, ...state.data.projects.map((project) => project.sort_order || 0)) + 10, published: $("#project-published").checked, thumbnail_id: $("#project-thumbnail").value, ...(layoutEditor.dirty ? { composition: { columns: 12, manual: layoutEditor.custom, hero_id: layoutEditor.heroId || "", placements: layoutEditor.placements, texts: layoutEditor.texts, rows: layoutEditor.rows } } : {}) }),
+      body: JSON.stringify({ id: id || undefined, title: $("#project-title").value, client: $("#project-client").value, description: $("#project-description").value, sort_order: id ? projectFor(id)?.sort_order || 0 : Math.max(-10, ...state.data.projects.map((project) => project.sort_order || 0)) + 10, published: $("#project-published").checked, thumbnail_id: $("#project-thumbnail").value, ...(layoutEditor.dirty ? { composition: { columns: 12, manual: layoutEditor.custom, hero_id: layoutEditor.heroId || "", ...(layoutEditor.heroHidden ? { hero_hidden: true } : {}), placements: layoutEditor.placements, texts: layoutEditor.texts, rows: layoutEditor.rows } } : {}) }),
     });
     await refresh();
     closeProjectEditor();
@@ -1102,7 +1104,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
 api("/api/session").then((session) => { if (session.authenticated) return bootstrap(); }).catch(() => {});
 
 // Drafts stay local to the project editor until the project is saved.
-const layoutEditor = { texts: {}, visible: [], heroId: '', images: [], placements: {}, custom: false, dirty: false, selected: null, drag: null, rows: 0, composed: false };
+const layoutEditor = { texts: {}, visible: [], heroId: '', images: [], placements: {}, custom: false, dirty: false, selected: null, drag: null, rows: 0, composed: false, empty: null, heroHidden: false, picker: null, textDraft: null, suppressClick: false };
 function openThumbnailPicker(project) {
   const images = state.data.images.filter(image => image.project_ids.includes(project?.id) && image.published && !image.archived && image.url);
   const picker = $('#project-thumbnail');
@@ -1128,7 +1130,9 @@ function openLayoutEditor(project) {
   composition.placements = Object.fromEntries(Object.entries(composition.placements).filter(([id]) => assignedIds.has(id)));
   layoutEditor.visible = visible;
   layoutEditor.heroId = composition.hero_id;
+  layoutEditor.heroHidden = Boolean(composition.hero_hidden);
   layoutEditor.hero = visible.find(image => image.id === (composition.hero_id || project?.thumbnail_id)) || visible[0];
+  if (layoutEditor.heroHidden) layoutEditor.hero = null;
   layoutEditor.images = visible.filter(image => image !== layoutEditor.hero);
   layoutEditor.custom = composition.manual;
   layoutEditor.composed = true;
@@ -1138,6 +1142,9 @@ function openLayoutEditor(project) {
   layoutEditor.rows = Math.max(composition.rows, 0, ...Object.values(layoutEditor.placements).map(p => p.row));
   layoutEditor.dirty = false;
   layoutEditor.selected = null;
+  layoutEditor.empty = null;
+  layoutEditor.picker = null;
+  layoutEditor.textDraft = null;
   layoutEditor.drag = null;
   $('#layout-status').textContent = '';
   $('#layout-hidden-images').textContent = `${assigned.length - visible.length} nicht veröffentlichte Assets werden auf der Website nicht angezeigt.`;
@@ -1147,6 +1154,7 @@ function changeLayoutHero(id, explicit = true) {
   const next = layoutEditor.visible.find(image => image.id === id);
   if (!next) return;
   const previous = layoutEditor.hero;
+  layoutEditor.heroHidden = false;
   layoutEditor.hero = next;
   const placement = layoutEditor.placements[next.id];
   delete layoutEditor.placements[next.id];
@@ -1176,29 +1184,27 @@ function renderLayoutEditor(focusId) {
   const editor = layoutEditor;
   $('#layout-mode').hidden = !editor.visible.length;
   $('#layout-mode').textContent = editor.custom ? 'Automatisches Layout' : '12-Spalten-Layout erstellen';
-  $('#layout-tools').hidden = !editor.custom;
-  renderLayoutPalette();
   $('#layout-help').textContent = editor.custom
-    ? 'Mit + eine Zeile einfügen. Assets ziehen; am rechten Griff die Breite ändern. Tastatur: Pfeiltasten verschieben, Umschalt + Links/Rechts ändert die Breite. Escape bricht das Ziehen ab. Änderungen werden mit dem Projekt gespeichert.'
-    : 'Vorschau der Projektseite. Für freie Platzierung das 12-Spalten-Layout erstellen. Das gewählte Hero-Asset wird darüber dargestellt.';
+    ? 'Asset, Hero oder leere Spalte auswählen: + fügt ein Asset hinzu, ↔ tauscht es aus, T bearbeitet Text und der Papierkorb entfernt das Element. Mit den Zeilen-Buttons eine Zeile einfügen. Assets ziehen; am rechten Griff die Breite ändern. Tastatur: Pfeiltasten verschieben, Umschalt + Links/Rechts ändert die Breite. Escape bricht das Ziehen ab. Änderungen werden mit dem Projekt gespeichert.'
+    : 'Hero oder Asset auswählen und über die Werkzeugleiste bearbeiten. Für freie Platzierung das 12-Spalten-Layout erstellen. Das gewählte Hero-Asset wird darüber dargestellt.';
   const imageMarkup = image => mediaMarkup(image, "", image.alt_text || image.original_name);
-  const hero = editor.hero ? `<div class="layout-meta"><span>${escapeHtml($('#project-title').value)}</span><span>${escapeHtml($('#project-client').value)}</span></div><div class="layout-hero">${imageMarkup(editor.hero)}<span>Hero · volle Breite</span></div>` : '<p class="layout-empty">Noch keine veröffentlichten Assets zugeordnet. Assets unter „Alle Assets“ diesem Projekt zuordnen.</p>';
+  const hero = editor.hero ? `<div class="layout-meta"><span>${escapeHtml($('#project-title').value)}</span><span>${escapeHtml($('#project-client').value)}</span></div><div class="layout-hero" data-layout-hero><button type="button" class="layout-hero-select" data-select-hero aria-label="Hero auswählen" aria-describedby="layout-help">${imageMarkup(editor.hero)}</button><span>Hero · volle Breite</span>${layoutToolbar("hero")}</div>` : editor.visible.length ? `<div class="layout-hero layout-hero-empty" data-layout-hero><button type="button" class="layout-hero-select" data-select-hero aria-label="Leeren Hero-Bereich auswählen">Hero hinzufügen</button>${layoutToolbar('hero')}</div>` : '<p class="layout-empty">Noch keine veröffentlichten Assets zugeordnet. Assets unter „Alle Assets“ diesem Projekt zuordnen.</p>';
   let body = '';
   if (editor.custom) {
     const insertButton = (row, top = false) => `<button type="button" class="layout-row-add${top ? ' is-top' : ''}" data-insert-row="${row}" aria-label="Zeile ${row} einfügen" ${editor.rows >= 1000 ? 'disabled' : ''}>+</button>`;
     const occupied = new Set(Object.values(allLayoutPlacements()).map(p => p.row));
     const rows = Array.from({ length: Math.max(1, editor.rows) }, (_, index) => {
       const row = index + 1;
-      return `<div class="layout-row${occupied.has(row) ? '' : ' is-empty'}" data-layout-row="${row}" style="grid-row:${row}">${row === 1 ? insertButton(1, true) : ''}${insertButton(row + 1)}${!occupied.has(row) ? `<span class="layout-row-empty" aria-hidden="true">Freie Zeile</span><button type="button" class="layout-row-remove" data-remove-row="${row}" aria-label="Leere Zeile ${row} entfernen">×</button>` : ''}</div>`;
+      return `<div class="layout-row${occupied.has(row) ? '' : ' is-empty'}" data-layout-row="${row}" style="grid-row:${row}">${row === 1 ? insertButton(1, true) : ''}${insertButton(row + 1)}${emptyLayoutCells(row)}${!occupied.has(row) ? `<span class="layout-row-empty" aria-hidden="true">Freie Zeile</span><button type="button" class="layout-row-remove" data-remove-row="${row}" aria-label="Leere Zeile ${row} entfernen">×</button>` : ''}</div>`;
     }).join('');
     body = `<div class="layout-grid${editor.composed ? ' composed-layout' : ''}">${rows}${editor.images.filter(image => editor.placements[image.id]).map(image => {
       const p = editor.placements[image.id];
       const column = p.column;
       const span = p.span;
-      return `<div class="layout-tile" data-layout-image="${escapeHtml(image.id)}" style="grid-column:${column}/span ${span};grid-row:${p.row};${p.ratio ? `--layout-ratio:${p.ratio}` : ''}"><button type="button" class="layout-move" aria-describedby="layout-help" aria-label="${escapeHtml(image.original_name)} verschieben">${imageMarkup(image)}<span class="layout-tile-label">${escapeHtml(image.original_name)}</span></button><button type="button" class="layout-resize" aria-label="Breite von ${escapeHtml(image.original_name)} ändern" aria-describedby="layout-help">↔</button></div>`;
-    }).join('')}${Object.entries(editor.texts).map(([id, p]) => `<div class="layout-tile layout-text-tile" data-layout-image="${escapeHtml(id)}" style="grid-column:${p.column}/span ${p.span};grid-row:${p.row}"><button type="button" class="layout-move" aria-label="Textblock verschieben" aria-describedby="layout-help"><span class="layout-white-text">${escapeHtml(p.text)}</span></button><button type="button" class="layout-resize" aria-label="Textbreite ändern">↔</button></div>`).join('')}<div class="layout-target" hidden aria-hidden="true"></div></div>`;
+      return `<div class="layout-tile" data-layout-image="${escapeHtml(image.id)}" style="grid-column:${column}/span ${span};grid-row:${p.row};${p.ratio ? `--layout-ratio:${p.ratio}` : ''}"><button type="button" class="layout-move" aria-describedby="layout-help" aria-label="${escapeHtml(image.original_name)} verschieben">${imageMarkup(image)}<span class="layout-tile-label">${escapeHtml(image.original_name)}</span></button><button type="button" class="layout-resize" aria-label="Breite von ${escapeHtml(image.original_name)} ändern" aria-describedby="layout-help">↔</button>${layoutToolbar(image.id)}</div>`;
+    }).join('')}${Object.entries(editor.texts).map(([id, p]) => `<div class="layout-tile layout-text-tile" data-layout-image="${escapeHtml(id)}" style="grid-column:${p.column}/span ${p.span};grid-row:${p.row}"><button type="button" class="layout-move" aria-label="Textblock verschieben" aria-describedby="layout-help"><span class="layout-white-text">${escapeHtml(p.text)}</span></button><button type="button" class="layout-resize" aria-label="Textbreite ändern">↔</button>${layoutToolbar(id)}</div>`).join('')}<div class="layout-target" hidden aria-hidden="true"></div></div>`;
   } else {
-    body = `<div class="layout-auto">${projectRows(editor.images).map(({ image, span, ratio }) => `<div style="grid-column:span ${span};--preview-ratio:${ratio}">${imageMarkup(image)}</div>`).join('')}</div>`;
+    body = `<div class="layout-auto">${projectRows(editor.images).map(({ image, span, ratio }) => `<div class="layout-tile layout-auto-tile" data-layout-image="${escapeHtml(image.id)}" style="grid-column:span ${span};--preview-ratio:${ratio}"><button type="button" class="layout-move" aria-label="${escapeHtml(image.original_name)} auswählen">${imageMarkup(image)}</button>${layoutToolbar(image.id)}</div>`).join('')}</div>`;
   }
   $('#layout-page').innerHTML = hero + body;
   updateLayoutSelection();
@@ -1208,9 +1214,10 @@ function updateLayoutSelection() {
   const id = layoutEditor.selected;
   const placement = allLayoutPlacements()[id];
   $('#layout-page').querySelectorAll('[data-layout-image]').forEach(tile => tile.classList.toggle('is-selected', tile.dataset.layoutImage === id));
+  $('#layout-page [data-layout-hero]')?.classList.toggle('is-selected', id === 'hero');
+  $('#layout-page').querySelectorAll('[data-empty-cell]').forEach(cell => cell.classList.toggle('is-selected', Boolean(layoutEditor.empty && Number(cell.dataset.row) === layoutEditor.empty.row && Number(cell.dataset.column) === layoutEditor.empty.column)));
+  updateContextToolbar();
   $('#layout-selection').textContent = placement ? `Spalte ${Number(placement.column.toFixed(2))} · Breite ${Number(placement.span.toFixed(2))} · Zeile ${placement.row}` : 'Asset auswählen';
-  $('#layout-narrow').disabled = !placement || placement.span <= 1;
-  $('#layout-wide').disabled = !placement || placement.column + placement.span >= 13;
 }
 function canPlaceImage(id, placement, placements = allLayoutPlacements()) {
   return placement.column >= 1 && placement.span >= 1 && placement.column + placement.span <= 13 + 1e-6 && placement.row >= 1 && placement.row <= 1000 && !Object.entries(placements).some(([otherId, other]) => otherId !== id && other.row === placement.row && other.column < placement.column + placement.span - 1e-6 && placement.column < other.column + other.span - 1e-6);
@@ -1223,6 +1230,7 @@ function commitLayoutPlacement(id, placement) {
   if (layoutEditor.texts[id]) layoutEditor.texts[id] = placement;
   else layoutEditor.placements[id] = placement;
   layoutEditor.selected = id;
+  layoutEditor.empty = null;
   layoutEditor.dirty = true;
   layoutEditor.rows = Math.min(1000, Math.max(layoutEditor.rows, placement.row));
   renderLayoutEditor(id);
@@ -1231,6 +1239,8 @@ function commitLayoutPlacement(id, placement) {
 }
 $('#layout-mode').addEventListener('click', () => {
   layoutEditor.custom = !layoutEditor.custom;
+  layoutEditor.selected = null;
+  layoutEditor.empty = null;
   layoutEditor.dirty = true;
   layoutEditor.composed = true;
   layoutEditor.placements = automaticPlacements(layoutEditor.images);
@@ -1239,9 +1249,10 @@ $('#layout-mode').addEventListener('click', () => {
   renderLayoutEditor();
 });
 function insertLayoutRow(row) {
-  if (!Number.isInteger(row) || row < 1 || row > layoutEditor.rows + 1 || layoutEditor.rows >= 1000) return;
+  if (!Number.isInteger(row) || row < 1 || row > Math.max(1, layoutEditor.rows) + 1 || layoutEditor.rows >= 1000) return;
   for (const placement of Object.values(allLayoutPlacements())) if (placement.row >= row) placement.row++;
-  layoutEditor.rows++;
+  layoutEditor.rows = Math.max(1, layoutEditor.rows) + 1;
+  if (layoutEditor.empty && layoutEditor.empty.row >= row) layoutEditor.empty.row++;
   layoutEditor.dirty = true;
   layoutEditor.composed = true;
   renderLayoutEditor();
@@ -1252,34 +1263,45 @@ function removeLayoutRow(row) {
   if (!Number.isInteger(row) || row < 1 || row > layoutEditor.rows || Object.values(allLayoutPlacements()).some(p => p.row === row)) return;
   for (const placement of Object.values(allLayoutPlacements())) if (placement.row > row) placement.row--;
   layoutEditor.rows--;
+  if (layoutEditor.empty?.row === row) layoutEditor.empty = null;
+  else if (layoutEditor.empty && layoutEditor.empty.row > row) layoutEditor.empty.row--;
   layoutEditor.dirty = true;
   renderLayoutEditor();
   $(`[data-insert-row="${row}"]`)?.focus({ preventScroll: true });
   $('#layout-status').textContent = `Leere Zeile ${row} entfernt.`;
 }
-for (const [selector, delta] of [['#layout-narrow', -1], ['#layout-wide', 1]]) {
-  $(selector).addEventListener('click', () => {
-    const id = layoutEditor.selected;
-    if (id) commitLayoutPlacement(id, { ...allLayoutPlacements()[id], span: allLayoutPlacements()[id].span + delta });
-  });
-}
 $('#layout-page').addEventListener('click', event => {
+  if (layoutEditor.suppressClick) { layoutEditor.suppressClick = false; return; }
+  const action = event.target.closest('[data-layout-action]');
+  if (action) { handleLayoutAction(action.dataset.layoutAction, action); return; }
   const insert = event.target.closest('[data-insert-row]');
   if (insert) { insertLayoutRow(Number(insert.dataset.insertRow)); return; }
   const remove = event.target.closest('[data-remove-row]');
   if (remove) { removeLayoutRow(Number(remove.dataset.removeRow)); return; }
+  const empty = event.target.closest('[data-empty-cell]');
+  if (empty) { selectEmptyLayoutCell(Number(empty.dataset.row), Number(empty.dataset.column)); return; }
+  if (event.target.closest('[data-layout-hero]')) { layoutEditor.selected = 'hero'; layoutEditor.empty = null; updateLayoutSelection(); return; }
   const tile = event.target.closest('[data-layout-image]');
   if (!tile) return;
   layoutEditor.selected = tile.dataset.layoutImage;
+  layoutEditor.empty = null;
   updateLayoutSelection();
-  renderLayoutPalette();
 });
 $('#layout-page').addEventListener('keydown', event => {
   if (event.key === 'Escape' && layoutEditor.drag) {
     event.preventDefault(); event.stopPropagation(); finishLayoutDrag(false); return;
   }
+  if (event.target.closest('[data-layout-action]')) return;
+  const empty = event.target.closest('[data-empty-cell]');
+  if (empty && ['ArrowLeft', 'ArrowRight'].includes(event.key)) {
+    event.preventDefault();
+    const next = Number(empty.dataset.column) + (event.key === 'ArrowLeft' ? -1 : 1);
+    const nextCell = $(`#layout-page [data-empty-cell][data-row="${empty.dataset.row}"][data-column="${next}"]`);
+    if (nextCell) { selectEmptyLayoutCell(Number(empty.dataset.row), next); nextCell.focus(); }
+    return;
+  }
   const tile = event.target.closest('[data-layout-image]');
-  if (!tile || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+  if (!layoutEditor.custom || !tile || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
   event.preventDefault();
   const id = tile.dataset.layoutImage;
   layoutEditor.selected = id;
@@ -1290,10 +1312,12 @@ $('#layout-page').addEventListener('keydown', event => {
   commitLayoutPlacement(id, next);
 });
 $('#layout-page').addEventListener('pointerdown', event => {
+  if (event.target.closest('[data-layout-action]') || !layoutEditor.custom) return;
   const tile = event.target.closest('[data-layout-image]');
   if (!tile || event.button !== 0 || event.isPrimary === false) return;
   const id = tile.dataset.layoutImage;
   layoutEditor.selected = id;
+  layoutEditor.empty = null;
   updateLayoutSelection();
   const grid = tile.closest('.layout-grid');
   const rect = tile.getBoundingClientRect();
@@ -1347,6 +1371,8 @@ function finishLayoutDrag(commit) {
   const drag = layoutEditor.drag;
   if (!drag) return;
   layoutEditor.drag = null;
+  layoutEditor.suppressClick = Boolean(drag.moved);
+  if (drag.moved) setTimeout(() => { layoutEditor.suppressClick = false; }, 0);
   cancelAnimationFrame(drag.frame);
   if (drag.tile.hasPointerCapture(drag.pointerId)) drag.tile.releasePointerCapture(drag.pointerId);
   drag.tile.classList.remove('is-dragging');
@@ -1463,67 +1489,193 @@ el.imageBody.addEventListener('keydown', event => {
   el.imageBody.querySelector(`[data-image-id="${anchor}"][data-inline-field="${field}"]`)?.focus();
 });
 
-function renderLayoutPalette() {
-  const editor = layoutEditor;
-  $('#layout-sidebar').hidden = !editor.custom;
-  $('#layout-hero-select').innerHTML = editor.visible.map(image => `<option value="${escapeHtml(image.id)}" ${image === editor.hero ? 'selected' : ''}>${escapeHtml(image.original_name)}</option>`).join('');
-  $('#layout-palette').innerHTML = editor.images.filter(image => !editor.placements[image.id]).map(image => `<div class="palette-asset" draggable="true" data-palette-image="${escapeHtml(image.id)}">${mediaMarkup(image)}<span>${escapeHtml(image.original_name)}</span><button type="button" class="button" data-place-asset="${escapeHtml(image.id)}">Einfügen</button></div>`).join('') || '<p class="admin-muted">Alle Assets sind platziert. Entfernte Assets erscheinen hier wieder.</p>';
-  const id = editor.selected;
-  $('#layout-remove').disabled = !id;
-  $('#layout-clear-images').disabled = !Object.keys(editor.placements).length;
-  $('#layout-text-field').hidden = !editor.texts[id];
-  $('#layout-text-content').value = editor.texts[id]?.text || '';
+// Selection tools share one asset picker and one text editor across the canvas.
+function layoutToolbar(id) {
+  const hero = id === 'hero';
+  const empty = id === 'empty' || (hero && !layoutEditor.hero);
+  const text = Boolean(layoutEditor.texts[id]);
+  const swapIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4"/></svg>';
+  const trashIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg>';
+  const button = (action, label, icon) => `<button type="button" data-layout-action="${action}" title="${label}" aria-label="${label}">${icon}</button>`;
+  return `<div class="layout-context-toolbar" role="group" aria-label="Auswahl bearbeiten" data-toolbar-for="${escapeHtml(id)}" hidden>${button('asset', empty ? 'Asset hinzufügen' : 'Asset austauschen', empty ? '+' : swapIcon)}${!hero ? button('text', text ? 'Text bearbeiten' : empty ? 'Text hinzufügen' : 'Durch Text ersetzen', 'T') : ''}${!empty ? button('remove', 'Aus Layout entfernen', trashIcon) : ''}</div>`;
 }
-$('#layout-hero-select').addEventListener('change', event => changeLayoutHero(event.target.value));
-$('#layout-palette').addEventListener('click', event => {
-  const button = event.target.closest('[data-place-asset]');
-  if (button) placeLayoutAsset(button.dataset.placeAsset);
-});
-$('#layout-palette').addEventListener('dragstart', event => {
-  const tile = event.target.closest('[data-palette-image]');
-  if (tile) { event.dataTransfer.setData('text/x-jddl-asset', tile.dataset.paletteImage); event.dataTransfer.effectAllowed = 'copy'; }
-});
-$('#layout-page').addEventListener('dragover', event => { if (layoutEditor.custom && [...event.dataTransfer.types].includes('text/x-jddl-asset')) event.preventDefault(); });
-$('#layout-page').addEventListener('drop', event => {
-  if (!layoutEditor.custom) return;
-  const id = event.dataTransfer.getData('text/x-jddl-asset');
-  if (!id) return;
-  event.preventDefault();
-  const grid = $('#layout-page .layout-grid');
-  const rect = grid.getBoundingClientRect();
-  const row = [...grid.querySelectorAll('[data-layout-row]')].find(item => { const r = item.getBoundingClientRect(); return event.clientY >= r.top && event.clientY <= r.bottom; });
-  if (!row) { $('#layout-status').textContent = 'Zum Platzieren eine Rasterzeile auswählen oder zuerst eine Zeile einfügen.'; return; }
-  const unit = rect.width * 1.01064 / 12;
-  const column = Math.max(1, Math.min(9, Math.floor((event.clientX - rect.left) / unit) + 1));
-  const image = layoutEditor.images.find(image => image.id === id);
-  if (image) placeLayoutAsset(id, { column, span: 4, row: Number(row.dataset.layoutRow), ratio: Number(image.aspect_ratio) || 1 });
-});
-$('#layout-remove').addEventListener('click', () => {
+function emptyLayoutCells(row) {
+  const placements = Object.values(allLayoutPlacements()).filter(p => p.row === row);
+  const free = column => !placements.some(p => p.column <= column && column < p.column + p.span);
+  const cells = Array.from({ length: 12 }, (_, index) => index + 1).filter(free).map(column => `<button type="button" class="layout-empty-cell" data-empty-cell data-row="${row}" data-column="${column}" style="--cell:${column}" aria-label="Leere Spalte ${column} in Zeile ${row} auswählen"></button>`).join('');
+  const empty = layoutEditor.empty;
+  const selection = empty?.row === row && free(empty.column) ? `<div class="layout-empty-selection" style="--cell:${empty.column};--span:${empty.span}">${layoutToolbar('empty')}</div>` : '';
+  return cells + selection;
+}
+function updateContextToolbar() {
+  $('#layout-page').querySelectorAll('[data-toolbar-for]').forEach(toolbar => {
+    toolbar.hidden = toolbar.dataset.toolbarFor === 'empty' ? !layoutEditor.empty : toolbar.dataset.toolbarFor !== layoutEditor.selected;
+    if (!toolbar.hidden) {
+      toolbar.style.right = '5px';
+      const minimumLeft = $('#layout-page').getBoundingClientRect().left + 4;
+      const left = toolbar.getBoundingClientRect().left;
+      if (left < minimumLeft) toolbar.style.right = `${5 - (minimumLeft - left)}px`;
+    }
+  });
+}
+function selectEmptyLayoutCell(row, column) {
+  const placements = Object.values(allLayoutPlacements()).filter(p => p.row === row);
+  let available = 0;
+  while (column + available <= 12 && !placements.some(p => p.column <= column + available && column + available < p.column + p.span)) available++;
+  if (!available) return;
+  layoutEditor.empty = { row, column, span: Math.min(4, available) };
+  layoutEditor.selected = null;
+  renderLayoutEditor();
+  $(`#layout-page [data-empty-cell][data-row="${row}"][data-column="${column}"]`)?.focus({ preventScroll: true });
+}
+function layoutSelectionTarget() {
   const id = layoutEditor.selected;
-  if (!id) return;
-  delete layoutEditor.placements[id]; delete layoutEditor.texts[id];
-  layoutEditor.selected = null; layoutEditor.dirty = true; renderLayoutEditor();
-});
-$('#layout-clear-images').addEventListener('click', () => {
-  layoutEditor.placements = {};
-  layoutEditor.rows = Math.max(1, ...Object.values(layoutEditor.texts).map(p => p.row));
-  layoutEditor.selected = null; layoutEditor.dirty = true; renderLayoutEditor();
-});
-$('#layout-add-text').addEventListener('click', () => {
-  if (Object.keys(layoutEditor.texts).length >= 200) { notify('Pro Projekt sind bis zu 200 Textblöcke möglich.'); return; }
-  const id = `text-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const placement = { column: 1, span: 6, row: 1, text: 'Text eingeben' };
-  while (placement.row <= layoutEditor.rows && !canPlaceImage(id, placement)) placement.row++;
-  if (!canPlaceImage(id, placement)) return;
+  if (id === 'hero') return { kind: 'hero', id: layoutEditor.hero?.id || '' };
+  const placement = allLayoutPlacements()[id];
+  if (placement) return { kind: 'slot', id, placement: { ...placement } };
+  if (layoutEditor.empty) return { kind: 'slot', id: null, placement: { ...layoutEditor.empty } };
+  return null;
+}
+function ensureManualLayout() {
+  if (layoutEditor.custom) return;
+  layoutEditor.custom = true;
+  layoutEditor.composed = true;
+  layoutEditor.placements = automaticPlacements(layoutEditor.images);
+  layoutEditor.rows = Math.max(0, ...Object.values(layoutEditor.placements).map(p => p.row));
+}
+function handleLayoutAction(action, trigger) {
+  if (action === 'asset') openLayoutAssetPicker(trigger);
+  if (action === 'text') openLayoutTextEditor(trigger);
+  if (action === 'remove') removeLayoutSelection();
+}
+function restoreLayoutFocus() {
+  if (layoutEditor.selected === 'hero') $('#layout-page [data-select-hero]')?.focus({ preventScroll: true });
+  else if (layoutEditor.selected) $(`#layout-page [data-layout-image="${layoutEditor.selected}"] .layout-move`)?.focus({ preventScroll: true });
+  else if (layoutEditor.empty) $(`#layout-page [data-empty-cell][data-row="${layoutEditor.empty.row}"][data-column="${layoutEditor.empty.column}"]`)?.focus({ preventScroll: true });
+}
+function openLayoutAssetPicker(trigger) {
+  const target = layoutSelectionTarget();
+  if (!target) return;
+  layoutEditor.picker = { target, selectedId: layoutEditor.texts[target.id] ? '' : target.id || '', trigger };
+  $('#layout-asset-search').value = '';
+  $('#layout-asset-error').textContent = '';
+  $('#layout-asset-title').textContent = target.kind === 'hero' ? 'Hero-Asset auswählen' : target.id ? 'Asset austauschen' : 'Asset hinzufügen';
+  renderLayoutAssetOptions();
+  $('#layout-asset-dialog').showModal();
+  document.documentElement.classList.add('has-open-drawer');
+  $('#layout-asset-search').focus();
+}
+function renderLayoutAssetOptions() {
+  const picker = layoutEditor.picker;
+  if (!picker) return;
+  const query = $('#layout-asset-search').value.trim().toLocaleLowerCase('de');
+  const images = layoutEditor.visible.filter(image => `${image.original_name} ${image.alt_text || ''}`.toLocaleLowerCase('de').includes(query));
+  $('#layout-asset-options').innerHTML = '<legend class="sr-only">Projekt-Assets</legend>' + (images.map(image => `<label class="layout-asset-option"><input type="radio" name="layout-asset" value="${escapeHtml(image.id)}" ${picker.selectedId === image.id ? 'checked' : ''}/>${mediaMarkup(image)}<span>${escapeHtml(image.original_name)}</span><small>${image === layoutEditor.hero ? 'Hero' : layoutEditor.placements[image.id] ? 'Bereits platziert' : 'Verfügbar'}</small></label>`).join('') || '<p class="admin-muted">Keine passenden Assets in diesem Projekt.</p>');
+  $('#layout-asset-confirm').disabled = !layoutEditor.visible.some(image => image.id === picker.selectedId);
+}
+function applyLayoutAsset(target, id) {
+  const image = layoutEditor.visible.find(item => item.id === id);
+  if (!image) return false;
+  if (target.kind === 'hero') { changeLayoutHero(id); layoutEditor.selected = 'hero'; updateLayoutSelection(); return true; }
+  if (target.id === id) return true;
+  const oldPlacement = layoutEditor.placements[id];
+  const oldImage = layoutEditor.visible.find(item => item.id === target.id);
+  const others = Object.fromEntries(Object.entries(allLayoutPlacements()).filter(([key]) => key !== target.id && key !== id));
+  const placement = { column: target.placement.column, span: target.placement.span, row: target.placement.row, ratio: target.placement.ratio || Number(image.aspect_ratio) || 1 };
+  if (!canPlaceImage(id, placement, others)) return false;
+  ensureManualLayout();
+  delete layoutEditor.placements[target.id]; delete layoutEditor.texts[target.id];
+  if (image === layoutEditor.hero) {
+    layoutEditor.hero = oldImage || null;
+    layoutEditor.heroId = oldImage?.id || image.id;
+    layoutEditor.heroHidden = !oldImage;
+  } else if (oldPlacement && oldImage) layoutEditor.placements[oldImage.id] = oldPlacement;
+  layoutEditor.placements[id] = placement;
+  layoutEditor.images = layoutEditor.visible.filter(item => item !== layoutEditor.hero);
+  layoutEditor.rows = Math.max(layoutEditor.rows, placement.row);
+  layoutEditor.selected = id; layoutEditor.empty = null; layoutEditor.dirty = true;
+  renderLayoutEditor();
+  return true;
+}
+function removeLayoutSelection() {
+  const target = layoutSelectionTarget();
+  if (!target || (target.kind === 'hero' && !layoutEditor.hero)) return;
+  ensureManualLayout();
+  if (target.kind === 'hero') {
+    layoutEditor.heroId = layoutEditor.hero.id;
+    layoutEditor.hero = null; layoutEditor.heroHidden = true;
+    layoutEditor.images = [...layoutEditor.visible];
+  } else {
+    delete layoutEditor.placements[target.id]; delete layoutEditor.texts[target.id];
+    layoutEditor.selected = null; layoutEditor.empty = { column: target.placement.column, span: target.placement.span, row: target.placement.row };
+  }
+  layoutEditor.dirty = true;
+  renderLayoutEditor(); restoreLayoutFocus();
+}
+function openLayoutTextEditor(trigger) {
+  const target = layoutSelectionTarget();
+  if (!target || target.kind === 'hero') return;
+  const existing = layoutEditor.texts[target.id];
+  layoutEditor.textDraft = { target, trigger };
+  $('#layout-text-title').textContent = existing ? 'Text bearbeiten' : target.id ? 'Asset durch Text ersetzen' : 'Text hinzufügen';
+  $('#layout-text-content').value = existing?.text || '';
+  $('#layout-text-error').textContent = '';
+  $('#layout-text-dialog').showModal();
+  document.documentElement.classList.add('has-open-drawer');
+  $('#layout-text-content').focus();
+}
+function applyLayoutText(target, text) {
+  if (!text.trim()) { $('#layout-text-error').textContent = 'Bitte gib einen Text ein.'; return false; }
+  if (text.length > 10000) return false;
+  if (!layoutEditor.texts[target.id] && Object.keys(layoutEditor.texts).length >= 200) { $('#layout-text-error').textContent = 'Pro Projekt sind bis zu 200 Textblöcke möglich.'; return false; }
+  const id = layoutEditor.texts[target.id] ? target.id : `text-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const placement = { column: target.placement.column, span: target.placement.span, row: target.placement.row, text };
+  const others = Object.fromEntries(Object.entries(allLayoutPlacements()).filter(([key]) => key !== target.id));
+  if (!canPlaceImage(id, placement, others)) { $('#layout-text-error').textContent = 'Hier ist kein Platz für den Text.'; return false; }
+  ensureManualLayout();
+  delete layoutEditor.placements[target.id]; delete layoutEditor.texts[target.id];
   layoutEditor.texts[id] = placement;
   layoutEditor.rows = Math.max(layoutEditor.rows, placement.row);
-  layoutEditor.selected = id; layoutEditor.dirty = true; renderLayoutEditor();
-  $('#layout-text-content').focus();
+  layoutEditor.selected = id; layoutEditor.empty = null; layoutEditor.dirty = true;
+  renderLayoutEditor();
+  return true;
+}
+$('#layout-asset-search').addEventListener('input', renderLayoutAssetOptions);
+$('#layout-asset-options').addEventListener('change', event => {
+  if (event.target.name !== 'layout-asset' || !layoutEditor.picker) return;
+  layoutEditor.picker.selectedId = event.target.value;
+  $('#layout-asset-confirm').disabled = false;
 });
-$('#layout-text-content').addEventListener('input', event => {
-  const text = layoutEditor.texts[layoutEditor.selected];
-  if (!text) return;
-  text.text = event.target.value; layoutEditor.dirty = true;
-  const preview = $('#layout-page .is-selected .layout-white-text');
-  if (preview) preview.textContent = text.text;
+$('#layout-asset-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const picker = layoutEditor.picker;
+  if (!picker) return;
+  if (applyLayoutAsset(picker.target, picker.selectedId)) $('#layout-asset-dialog').close();
+  else $('#layout-asset-error').textContent = 'Das Asset kann hier nicht platziert werden. Wähle eine freie Position.';
 });
+$('#layout-text-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const draft = layoutEditor.textDraft;
+  if (draft && applyLayoutText(draft.target, $('#layout-text-content').value)) $('#layout-text-dialog').close();
+});
+for (const [selector, key] of [['#layout-asset-dialog', 'picker'], ['#layout-text-dialog', 'textDraft']]) {
+  const dialog = $(selector);
+  dialog.addEventListener('close', () => {
+    const draft = layoutEditor[key];
+    layoutEditor[key] = null;
+    document.documentElement.classList.remove('has-open-drawer');
+    dialog.querySelectorAll('video').forEach(video => video.pause());
+    if (draft?.trigger?.isConnected) draft.trigger.focus({ preventScroll: true });
+    else restoreLayoutFocus();
+  });
+}
+$('#layout-page').addEventListener('focusin', event => {
+  if (event.target.closest('[data-layout-action]')) return;
+  const tile = event.target.closest('[data-layout-image]');
+  const hero = event.target.closest('[data-select-hero]');
+  if (!tile && !hero) return;
+  layoutEditor.selected = hero ? 'hero' : tile.dataset.layoutImage;
+  layoutEditor.empty = null; updateLayoutSelection();
+});
+
+window.addEventListener('resize', updateContextToolbar);

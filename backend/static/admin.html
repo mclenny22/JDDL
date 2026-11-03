@@ -172,24 +172,8 @@
         <section class="project-layout-editor" aria-labelledby="layout-heading">
           <div class="layout-heading"><h3 id="layout-heading">Asset-Layout</h3><button type="button" class="button" id="layout-mode">12-Spalten-Layout erstellen</button></div>
           <p class="layout-help" id="layout-help">Vorschau der Projektseite. Das gewählte Vorschaubild oder Video erscheint als Hero-Asset.</p>
-          <div class="layout-tools" id="layout-tools" hidden>
-            <span id="layout-selection">Asset auswählen</span>
-            <button type="button" class="button" id="layout-narrow" aria-label="Ausgewähltes Asset schmaler machen">−</button>
-            <button type="button" class="button" id="layout-wide" aria-label="Ausgewähltes Asset breiter machen">+</button>
-          </div>
-          <div class="layout-workspace">
-            <aside class="layout-sidebar" id="layout-sidebar" aria-label="Layout-Elemente" hidden>
-              <label class="field" for="layout-hero-select"><span>Hero austauschen</span><select id="layout-hero-select"></select></label>
-              <p class="layout-help">Das bisherige Hero-Asset übernimmt den Platz des neuen. Das Vorschaubild in Selected bleibt separat wählbar.</p>
-              <h4>Verfügbare Assets</h4><p class="layout-help">Ins Raster ziehen oder per Einfügen platzieren. Auf Touch-Geräten Einfügen wählen und danach verschieben.</p>
-              <div id="layout-palette" class="layout-palette"></div>
-              <button class="button" type="button" id="layout-clear-images">Alle Bilder zurücklegen</button>
-              <button class="button" type="button" id="layout-add-text">Text hinzufügen</button>
-              <label class="field" for="layout-text-content" id="layout-text-field" hidden><span>Weißer Text</span><textarea id="layout-text-content" maxlength="10000"></textarea></label>
-              <button class="button" type="button" id="layout-remove" disabled>Aus Layout entfernen</button>
-            </aside>
-            <div class="layout-viewport"><div class="layout-page" id="layout-page"></div></div>
-          </div>
+          <p class="sr-only" id="layout-selection"></p>
+          <div class="layout-viewport"><div class="layout-page" id="layout-page"></div></div>
           <p class="layout-help" id="layout-hidden-images"></p>
           <p class="sr-only" id="layout-status" role="status" aria-live="polite"></p>
         </section>
@@ -198,6 +182,25 @@
 
       </main>
     </div>
+
+    <dialog id="layout-asset-dialog" class="layout-picker-dialog" aria-labelledby="layout-asset-title" aria-describedby="layout-asset-help">
+      <form id="layout-asset-form" class="dialog-panel">
+        <div class="dialog-heading"><h2 id="layout-asset-title">Asset auswählen</h2><button class="icon-button" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+        <p id="layout-asset-help">Veröffentlichte Assets dieses Projekts auswählen und bestätigen. Bereits platzierte Assets werden verschoben oder getauscht.</p>
+        <label class="field" for="layout-asset-search"><span>Assets durchsuchen</span><input id="layout-asset-search" type="search" placeholder="Nach Namen suchen…" /></label>
+        <fieldset class="layout-asset-options" id="layout-asset-options"><legend class="sr-only">Projekt-Assets</legend></fieldset>
+        <p id="layout-asset-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions"><button class="button" type="button" data-close-dialog>Abbrechen</button><button class="button primary" id="layout-asset-confirm" type="submit" disabled>Auswahl übernehmen</button></div>
+      </form>
+    </dialog>
+    <dialog id="layout-text-dialog" class="layout-text-dialog" aria-labelledby="layout-text-title">
+      <form id="layout-text-form" class="dialog-panel">
+        <div class="dialog-heading"><h2 id="layout-text-title">Text bearbeiten</h2><button class="icon-button" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+        <label class="field" for="layout-text-content"><span>Weißer Text</span><textarea id="layout-text-content" maxlength="10000" required></textarea></label>
+        <p id="layout-text-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions"><button class="button" type="button" data-close-dialog>Abbrechen</button><button class="button primary" type="submit">Text übernehmen</button></div>
+      </form>
+    </dialog>
 
     <dialog id="image-dialog" class="editor-drawer" aria-labelledby="image-dialog-title" aria-describedby="image-dialog-description">
       <form id="image-form" enctype="multipart/form-data">

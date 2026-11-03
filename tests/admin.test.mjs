@@ -229,7 +229,7 @@ test('project save includes the project-specific twelve-column composition atomi
 
 test('layout keyboard moves and resizes, while a cancelled drag leaves its draft unchanged', () => {
   const { run, elements, context } = mount();
-  run(`layoutEditor.placements = { image: { column: 2, span: 2, row: 3 } };
+  run(`layoutEditor.custom = true; layoutEditor.placements = { image: { column: 2, span: 2, row: 3 } };
     layoutEditor.selected = 'image'; renderLayoutEditor = () => {};`);
   const tile = { dataset: { layoutImage: 'image' } };
   const event = (key, shiftKey = false) => ({ key, shiftKey, target: { closest: selector => selector === '[data-layout-image]' ? tile : null }, preventDefault() {} });
@@ -472,33 +472,111 @@ test('export refresh handles reassigned images and deleted or empty projects', a
   assert.equal(run('exportFilteredImages().length'), 4);
 });
 
-test('asset palette removes and reinserts assets, swaps hero into the vacated slot and saves editable white text', async () => {
-  const { run, elements, calls } = mount();
-  run(`state.data.images[0].url = '/hero.jpg';
-    state.data.images.push({id:'second', url:'/second.jpg', original_name:'Second', published:1, archived:0, project_ids:['alpha']});
+function mountLayout() {
+  const app = mount();
+  app.run(`state.data.images[0].url='/hero.jpg';
+    state.data.images.push(
+      {id:'second',url:'/second.jpg',original_name:'Second',published:1,archived:0,project_ids:['alpha'],aspect_ratio:1.5},
+      {id:'third',url:'/third.mp4',mime_type:'video/mp4',original_name:'Third video',published:1,archived:0,project_ids:['alpha'],aspect_ratio:16/9},
+      {id:'draft',url:'/draft.jpg',original_name:'Draft',published:0,archived:1,project_ids:['alpha']},
+      {id:'other',url:'/other.jpg',original_name:'Other project',published:1,archived:0,project_ids:['beta']});
     openProject(state.data.projects[0]); refresh = async () => {};`);
-  elements.get('#layout-mode').listeners.click();
-  run(`layoutEditor.selected = 'second'`);
-  elements.get('#layout-remove').listeners.click();
-  assert.match(elements.get('#layout-palette').innerHTML, /data-place-asset="second"/);
-  run(`placeLayoutAsset('second'); changeLayoutHero('second');`);
-  assert.equal(run('layoutEditor.hero.id'), 'second');
-  assert.equal(run('layoutEditor.heroId'), 'second');
-  assert.equal(run('layoutEditor.placements.image.span'), 4);
-  assert.equal(run('layoutEditor.placements.second'), undefined);
-  elements.get('#layout-add-text').listeners.click();
-  const textId = run('layoutEditor.selected');
-  assert.ok(textId.startsWith('text-'));
-  elements.get('#layout-text-content').listeners.input({target:{value:'A note\n<unsafe>'}});
-  elements.get('#layout-wide').listeners.click();
-  assert.match(elements.get('#layout-page').innerHTML, /A note\n&lt;unsafe&gt;/);
-  assert.equal(run(`layoutEditor.texts[layoutEditor.selected].span`), 7);
-  run('insertLayoutRow(1)');
+  return app;
+}
+
+test('context asset picker scopes and searches project assets, cancels without changes and confirms a geometry-preserving swap', () => {
+  const {run,elements}=mountLayout();
+  const original=JSON.parse(run('JSON.stringify(layoutEditor.placements)'));
+  run(`layoutEditor.selected='second'; openLayoutAssetPicker();`);
+  const options=elements.get('#layout-asset-options');
+  assert.match(options.innerHTML, /Third video/);
+  assert.doesNotMatch(options.innerHTML, /Other project|Draft/);
+  elements.get('#layout-asset-search').value='third';
+  elements.get('#layout-asset-search').listeners.input();
+  assert.match(options.innerHTML, /<video/);
+  assert.doesNotMatch(options.innerHTML, /Second/);
+  elements.get('#layout-asset-options').listeners.change({target:{name:'layout-asset',value:'third'}});
+  assert.deepEqual(JSON.parse(run('JSON.stringify(layoutEditor.placements)')),original);
+  elements.get('#layout-asset-dialog').close();
+  assert.equal(run('layoutEditor.dirty'),false);
+  assert.equal(run('layoutEditor.custom'),false);
+  run(`openLayoutAssetPicker(); layoutEditor.picker.selectedId='third';`);
+  elements.get('#layout-asset-form').listeners.submit({preventDefault(){}});
+  assert.equal(elements.get('#layout-asset-dialog').open,false);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(layoutEditor.placements.third)')),original.second);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(layoutEditor.placements.second)')),original.third);
+  assert.equal(run('layoutEditor.custom'),true);
+});
+
+test('empty-column controls respect occupied cells and the edge of the twelve-column grid', () => {
+  const {run,elements}=mountLayout();
+  run(`layoutEditor.custom=true; layoutEditor.placements={second:{column:5,span:4,row:1,ratio:1}}; renderLayoutEditor();`);
+  const cells=run('emptyLayoutCells(1)');
+  assert.doesNotMatch(cells, /data-column="[5-8]"/);
+  run('selectEmptyLayoutCell(1,11); openLayoutAssetPicker();');
+  assert.deepEqual(JSON.parse(run('JSON.stringify(layoutEditor.empty)')),{row:1,column:11,span:2});
+  run(`layoutEditor.picker.selectedId='third'`);
+  elements.get('#layout-asset-form').listeners.submit({preventDefault(){}});
+  assert.equal(run('layoutEditor.placements.third.column'),11);
+  assert.equal(run('layoutEditor.placements.third.span'),2);
+  assert.equal(run('layoutEditor.rows'),1);
+  assert.equal(run("applyLayoutAsset({kind:'slot',id:null,placement:{column:7,span:4,row:1}},'image')"),false);
+  assert.equal(run('layoutEditor.hero.id'),'image');
+});
+
+test('the T tool adds and edits safe white text only after confirmation and removes it through the selection', async () => {
+  const {run,elements,calls}=mountLayout();
+  run(`layoutEditor.custom=true; layoutEditor.placements={}; selectEmptyLayoutCell(1,3); openLayoutTextEditor();`);
+  elements.get('#layout-text-content').value='Discard me';
+  elements.get('#layout-text-dialog').close();
+  assert.equal(run('Object.keys(layoutEditor.texts).length'),0);
+  assert.equal(run('layoutEditor.dirty'),false);
+  run('openLayoutTextEditor();');
+  elements.get('#layout-text-content').value='A note\n<unsafe>';
+  elements.get('#layout-text-form').listeners.submit({preventDefault(){}});
+  const id=run('layoutEditor.selected');
+  assert.match(elements.get('#layout-page').innerHTML,/A note\n&lt;unsafe&gt;/);
+  assert.equal(run(`layoutEditor.texts[layoutEditor.selected].column`),3);
+  run('openLayoutTextEditor();');
+  elements.get('#layout-text-content').value='Revised';
+  elements.get('#layout-text-form').listeners.submit({preventDefault(){}});
+  assert.equal(run('Object.keys(layoutEditor.texts).length'),1);
+  assert.equal(run(`layoutEditor.texts[layoutEditor.selected].text`),'Revised');
   await elements.get('#project-form').listeners.submit({preventDefault(){},submitter:{disabled:false}});
-  const saved = JSON.parse(calls.find(call => call.url === '/api/projects').options.body).composition;
-  assert.equal(saved.hero_id, 'second');
-  assert.equal(saved.texts[textId].text, 'A note\n<unsafe>');
-  assert.equal(saved.texts[textId].row, 3);
+  const saved=JSON.parse(calls.find(call=>call.url==='/api/projects').options.body).composition;
+  assert.equal(saved.texts[id].text,'Revised');
+  run(`layoutEditor.selected='${id}'; removeLayoutSelection();`);
+  assert.equal(run('Object.keys(layoutEditor.texts).length'),0);
+  assert.equal(run('layoutEditor.empty.column'),3);
+});
+
+test('hero toolbar swaps into the old slot and supports removal and restoration without changing the thumbnail', async () => {
+  const {run,elements,calls}=mountLayout();
+  run(`layoutEditor.selected='hero'; openLayoutAssetPicker(); layoutEditor.picker.selectedId='second';`);
+  elements.get('#layout-asset-form').listeners.submit({preventDefault(){}});
+  assert.equal(run('layoutEditor.hero.id'),'second');
+  assert.equal(elements.get('#project-thumbnail').value,'');
+  run(`removeLayoutSelection();`);
+  assert.equal(run('layoutEditor.hero'),null);
+  assert.equal(run('layoutEditor.heroHidden'),true);
+  assert.match(elements.get('#layout-page').innerHTML,/Hero hinzufügen/);
+  await elements.get('#project-form').listeners.submit({preventDefault(){},submitter:{disabled:false}});
+  assert.equal(JSON.parse(calls.find(call=>call.url==='/api/projects').options.body).composition.hero_hidden,true);
+  run(`layoutEditor.selected='hero'; openLayoutAssetPicker(); layoutEditor.picker.selectedId='image';`);
+  elements.get('#layout-asset-form').listeners.submit({preventDefault(){}});
+  assert.equal(run('layoutEditor.hero.id'),'image');
+  assert.equal(run('layoutEditor.heroHidden'),false);
+});
+
+test('toolbar pointer and keyboard actions do not initiate image dragging or movement', () => {
+  const {run,elements}=mountLayout();
+  run(`layoutEditor.custom=true; layoutEditor.selected='second';`);
+  const before=run('JSON.stringify(layoutEditor.placements)');
+  const event={key:'ArrowRight',target:{closest:selector=>selector==='[data-layout-action]'?{}:null},button:0,preventDefault(){}};
+  elements.get('#layout-page').listeners.pointerdown(event);
+  elements.get('#layout-page').listeners.keydown(event);
+  assert.equal(run('layoutEditor.drag'),null);
+  assert.equal(run('JSON.stringify(layoutEditor.placements)'),before);
 });
 
 test('inline multi-edit targets the selection and sends only changed tag relations', async () => {

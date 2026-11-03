@@ -898,3 +898,26 @@ test('hover slowdown and acceleration cover the same distance at different frame
   }
   assert.ok(Math.max(...distances)-Math.min(...distances)<.01);
 });
+
+test('removing a hero hides it on the project layout while explicit image links still open their hero', async () => {
+  const data=structuredClone(seed);
+  const project=normalizePortfolio(data)[0];
+  const [hero, body]=project.images;
+  data.settings.project_compositions=JSON.stringify({[project.id]:{
+    columns:12,manual:true,hero_id:hero.id,hero_hidden:true,rows:1,
+    placements:{[body.id]:{column:1,span:12,row:1,ratio:1.5}},texts:{}
+  }});
+  const rail=await mount(data,true);
+  const tile=rail.elements['.track'].children[12];
+  assert.equal(tile.href,`#project/${project.slug}`);
+  tile.listeners.click();
+  assert.equal(rail.elements['.project-hero'].hidden,true);
+  assert.equal(rail.location.hash,`#project/${project.slug}`);
+  assert.deepEqual(rail.elements['.project-grid'].children.filter(item=>item.tagName==='FIGURE').map(item=>item.children[0].src),[body.url]);
+  const reload=await mount(data,true,310,1000,rail.location.hash);
+  assert.equal(reload.elements['.project-hero'].hidden,true);
+  const direct=await mount(data,true,310,1000,`#project/${project.slug}/${body.id}`);
+  assert.equal(direct.elements['.project-hero'].hidden,false);
+  assert.equal(direct.elements['.project-hero'].src,body.url);
+  assert.ok(direct.elements['.project-grid'].children.every(item=>item.tagName!=='FIGURE'));
+});

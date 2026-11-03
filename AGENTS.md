@@ -109,22 +109,29 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   direct links return locally. Focus and gallery offsets are restored.
 - Automatic and manual project layouts share twelve integer columns and identical
   gutters/crop ratios. Entering manual mode copies the automatic composition
-  without moving assets or adding empty rows. The full-page editor has a left
-  asset palette (stacked above the canvas on narrow screens): unplaced published
-  assets can be dragged into a row or inserted with a keyboard/touch-accessible
-  button. Removing an asset from the canvas returns it to the palette without
-  changing its project assignments. “Alle Bilder zurücklegen” returns all images
-  to the palette for individual placement. Manual layouts intentionally show only placed
-  assets. Pointer/touch dragging, right-edge resizing and arrow-key movement
-  (Shift+Left/Right resizes), explicit row insertion/removal and autoscroll remain.
-  Dragging and resizing do not append rows. White plain-text blocks share the
-  grid, move/resize controls and row operations; their text is edited in the
-  sidebar and rendered as text, never HTML. The sidebar hero picker is separate
-  from the Selected thumbnail. Swapping the hero places the old hero in the new
-  hero's previous slot. Index and direct image links retain their chosen hero.
+  without moving assets or adding empty rows. The editor has no asset sidebar.
+  Selecting the hero, an image, a text block or an empty column reveals a compact
+  toolbar at the selection's bottom right. + adds an asset, the exchange icon
+  replaces it, T adds/edits plain white text (or replaces an image with text),
+  and the trash icon removes the element from the layout without deleting the
+  asset or changing project assignments. Empty columns are native focusable
+  buttons; Left/Right selects adjacent free columns. Image/text movement still
+  uses arrow keys, Shift+Left/Right resizing, and pointer/touch dragging with
+  autoscroll and a right-edge resize grip. Toolbar controls never start a drag.
+  Explicit row insertion/removal remains; dragging/resizing never appends rows.
+- The asset toolbar opens a native modal with searchable published project assets,
+  paused image/MP4 previews, single selection and explicit confirmation. Cancel,
+  Escape and closing discard picker changes and restore focus. Choosing an
+  already placed asset exchanges slots with the current image; adding it in an
+  empty area moves it there. Hero exchanges preserve the previous hero in the
+  new hero's prior slot. Hero removal leaves an empty selectable hero placeholder.
+  The Selected thumbnail is independently editable. A second native modal edits
+  text through the T button; text changes apply only on confirmation and render
+  as plain white text, never HTML. All confirmed changes remain local drafts
+  until the project is saved. Automatic mode can still be restored.
 - Project-specific layouts save atomically with metadata through `/api/projects`
   `composition`, stored in the `project_compositions` JSON setting keyed by project
-  ID: `{columns:12, manual, hero_id, placements, texts, rows}`. Placements use
+  ID: `{columns:12, manual, hero_id, hero_hidden?, placements, texts, rows}`. Placements use
   `{column, span, row, ratio?}`; text entries add `text`. This lets shared assets
   have independent layouts in different projects. The backend validates project
   membership, bounds, overlap and text length. Unpublished projects' compositions
@@ -132,7 +139,10 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   be restored. Existing seven-column `project_layout` / `project_layout_rows`
   data and the legacy `/api/settings` patch API still render until edited;
   opening the editor converts legacy geometry into a twelve-column draft.
-  No content settings are rewritten just by opening an editor.
+  No content settings are rewritten just by opening an editor. `hero_hidden: true`
+  omits the hero on default project visits (`#project/<slug>`); Index and explicit
+  image links still open their selected asset as hero. Hidden heroes use a quiet
+  page transition and retain the normal source focus/history restoration.
 - No frontend framework, package dependencies or frontend build is required.
 - `frontend/imprint.html` is the static imprint page, linked from both site and
   project footers and included in the Vercel export. It lists Lennard Makosch,

@@ -574,8 +574,10 @@ class Handler(SimpleHTTPRequestHandler):
 
     @staticmethod
     def validate_composition(value: dict, assigned: set) -> None:
-        if not isinstance(value, dict) or set(value) - {"columns", "manual", "hero_id", "placements", "texts", "rows"}:
+        if not isinstance(value, dict) or set(value) - {"columns", "manual", "hero_id", "hero_hidden", "placements", "texts", "rows"}:
             raise ValueError("Ungültiges Projektlayout")
+        if "hero_hidden" in value and not isinstance(value["hero_hidden"], bool):
+            raise ValueError("Ungültige Hero-Sichtbarkeit")
         if value.get("columns") != 12 or not isinstance(value.get("manual"), bool):
             raise ValueError("Das Layout benötigt zwölf Spalten")
         if not isinstance(value.get("hero_id"), str) or (value["hero_id"] and value["hero_id"] not in assigned):
