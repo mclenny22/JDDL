@@ -1185,7 +1185,7 @@ function renderLayoutEditor(focusId) {
   $('#layout-mode').hidden = !editor.visible.length;
   $('#layout-mode').textContent = editor.custom ? 'Automatisches Layout' : '12-Spalten-Layout erstellen';
   $('#layout-help').textContent = editor.custom
-    ? 'Asset, Hero oder leere Spalte auswählen: + fügt ein Asset hinzu, ↔ tauscht es aus, T bearbeitet Text und der Papierkorb entfernt das Element. Mit den Zeilen-Buttons eine Zeile einfügen. Assets ziehen; am rechten Griff die Breite ändern. Tastatur: Pfeiltasten verschieben, Umschalt + Links/Rechts ändert die Breite. Escape bricht das Ziehen ab. Änderungen werden mit dem Projekt gespeichert.'
+    ? 'Asset, Hero oder leere Spalte auswählen: + fügt ein Asset hinzu, ↔ tauscht es aus und der Papierkorb entfernt das Element. T fügt Text in eine leere Spalte ein. Vorhandenen Text zum Bearbeiten anklicken. Mit den Zeilen-Buttons eine Zeile einfügen. Assets ziehen; am rechten Griff die Breite ändern. Tastatur: Pfeiltasten verschieben, Umschalt + Links/Rechts ändert die Breite. Escape bricht das Ziehen ab. Änderungen werden mit dem Projekt gespeichert.'
     : 'Hero oder Asset auswählen und über die Werkzeugleiste bearbeiten. Für freie Platzierung das 12-Spalten-Layout erstellen. Das gewählte Hero-Asset wird darüber dargestellt.';
   const imageMarkup = image => mediaMarkup(image, "", image.alt_text || image.original_name);
   const hero = editor.hero ? `<div class="layout-meta"><span>${escapeHtml($('#project-title').value)}</span><span>${escapeHtml($('#project-client').value)}</span></div><div class="layout-hero" data-layout-hero><button type="button" class="layout-hero-select" data-select-hero aria-label="Hero auswählen" aria-describedby="layout-help">${imageMarkup(editor.hero)}</button><span>Hero · volle Breite</span>${layoutToolbar("hero")}</div>` : editor.visible.length ? `<div class="layout-hero layout-hero-empty" data-layout-hero><button type="button" class="layout-hero-select" data-select-hero aria-label="Leeren Hero-Bereich auswählen">Hero hinzufügen</button>${layoutToolbar('hero')}</div>` : '<p class="layout-empty">Noch keine veröffentlichten Assets zugeordnet. Assets unter „Alle Assets“ diesem Projekt zuordnen.</p>';
@@ -1202,7 +1202,7 @@ function renderLayoutEditor(focusId) {
       const column = p.column;
       const span = p.span;
       return `<div class="layout-tile" data-layout-image="${escapeHtml(image.id)}" style="grid-column:${column}/span ${span};grid-row:${p.row};${p.ratio ? `--layout-ratio:${p.ratio}` : ''}"><button type="button" class="layout-move" aria-describedby="layout-help" aria-label="${escapeHtml(image.original_name)} verschieben">${imageMarkup(image)}<span class="layout-tile-label">${escapeHtml(image.original_name)}</span></button><button type="button" class="layout-resize" aria-label="Breite von ${escapeHtml(image.original_name)} ändern" aria-describedby="layout-help">↔</button>${layoutToolbar(image.id)}</div>`;
-    }).join('')}${Object.entries(editor.texts).map(([id, p]) => `<div class="layout-tile layout-text-tile" data-layout-image="${escapeHtml(id)}" style="grid-column:${p.column}/span ${p.span};grid-row:${p.row}"><button type="button" class="layout-move" aria-label="Textblock verschieben" aria-describedby="layout-help"><span class="layout-white-text">${escapeHtml(p.text)}</span></button><button type="button" class="layout-resize" aria-label="Textbreite ändern">↔</button>${layoutToolbar(id)}</div>`).join('')}<div class="layout-target" hidden aria-hidden="true"></div></div>`;
+    }).join('')}${Object.entries(editor.texts).map(([id, p]) => `<div class="layout-tile layout-text-tile" data-layout-image="${escapeHtml(id)}" style="grid-column:${p.column}/span ${p.span};grid-row:${p.row}"><button type="button" class="layout-move" aria-label="Text bearbeiten oder verschieben" aria-describedby="layout-help"><span class="layout-white-text">${escapeHtml(p.text)}</span></button><button type="button" class="layout-resize" aria-label="Textbreite ändern">↔</button>${layoutToolbar(id)}</div>`).join('')}<div class="layout-target" hidden aria-hidden="true"></div></div>`;
   } else {
     body = `<div class="layout-auto">${projectRows(editor.images).map(({ image, span, ratio }) => `<div class="layout-tile layout-auto-tile" data-layout-image="${escapeHtml(image.id)}" style="grid-column:span ${span};--preview-ratio:${ratio}"><button type="button" class="layout-move" aria-label="${escapeHtml(image.original_name)} auswählen">${imageMarkup(image)}</button>${layoutToolbar(image.id)}</div>`).join('')}</div>`;
   }
@@ -1286,6 +1286,8 @@ $('#layout-page').addEventListener('click', event => {
   layoutEditor.selected = tile.dataset.layoutImage;
   layoutEditor.empty = null;
   updateLayoutSelection();
+  const textButton = event.target.closest('.layout-move');
+  if (layoutEditor.texts[layoutEditor.selected] && textButton) openLayoutTextEditor(textButton);
 });
 $('#layout-page').addEventListener('keydown', event => {
   if (event.key === 'Escape' && layoutEditor.drag) {
@@ -1493,11 +1495,10 @@ el.imageBody.addEventListener('keydown', event => {
 function layoutToolbar(id) {
   const hero = id === 'hero';
   const empty = id === 'empty' || (hero && !layoutEditor.hero);
-  const text = Boolean(layoutEditor.texts[id]);
   const swapIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4"/></svg>';
   const trashIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg>';
   const button = (action, label, icon) => `<button type="button" data-layout-action="${action}" title="${label}" aria-label="${label}">${icon}</button>`;
-  return `<div class="layout-context-toolbar" role="group" aria-label="Auswahl bearbeiten" data-toolbar-for="${escapeHtml(id)}" hidden>${button('asset', empty ? 'Asset hinzufügen' : 'Asset austauschen', empty ? '+' : swapIcon)}${!hero ? button('text', text ? 'Text bearbeiten' : empty ? 'Text hinzufügen' : 'Durch Text ersetzen', 'T') : ''}${!empty ? button('remove', 'Aus Layout entfernen', trashIcon) : ''}</div>`;
+  return `<div class="layout-context-toolbar" role="group" aria-label="Auswahl bearbeiten" data-toolbar-for="${escapeHtml(id)}" hidden>${button('asset', empty ? 'Asset hinzufügen' : 'Asset austauschen', empty ? '+' : swapIcon)}${id === 'empty' ? button('text', 'Text hinzufügen', 'T') : ''}${!empty ? button('remove', 'Aus Layout entfernen', trashIcon) : ''}</div>`;
 }
 function emptyLayoutCells(row) {
   const placements = Object.values(allLayoutPlacements()).filter(p => p.row === row);
@@ -1616,8 +1617,9 @@ function openLayoutTextEditor(trigger) {
   const target = layoutSelectionTarget();
   if (!target || target.kind === 'hero') return;
   const existing = layoutEditor.texts[target.id];
+  if (target.id && !existing) return;
   layoutEditor.textDraft = { target, trigger };
-  $('#layout-text-title').textContent = existing ? 'Text bearbeiten' : target.id ? 'Asset durch Text ersetzen' : 'Text hinzufügen';
+  $('#layout-text-title').textContent = existing ? 'Text bearbeiten' : 'Text hinzufügen';
   $('#layout-text-content').value = existing?.text || '';
   $('#layout-text-error').textContent = '';
   $('#layout-text-dialog').showModal();

@@ -535,9 +535,14 @@ test('the T tool adds and edits safe white text only after confirmation and remo
   elements.get('#layout-text-content').value='A note\n<unsafe>';
   elements.get('#layout-text-form').listeners.submit({preventDefault(){}});
   const id=run('layoutEditor.selected');
+  assert.match(run("layoutToolbar('empty')"), /data-layout-action="text"/);
+  for (const target of ['hero', 'second', id]) assert.doesNotMatch(run(`layoutToolbar('${target}')`), /data-layout-action="text"/);
   assert.match(elements.get('#layout-page').innerHTML,/A note\n&lt;unsafe&gt;/);
   assert.equal(run(`layoutEditor.texts[layoutEditor.selected].column`),3);
-  run('openLayoutTextEditor();');
+  const tile={dataset:{layoutImage:id}};
+  const textButton={};
+  elements.get('#layout-page').listeners.click({target:{closest:selector=>selector==='[data-layout-image]'?tile:selector==='.layout-move'?textButton:null}});
+  assert.equal(elements.get('#layout-text-dialog').open,true);
   elements.get('#layout-text-content').value='Revised';
   elements.get('#layout-text-form').listeners.submit({preventDefault(){}});
   assert.equal(run('Object.keys(layoutEditor.texts).length'),1);

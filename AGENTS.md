@@ -56,8 +56,11 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   its original order. Selected and the Project menu open the chosen thumbnail as
   hero unless a separate hero is saved in the project composition; Index and direct image links still open the selected image. No image cycling, story bar or indicators. All other
   project images remain available in Index and the project detail.
-- The rail drifts at 20px/s, easing to 5px/s on hover/focus. Manual wheel,
-  touch and keyboard input suspends drift for 3.5 seconds. A 700ms exponential response and its exact distance integral
+- The rail drifts at 40px/s, easing to 5px/s on hover/focus. Manual wheel
+  easing lands exactly on its requested offset and drift resumes on the next
+  frame without a cooldown. Native touch/trackpad momentum and smooth keyboard
+  scrolling keep control until 120ms without a scroll event, then drift resumes
+  from the current fractional offset. Held pointers still pause drift. A 700ms exponential response and its exact distance integral
   provide smooth slowdown and acceleration. Fractional, elapsed-time movement preserves its speed across frame rates. Drift pauses
   in Index, About, project detail, open mobile menus and transitions.
   Reduced motion disables drift, easing and view-transition snapshots.
@@ -112,7 +115,7 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   without moving assets or adding empty rows. The editor has no asset sidebar.
   Selecting the hero, an image, a text block or an empty column reveals a compact
   toolbar at the selection's bottom right. + adds an asset, the exchange icon
-  replaces it, T adds/edits plain white text (or replaces an image with text),
+  replaces it, T adds plain white text only when an empty column is selected,
   and the trash icon removes the element from the layout without deleting the
   asset or changing project assignments. Empty columns are native focusable
   buttons; Left/Right selects adjacent free columns. Image/text movement still
@@ -126,7 +129,8 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   empty area moves it there. Hero exchanges preserve the previous hero in the
   new hero's prior slot. Hero removal leaves an empty selectable hero placeholder.
   The Selected thumbnail is independently editable. A second native modal edits
-  text through the T button; text changes apply only on confirmation and render
+  text from the T button in empty columns. Existing text opens its editor on
+  click or keyboard activation; text changes apply only on confirmation and render
   as plain white text, never HTML. All confirmed changes remain local drafts
   until the project is saved. Automatic mode can still be restored.
 - Project-specific layouts save atomically with metadata through `/api/projects`

@@ -165,13 +165,16 @@ test('wheel glide stops at the requested offset and loop rebase preserves free m
   const initial = rail.scrollLeft;
   wheel(120); tick(16);
   assert.ok(rail.scrollLeft > initial && rail.scrollLeft < initial + 120);
-  for (let index = 0; index < 120; index++) tick(16);
+  for (let index = 0; index < 120 && rail.classes.has('gliding'); index++) tick(16);
   assert.equal(rail.scrollLeft, initial + 120);
   assert.ok(prevented);
   assert.ok(!rail.classes.has('gliding'));
+  tick(16);
+  assert.ok(Math.abs(rail.scrollLeft - initial - 120 - .64) < .001);
+  assert.ok(rail.classes.has('drifting'));
   rail.scrollLeft = 1240 * 5 - 10; rail.listeners.scroll();
   wheel(400);
-  for (let index = 0; index < 120; index++) tick(16);
+  for (let index = 0; index < 120 && rail.classes.has('gliding'); index++) tick(16);
   assert.equal(rail.scrollLeft % 310, 80);
   assert.ok(rail.scrollLeft >= 1240 * 2 && rail.scrollLeft < 1240 * 5);
   rail.scrollLeft = 100; rail.listeners.scroll(); assert.equal(rail.scrollLeft, 2580);
@@ -205,14 +208,14 @@ test('fractional offsets survive wheel, keyboard, native scroll completion and w
   rail.listeners.keydown({ key: 'ArrowRight', preventDefault() {} });
   assert.equal(rail.scrollLeft, initial + step + 27.25);
   listeners.wheel({ ctrlKey: false, deltaX: 0, deltaY: 120, deltaMode: 0, target: rail, preventDefault() {} });
-  for (let frame = 0; frame < 120; frame++) tick(16);
+  for (let frame = 0; frame < 120 && rail.classes.has('gliding'); frame++) tick(16);
   assert.equal(rail.scrollLeft, initial + step + 147.25);
   assert.equal(rail.listeners.scrollend, undefined);
   const cycle = 4 * step;
   rail.scrollLeft = 5 * cycle - 10; rail.listeners.scroll();
   const before = rail.scrollLeft;
   listeners.wheel({ ctrlKey: false, deltaX: 0, deltaY: 400, deltaMode: 0, target: rail, preventDefault() {} });
-  for (let frame = 0; frame < 120; frame++) tick(16);
+  for (let frame = 0; frame < 120 && rail.classes.has('gliding'); frame++) tick(16);
   assert.equal(rail.scrollLeft % cycle, (before + 400) % cycle);
 });
 
@@ -488,16 +491,17 @@ test('rail drifts continuously, hover smoothly approaches 5px/s, and reduced mot
   const rail = elements['.rail'];
   const initial = rail.scrollLeft;
   for (let frame = 0; frame < 10; frame++) tick();
-  assert.ok(Math.abs(rail.scrollLeft - initial - 20) < .01);
+  assert.ok(Math.abs(rail.scrollLeft - initial - 40) < .01);
   rail.listeners.pointerenter({ pointerType: 'mouse' });
   for (let frame = 0; frame < 25; frame++) tick();
   const hovered = rail.scrollLeft;
   for (let frame = 0; frame < 10; frame++) tick();
-  assert.ok(Math.abs(rail.scrollLeft - hovered - 5) < .5);
+  const expectedHoverDistance = 5 + 35 * .7 * Math.exp(-2.5 / .7) * (1 - Math.exp(-1 / .7));
+  assert.ok(Math.abs(rail.scrollLeft - hovered - expectedHoverDistance) < .001);
   const resume = rail.scrollLeft;
   rail.listeners.pointerleave();
   for (let frame = 0; frame < 10; frame++) tick();
-  assert.ok(rail.scrollLeft - resume > 5 && rail.scrollLeft - resume < 20);
+  assert.ok(rail.scrollLeft - resume > 5 && rail.scrollLeft - resume < 40);
   const reduced = await mount(seed, true);
   const stationary = reduced.elements['.rail'].scrollLeft;
   for (let frame = 0; frame < 100; frame++) reduced.tick();
@@ -584,14 +588,14 @@ test('navigation has four destinations, and number hover chooses varying shapes'
 });
 
 
-test('idle rail moves at 20px per second across normal and sparse animation frames', async () => {
+test('idle rail moves at 40px per second across normal and sparse animation frames', async () => {
   for (const interval of [1000 / 60, 100, 1000]) {
     const { elements, tick } = await mount();
     const rail = elements['.rail'];
     const initial = rail.scrollLeft;
     const frames = Math.round(10000 / interval);
     for (let frame = 0; frame < frames; frame++) tick(interval);
-    assert.ok(Math.abs(rail.scrollLeft - initial - 200) < .01);
+    assert.ok(Math.abs(rail.scrollLeft - initial - 400) < .01);
   }
 });
 
@@ -920,4 +924,61 @@ test('removing a hero hides it on the project layout while explicit image links 
   assert.equal(direct.elements['.project-hero'].hidden,false);
   assert.equal(direct.elements['.project-hero'].src,body.url);
   assert.ok(direct.elements['.project-grid'].children.every(item=>item.tagName!=='FIGURE'));
+});
+
+test('native trackpad scrolling resumes drift from the final offset without a long cooldown or jump', async () => {
+  const {elements,listeners,tick}=await mount();
+  const rail=elements['.rail'];
+  tick(16);
+  listeners.wheel({ctrlKey:false,deltaX:50,deltaY:0,target:rail,preventDefault(){assert.fail('Native horizontal scrolling intercepted');}});
+  for(const delta of [40,20,10,4,1.25]) {
+    rail.scrollLeft+=delta;
+    rail.listeners.scroll();
+    const offset=rail.scrollLeft;
+    tick(16);
+    assert.equal(rail.scrollLeft,offset);
+  }
+  const settled=rail.scrollLeft;
+  tick(103);
+  assert.equal(rail.scrollLeft,settled);
+  tick(1);
+  assert.ok(rail.scrollLeft>settled && rail.scrollLeft<settled+1);
+  assert.equal(rail.classes.has('drifting'),true);
+  tick(1000);
+  assert.ok(Math.abs(rail.scrollLeft-settled-40.04)<.001);
+});
+
+test('touch cancellation preserves native coasting and drift resumes after the final scroll event', async () => {
+  const {elements,listeners,tick}=await mount();
+  const rail=elements['.rail'];
+  rail.listeners.pointerdown();
+  tick(500);
+  const held=rail.scrollLeft;
+  assert.equal(rail.classes.has('drifting'),false);
+  listeners.pointercancel();
+  for(const delta of [30,10,2.5]) {
+    rail.scrollLeft+=delta;
+    rail.listeners.scroll();
+    tick(16);
+  }
+  const finalOffset=held+42.5;
+  assert.equal(rail.scrollLeft,finalOffset);
+  tick(104);
+  assert.ok(rail.scrollLeft>finalOffset);
+  assert.equal(rail.classes.has('drifting'),true);
+});
+
+test('drift writes do not postpone themselves and external scrollbar movement retains the new position', async () => {
+  const {elements,tick}=await mount();
+  const rail=elements['.rail'];
+  const initial=rail.scrollLeft;
+  for(let frame=0;frame<60;frame++) { tick(1000/60); rail.listeners.scroll(); }
+  assert.ok(Math.abs(rail.scrollLeft-initial-40)<.001);
+  rail.scrollLeft+=53.25;
+  rail.listeners.scroll();
+  const offset=rail.scrollLeft;
+  tick(119);
+  assert.equal(rail.scrollLeft,offset);
+  tick(1);
+  assert.ok(rail.scrollLeft>offset && rail.scrollLeft<offset+1);
 });

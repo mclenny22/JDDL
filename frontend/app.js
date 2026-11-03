@@ -317,13 +317,14 @@ async function start() {
   let previous = performance.now();
   let wheelTarget = null;
   let hovering = false;
-  const idleRailSpeed = 20;
+  const idleRailSpeed = 40;
   let railSpeed = idleRailSpeed;
   let driftPosition = null;
-  let manualUntil = 0;
+  let nativeScrollUntil = 0;
   let pointerDown = false;
   let needsMeasure = false;
-  function manualInteraction() { driftPosition = null; manualUntil = performance.now() + 3500; rail.classList.remove('drifting'); }
+  function manualInteraction() { driftPosition = null; nativeScrollUntil = 0; rail.classList.remove('drifting'); }
+  function nativeInteraction() { manualInteraction(); nativeScrollUntil = performance.now() + 120; }
   rail.addEventListener('pointerenter', event => { if (event.pointerType !== 'touch') hovering = true; });
   rail.addEventListener('pointerleave', () => { hovering = false; });
   rail.addEventListener('focusin', () => { hovering = true; });
@@ -432,7 +433,7 @@ async function start() {
   }
 
   function navigate(index, immediate = false) {
-    manualInteraction();
+    nativeInteraction();
     stopWheel();
     const base = Math.floor(rail.scrollLeft / cycle) * cycle;
     const options = [base - cycle, base, base + cycle].map(offset => offset + index * step);
@@ -450,11 +451,19 @@ async function start() {
     }
     transitionTo(active, index === 1, button, index === 3);
   }));
-  rail.addEventListener('scroll', onScroll, { passive: true });
+  rail.addEventListener('scroll', () => {
+    // Native inertia and smooth keyboard scrolling own the offset until they
+    // settle. Ignore our own drift writes, including browser pixel rounding.
+    if (nativeScrollUntil || (driftPosition !== null && Math.abs(rail.scrollLeft - driftPosition) > 1)) {
+      nativeScrollUntil = performance.now() + 120;
+      driftPosition = null;
+    }
+    onScroll();
+  }, { passive: true });
   rail.addEventListener('keydown', event => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
-    manualInteraction();
+    nativeInteraction();
     stopWheel();
     if (event.key === 'Home' || event.key === 'End') return navigate(event.key === 'Home' ? 0 : projects.length - 1);
     const direction = event.key === 'ArrowRight' ? 1 : -1;
@@ -466,7 +475,7 @@ async function start() {
     if (showingIndex || showingAbout || detailProject || detail.isTransitioning() || pageTransition || event.ctrlKey) return; // Preserve browser pinch-to-zoom.
     manualInteraction();
     const horizontal = Math.abs(event.deltaX) > Math.abs(event.deltaY);
-    if (rail.contains(event.target) && (horizontal || event.shiftKey)) { stopWheel(); return; }
+    if (rail.contains(event.target) && (horizontal || event.shiftKey)) { nativeInteraction(); stopWheel(); return; }
     const delta = horizontal ? event.deltaX : event.deltaY;
     if (!delta) return;
     event.preventDefault();
@@ -474,7 +483,7 @@ async function start() {
     wheelTarget = (wheelTarget ?? rail.scrollLeft) + delta * unit;
     rail.classList.add('gliding');
   }, { passive: false });
-  rail.addEventListener('pointerdown', () => { pointerDown = true; manualInteraction(); stopWheel(); }, { passive: true });
+  rail.addEventListener('pointerdown', () => { pointerDown = true; nativeInteraction(); stopWheel(); }, { passive: true });
 
   function glide(elapsed) {
     if (wheelTarget === null) return;
@@ -495,8 +504,10 @@ async function start() {
     const transitioning = Boolean(pageTransition);
     if (needsMeasure && !detailProject && !detail.isTransitioning() && !showingIndex && !showingAbout) measure();
     advancePageTransition(now);
+    if (nativeScrollUntil && !pointerDown && now >= nativeScrollUntil) nativeScrollUntil = 0;
+    const gliding = wheelTarget !== null;
     glide(delta);
-    const drifting = !menuOpen && !showingIndex && !showingAbout && !detailProject && !detail.isTransitioning() && !transitioning && !pageTransition && !reducedMotion.matches && !document.hidden && !pointerDown && wheelTarget === null && now >= manualUntil;
+    const drifting = !menuOpen && !showingIndex && !showingAbout && !detailProject && !detail.isTransitioning() && !transitioning && !pageTransition && !reducedMotion.matches && !document.hidden && !pointerDown && !gliding && wheelTarget === null && !nativeScrollUntil;
     rail.classList.toggle('drifting', drifting);
     if (drifting) {
       const targetSpeed = hovering ? 5 : idleRailSpeed;
