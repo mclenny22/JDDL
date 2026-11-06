@@ -27,10 +27,13 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   wide masthead uses the alternate studio copy with an inline opening
   sentence, muted body text and lighter Instagram and Imprint labels.
   The animation canvas sits flush with the viewport's top-left corner on
-  wide landing and project pages, while the masthead copy keeps its inset.
+  landing and project pages. The masthead copy uses fixed 14px type, sits
+  alongside the canvas on desktop. Below 1101px, it aligns with the opening
+  A's left edge and starts 40px below its baseline with the menu closed.
   The local Lottie player loads the original
-  `ad4k-1.json` on its full 446 × 213 canvas. Playback runs once and shows the
-  opening frame for reduced motion. The copy retains its 80px grid gap.
+  `ad4k-1.json` on its full 446 × 213 canvas. Playback runs once per hover
+  or initial load and shows the opening frame for reduced motion.
+  The desktop copy retains its 80px grid gap.
   The wide landing hides the site footer and puts 60vh
   thumbnails 40px above the viewport bottom.
   Wide project detail uses the dark alternate masthead and three always-visible

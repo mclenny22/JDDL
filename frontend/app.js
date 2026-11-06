@@ -124,7 +124,7 @@ async function start() {
     button.addEventListener('pointerenter', event => {
       if (event?.pointerType === 'touch') return;
       varyHoverShape();
-      const name = (index === 0 && matchMedia('(min-width: 1101px)').matches ? 'Highlight' : menuLabels[index]).toUpperCase();
+      const name = (index === 0 ? 'Highlight' : menuLabels[index]).toUpperCase();
       menuPreview?.button.classList.remove('menu-revealed');
       reveal.dataset.label = name;
       button.classList.add('menu-revealed');

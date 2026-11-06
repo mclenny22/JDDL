@@ -659,11 +659,11 @@ test('menu hover settles on the destination name and loops on the current page',
   assert.ok(!index.classes.has('menu-revealed'));
   selected.listeners.pointerenter({ pointerType: 'mouse' });
   tick(360);
-  assert.equal(revealText(selected), 'SELECTED');
+  assert.equal(revealText(selected), 'HIGHLIGHT');
   tick(640);
-  assert.notEqual(revealText(selected), 'SELECTED');
+  assert.notEqual(revealText(selected), 'HIGHLIGHT');
   tick(360);
-  assert.equal(revealText(selected), 'SELECTED');
+  assert.equal(revealText(selected), 'HIGHLIGHT');
 });
 
 test('navigation has four destinations, and number hover chooses varying shapes', async () => {

@@ -226,74 +226,115 @@ p { margin: 0; }
 .menu-highlight,
 .project-facts { display: none; }
 
+body:has(> .portfolio:not([hidden]), > .project-detail:not([hidden])) {
+  --highlight-logo-height: 3lh;
+  @supports (text-box: trim-both cap alphabetic) {
+    --highlight-logo-height: calc(2lh + 1cap);
+  }
+  font-family: Haffer, Arial, Helvetica, sans-serif;
+
+  & .masthead { font-size: 14px; line-height: 1.2; }
+
+  & .studio-logo {
+    position: relative;
+    width: calc(var(--highlight-logo-height) * 326.816 / 50.923);
+    height: var(--highlight-logo-height);
+    overflow: visible;
+  }
+  & .studio-logo:focus-visible { outline-offset: -2px; }
+  & :is(.logo-dark, .logo-light, .about:not(.highlight-about)) { display: none; }
+  & .studio-logo .logo-highlight {
+    position: absolute;
+    inset: calc(-1 * var(--logo-top, 15px)) auto auto calc(-1 * var(--logo-left, 15px));
+    display: block;
+    /* Scale the full composition without moving its internal artwork. */
+    width: calc(100% * 446 / 326.816);
+    aspect-ratio: 446 / 213;
+    pointer-events: none;
+  }
+  & .highlight-about {
+    display: block;
+    max-width: 774px;
+    color: #999;
+    font-weight: 400;
+    overflow-wrap: anywhere;
+    text-box: trim-both cap alphabetic;
+  }
+  & .highlight-about strong { display: inline; font-weight: inherit; }
+  & .highlight-links { color: #c9c9c9; }
+  & .highlight-links a { text-decoration: none; }
+  & .highlight-links a:is(:hover, :focus-visible) { color: var(--ink); text-decoration: underline; }
+}
+
+.menu { height: auto; gap: 4px; line-height: 1; }
+.menu button[data-project] {
+  width: auto;
+  min-width: 0;
+  height: auto;
+  padding: 7px 10px;
+  background: #dfdfdf;
+  font-weight: 500;
+}
+.menu button::before { content: none; }
+.menu button:not(.selected):hover { background: #d3d3d3; }
+.menu button.selected { background: #000; color: #fff; }
+.menu-number { font: inherit; letter-spacing: normal; }
+.menu button.selected[data-project="0"] .menu-label { display: none; }
+.menu button.selected .menu-highlight { display: block; }
+.project-open .menu button,
+.project-open .menu button.selected { background: #b6b6b6; color: #000; }
+.project-open .menu button[data-project="0"] { background: #fff; }
+.project-open .menu button[data-project="0"] .menu-number { display: none; }
+.project-open .menu button[data-project="0"] .menu-highlight { display: block; }
+
+.project-open .studio-logo .logo-highlight { filter: invert(1); }
+.project-open .highlight-links { color: #777; }
+
+@media (max-width: 1100px) {
+  body:has(> .portfolio:not([hidden]), > .project-detail:not([hidden])) {
+    --stacked-logo-unit: min(calc(var(--highlight-logo-height) / 50.923), calc(100vw / 446));
+
+    & .masthead { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 15px; }
+    & .studio { display: contents; }
+    & .menu:not(.mobile-menu-open) { grid-area: 1 / 2; }
+    & :is(.menu:not(.mobile-menu-open), .mobile-menu-trigger) {
+      align-self: start;
+      margin-top: calc(var(--stacked-logo-unit) * 50.921 - var(--logo-top, 15px));
+    }
+    & .mobile-menu-trigger { height: calc(var(--stacked-logo-unit) * 50.923); }
+    & .studio-logo {
+      grid-area: 1 / 1;
+      width: calc(var(--stacked-logo-unit) * 326.816);
+      /* Reserve space down to the opening A's baseline within the canvas. */
+      height: calc(var(--stacked-logo-unit) * 101.844 - var(--logo-top, 15px));
+    }
+    & .highlight-about {
+      grid-area: 3 / 1 / auto / -1;
+      width: auto;
+      margin: 40px 0 0 calc(var(--stacked-logo-unit) * 50.921 - var(--logo-left, 15px));
+    }
+    & .highlight-about .desktop-break { display: none; }
+    & .portfolio {
+      --tile-height: max(1px, min(50vh, calc(100vh - var(--index-top, 240px) - var(--footer-height) - 64px)));
+      --tile-width: calc(var(--tile-height) * 4 / 5);
+    }
+  }
+}
+
 @media (min-width: 1101px) {
   :root { --project-rail-image-height: 60vh; }
 
   body:has(> .portfolio:not([hidden]), > .project-detail:not([hidden])) {
-    --highlight-inset: clamp(24px, 2.604167vw, 50px);
-    --highlight-gap: 80px;
-    --highlight-logo-height: 3lh;
-    @supports (text-box: trim-both cap alphabetic) {
-      --highlight-logo-height: calc(2lh + 1cap);
-    }
-    font-family: Haffer, Arial, Helvetica, sans-serif;
+    --highlight-inset: 42px;
 
-    & .masthead { inset: var(--highlight-inset) var(--highlight-inset) auto; gap: 20px; }
-    & .studio {
-      container-type: inline-size;
-      grid-template-columns: auto minmax(0, 1fr);
-      gap: var(--highlight-gap);
+    /* The opening artwork starts 50.921 units down on the Lottie canvas. */
+    & .masthead {
+      --logo-top: calc(var(--highlight-logo-height) * 50.921 / 50.923);
+      --logo-left: var(--highlight-inset);
+      inset: var(--logo-top) var(--logo-left) auto;
+      gap: 20px;
     }
-    & :is(.studio-logo, .highlight-about) {
-      /* Leave room for the opening wordmark and the longest line of copy. */
-      font-size: min(14px, calc((100cqi - var(--highlight-gap)) / 72));
-      line-height: 1.2;
-    }
-    & .studio-logo {
-      position: relative;
-      width: calc(var(--highlight-logo-height) * 326.816 / 50.923);
-      height: var(--highlight-logo-height);
-      overflow: visible;
-    }
-    & .studio-logo:focus-visible { outline-offset: -2px; }
-    & :is(.logo-dark, .about:not(.highlight-about)) { display: none; }
-    & .studio-logo .logo-highlight {
-      position: absolute;
-      inset: calc(-1 * var(--highlight-inset)) auto auto calc(-1 * var(--highlight-inset));
-      display: block;
-      /* Scale the full composition without moving its internal artwork. */
-      width: calc(100% * 446 / 326.816);
-      aspect-ratio: 446 / 213;
-      pointer-events: none;
-    }
-    & .highlight-about {
-      display: block;
-      max-width: 774px;
-      color: #999;
-      font-weight: 400;
-      overflow-wrap: anywhere;
-      text-box: trim-both cap alphabetic;
-    }
-    & .highlight-about strong { display: inline; font-weight: inherit; }
-    & .highlight-links { color: #c9c9c9; }
-    & .highlight-links a { text-decoration: none; }
-    & .highlight-links a:is(:hover, :focus-visible) { color: var(--ink); text-decoration: underline; }
-
-    & .menu { height: auto; gap: 4px; padding-top: 1px; }
-    & .menu button {
-      width: auto;
-      min-width: 0;
-      height: auto;
-      padding: 7px 10px;
-      background: #dfdfdf;
-      font-weight: 500;
-    }
-    & .menu button::before { content: none; }
-    & .menu button:not(.selected):hover { background: #d3d3d3; }
-    & .menu button.selected { background: #000; color: #fff; }
-    & .menu-number { font: inherit; letter-spacing: normal; }
-    & .menu button.selected[data-project="0"] .menu-label { display: none; }
-    & .menu button.selected .menu-highlight { display: block; }
+    & .studio { grid-template-columns: auto minmax(0, 1fr); gap: 80px; }
   }
 
   body:has(> .portfolio:not([hidden])) {
@@ -301,15 +342,9 @@ p { margin: 0; }
   }
 
   body:has(> .project-detail:not([hidden])) {
-    & .masthead::before { inset: calc(-1 * var(--highlight-inset)); }
-    & .studio-logo .logo-light { display: none; }
-    & .studio-logo .logo-highlight { filter: invert(1); }
-    & .highlight-links { color: #777; }
-    & .menu button,
-    & .menu button.selected { background: #b6b6b6; color: #000; }
-    & .menu button[data-project="0"] { background: #fff; }
-    & .menu button[data-project="0"] .menu-number { display: none; }
-    & .menu button[data-project="0"] .menu-highlight { display: block; }
+    & .masthead::before {
+      inset: calc(-1 * var(--logo-top)) calc(-1 * var(--highlight-inset)) calc(-1 * var(--highlight-inset));
+    }
     & .project-detail-content {
       margin-inline: var(--highlight-inset);
       padding-top: max(clamp(180px, 15.78125vw, 303px), calc(var(--index-top, 124px) + 24px));
