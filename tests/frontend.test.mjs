@@ -81,7 +81,9 @@ class Element {
 async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1000, initialHash = '', nativeTransitions = false) {
   const selectors = ['.rail', '.track', '.about', '.menu', '#status', '.portfolio', '#gallery', '#field', '.masthead', '.studio-logo', '.mobile-menu-trigger', '.site-footer', '#footer-contact', '#footer-address', '#footer-email', '#project-detail', '.project-detail-content', '.project-detail-info', '.project-hero', '.project-grid', '.project-close', '.project-footer', '#studio-detail', '.studio-detail-copy', '.studio-close', '.index-filters'];
   const elements = Object.fromEntries(selectors.map(selector => [selector, new Element(step)]));
-  elements['.highlight-about span'] = new Element(step);
+  const highlightAbout = elements['.highlight-about'] = new Element(step);
+  highlightAbout.append(new Element(step), new Element(step));
+  highlightAbout.querySelectorAll = () => highlightAbout.children;
   elements['#gallery'].getBoundingClientRect = () => ({ width: viewportWidth, height: 700 });
   const frames = new Map();
   let nextFrame = 0;
@@ -90,7 +92,13 @@ async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1
   const document = {
     documentElement: new Element(step),
     querySelector: selector => elements[selector],
-    createElement: tag => { const element = new Element(step); element.tagName = tag.toUpperCase(); return element; }, createTextNode: text => ({ textContent: text }),
+    createElement: tag => {
+      const element = new Element(step);
+      element.tagName = tag.toUpperCase();
+      if (tag === 'canvas') element.getContext = () => ({ measureText: text => ({ width: text.length * 10 }) });
+      return element;
+    },
+    createTextNode: text => ({ textContent: text }),
     addEventListener: (key, callback) => { const previous = listeners[key]; listeners[key] = previous ? event => { previous(event); callback(event); } : callback; }, hidden: false,
   };
   elements['.project-hero'].onReplace = function update(element) { elements['.project-hero'] = element; element.onReplace = update; };
@@ -132,7 +140,13 @@ async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1
     Image: class extends Element { constructor() { super(step); } },
     IntersectionObserver: class { observe() {} unobserve() {} },
     MutationObserver: class { observe() {} },
-    ResizeObserver: class { observe() {} }, requestAnimationFrame: callback => { frames.set(++nextFrame, callback); return nextFrame; },
+    ResizeObserver: class {
+      constructor(callback) { this.callback = callback; }
+      observe(element) {
+        if (element === highlightAbout) element.resize = width => this.callback([{ contentRect: { width } }]);
+      }
+    },
+    requestAnimationFrame: callback => { frames.set(++nextFrame, callback); return nextFrame; },
     cancelAnimationFrame: id => frames.delete(id),
   });
   context.window = context;
@@ -170,6 +184,20 @@ test('wide landing crops the first tile without changing the rail step', async (
   assert.equal(rail.scrollLeft, initial);
   rail.listeners.keydown({ key: 'ArrowRight', preventDefault() {} });
   assert.equal(rail.scrollLeft, initial + step);
+});
+
+test('Highlight fits the full CMS description into two lines at each width', async () => {
+  const about = 'Studio practice across identity and motion design.';
+  const { elements } = await mount({ ...seed, settings: { ...seed.settings, about } });
+  const highlight = elements['.highlight-about'];
+  highlight.resize(774);
+  const lines = highlight.children.map(line => line.textContent);
+  assert.ok(lines.every(Boolean));
+  assert.equal(lines.join(' '), about);
+  assert.equal(highlight.style['--description-scale'], 1);
+  highlight.resize(200);
+  assert.deepEqual(highlight.children.map(line => line.textContent), lines);
+  assert.equal(highlight.style['--description-scale'], 200 / (Math.max(...lines.map(line => line.length)) * 10));
 });
 
 test('wheel glide stops at the requested offset and loop rebase preserves free motion', async () => {

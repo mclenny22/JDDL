@@ -3,6 +3,36 @@ import { loadPortfolio } from './projects.js';
 import { createOrbitGrid } from './orbit.js';
 import { createProjectView } from './project-view.js';
 
+function fitHighlightDescription(copy) {
+  const about = document.querySelector('.highlight-about');
+  const [firstLine, secondLine] = about.querySelectorAll('span');
+  const words = copy.trim().split(/\s+/);
+  firstLine.textContent = words.join(' ');
+  if (words.length < 2) return;
+
+  const context = document.createElement('canvas').getContext('2d');
+  new ResizeObserver(([entry]) => {
+    const { width } = entry.contentRect;
+    if (!width) return;
+    const { fontSize, fontFamily } = getComputedStyle(about);
+    context.font = `${fontSize} ${fontFamily}`;
+    let splitAt = 1;
+    let widestLine = Infinity;
+    for (let i = 1; i < words.length; i++) {
+      const firstWidth = context.measureText(words.slice(0, i).join(' ').toUpperCase()).width;
+      const secondWidth = context.measureText(words.slice(i).join(' ').toUpperCase()).width;
+      const lineWidth = Math.max(firstWidth, secondWidth);
+      if (lineWidth < widestLine) {
+        splitAt = i;
+        widestLine = lineWidth;
+      }
+    }
+    firstLine.textContent = words.slice(0, splitAt).join(' ');
+    secondLine.textContent = words.slice(splitAt).join(' ');
+    about.style.setProperty('--description-scale', Math.min(1, width / Math.ceil(widestLine)));
+  }).observe(about);
+}
+
 async function start() {
   const { projects, settings } = await loadPortfolio();
   const about = document.querySelector('.about');
@@ -11,7 +41,7 @@ async function start() {
   const headline = document.createElement('strong');
   headline.textContent = split ? split[1] : copy;
   about.replaceChildren(headline, document.createTextNode(split ? split[2] : ''));
-  document.querySelector('.highlight-about span').textContent = copy;
+  fitHighlightDescription(copy);
   const footerValues = [['contact', 'Contact'], ['email', ''], ['address', '']];
   const projectFooter = document.querySelector('.project-footer');
   for (const [key, fallback] of footerValues) {

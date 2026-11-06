@@ -216,6 +216,7 @@ p { margin: 0; }
   body:has(> .portfolio:not([hidden])) {
     --highlight-inset: clamp(24px, 2.604167vw, 50px);
     --highlight-footer-height: clamp(54px, 4.84375vw, 93px);
+    --highlight-logo-height: 50px;
     --tile-width: 31.25vw;
     --tile-height: max(1px, min(calc(var(--tile-width) * 1.39), calc(100svh - var(--rail-top, 124px) - var(--footer-height) - 70px)));
     --gap: 20px;
@@ -226,17 +227,27 @@ p { margin: 0; }
       grid-template-columns: max(321.277px, calc(23.59375vw - var(--highlight-inset) - 20px)) minmax(0, 1fr);
       gap: 20px;
     }
-    & .studio-logo { height: 50px; }
+    & .studio-logo { height: var(--highlight-logo-height); }
     & :is(.logo-dark, .about:not(.highlight-about)) { display: none; }
     & .studio-logo .logo-highlight { display: block; }
     & .highlight-about {
-      display: block;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
       max-width: 774px;
+      height: var(--highlight-logo-height);
       font-size: 15px;
-      line-height: 1.3;
-      overflow-wrap: anywhere;
+      line-height: 1;
     }
-    & :is(.highlight-about, .highlight-about strong) { font-weight: 400; }
+    & .highlight-about > * {
+      font-weight: 400;
+      white-space: nowrap;
+      text-box: trim-both cap alphabetic;
+    }
+    & .highlight-about > span {
+      font-size: calc(1em * var(--description-scale, 1));
+    }
+    & .highlight-about { font-weight: 400; }
 
     & .menu { height: auto; gap: 4px; padding-top: 1px; }
     & .menu button {
