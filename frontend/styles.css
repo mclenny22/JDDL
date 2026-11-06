@@ -227,8 +227,8 @@ p { margin: 0; }
 
     & .masthead { inset: var(--highlight-inset) var(--highlight-inset) auto; gap: 20px; }
     & .studio {
-      grid-template-columns: max(calc(var(--highlight-logo-height) * 6.42554), calc(23.59375vw - var(--highlight-inset) - 20px)) minmax(0, 1fr);
-      gap: 20px;
+      grid-template-columns: calc(var(--highlight-logo-height) * 6.42554) minmax(0, 1fr);
+      gap: 80px;
     }
     & .studio-logo { height: var(--highlight-logo-height); }
     & :is(.logo-dark, .about:not(.highlight-about)) { display: none; }
