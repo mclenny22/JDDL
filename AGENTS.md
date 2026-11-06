@@ -30,8 +30,8 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   alternate artboard, not a separate site mode.
 - `frontend/index.html`, `styles.css` and `app.js` implement the responsive
   light portfolio. The desktop grid uses 15px margins/gutters and three
-  project tiles across; thumbnails crop at 4:5. At 390px the tiles are 266.25px
-  wide. Height is capped on short viewports so the masthead stays clear.
+  project tiles across. At 390px the tiles are 266.25px wide. Rail thumbnails
+  are 30vh tall with cover cropping.
   The AD4K logo and menu shapes are local, unmodified Figma SVG exports in
   `frontend/assets/`. Desktop and mobile logo exports keep their native sizes
   (460 × 34 and 203 × 34); the desktop asset includes its own whitespace.
@@ -62,8 +62,11 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   preview. Choices save with project metadata as `thumbnail_id`, backed by the
   `project_thumbnails` setting without a schema migration. The image list keeps
   its original order. Selected and the Project menu open the chosen thumbnail as
-  hero unless a separate hero is saved in the project composition; Index and direct image links still open the selected image. No image cycling, story bar or indicators. All other
-  project images remain available in Index and the project detail.
+  hero unless a separate hero is saved in the project composition. Index and
+  direct image links still open the selected image. Hover previews cycle through
+  published still images at 12 fps and restore the chosen thumbnail on pointer
+  exit. Touch and reduced motion skip the preview. All project images remain
+  available in Index and the project detail.
 - The rail drifts at 40px/s, easing to 5px/s on hover/focus. Manual wheel
   easing lands exactly on its requested offset and drift resumes on the next
   frame without a cooldown. Native touch/trackpad momentum and smooth keyboard

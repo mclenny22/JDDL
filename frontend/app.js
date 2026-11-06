@@ -1,4 +1,4 @@
-import { createMedia } from './media.js';
+import { createMedia, isVideo } from './media.js';
 import { loadPortfolio } from './projects.js';
 import { createOrbitGrid } from './orbit.js';
 import { createProjectView } from './project-view.js';
@@ -86,7 +86,6 @@ async function start() {
   new ResizeObserver(() => {
     const top = masthead.getBoundingClientRect().bottom + 24;
     document.documentElement.style.setProperty('--index-top', `${top}px`);
-    document.documentElement.style.setProperty('--rail-top', `${top - (mobileViewport.matches && menuOpen ? 64 : 0)}px`);
   }).observe(masthead);
   new ResizeObserver(() => {
     document.documentElement.style.setProperty('--footer-height', `${document.querySelector('.site-footer').getBoundingClientRect().height}px`);
@@ -347,6 +346,8 @@ async function start() {
   const copies = 7;
   const middle = Math.floor(copies / 2);
   const tiles = [];
+  const previewFrames = new Map();
+  let preview = null;
   let active = 0;
   let step = 0;
   let cycle = 0;
@@ -373,6 +374,52 @@ async function start() {
     rail.classList.remove('gliding');
   }
 
+  function stopPreview() {
+    preview?.visible?.remove();
+    preview = null;
+  }
+
+  function canPreview() {
+    return !portfolio.hidden && !pageTransition && !detail.isTransitioning()
+      && !menuOpen && !document.hidden && !reducedMotion.matches;
+  }
+
+  async function startPreview(tile, project, event) {
+    if (event.pointerType === 'touch' || !canPreview()) return;
+    stopPreview();
+    const stills = project.images.filter(image => !isVideo(image));
+    if (!stills.length || (stills.length === 1 && stills[0] === project.thumbnail)) return;
+    const session = { tile };
+    preview = session;
+    const frames = await Promise.all(stills.map(image => {
+      if (!previewFrames.has(image.url)) {
+        const frame = new Image();
+        frame.className = 'tile-preview';
+        frame.alt = '';
+        frame.draggable = false;
+        frame.src = image.url;
+        previewFrames.set(image.url, frame.decode().then(() => frame, () => null));
+      }
+      return previewFrames.get(image.url);
+    }));
+    if (preview !== session) return;
+    session.frames = frames.filter(Boolean);
+    session.first = Math.max(0, session.frames.indexOf(frames[stills.indexOf(project.thumbnail)]));
+    session.started = performance.now();
+  }
+
+  function animatePreview(now) {
+    if (!preview) return;
+    if (!canPreview()) { stopPreview(); return; }
+    if (!preview.frames?.length) return;
+    const elapsedFrames = Math.floor((now - preview.started) * 12 / 1000);
+    const frame = preview.frames[(preview.first + elapsedFrames) % preview.frames.length];
+    if (frame === preview.visible) return;
+    preview.visible?.remove();
+    preview.tile.append(frame);
+    preview.visible = frame;
+  }
+
   for (let copy = 0; copy < copies; copy++) {
     projects.forEach((project, index) => {
       const tile = document.createElement('a');
@@ -386,8 +433,11 @@ async function start() {
       const open = event => {
         if (event?.metaKey || event?.ctrlKey || event?.shiftKey || event?.altKey) return;
         event?.preventDefault?.();
+        stopPreview();
         openProject(project, project.hero, tile, true);
       };
+      tile.addEventListener('pointerenter', event => startPreview(tile, project, event));
+      tile.addEventListener('pointerleave', () => { if (preview?.tile === tile) stopPreview(); });
       tile.addEventListener('click', open);
       tile.addEventListener('keydown', event => { if (event.key === ' ') { event.preventDefault(); open(event); } });
       const image = project.thumbnail;
@@ -535,7 +585,10 @@ async function start() {
       onScroll();
     }
   }
-  document.addEventListener('visibilitychange', () => { previous = performance.now(); });
+  document.addEventListener('visibilitychange', () => {
+    previous = performance.now();
+    if (document.hidden) stopPreview();
+  });
   function animate(now) {
     const delta = Math.max(now - previous, 0);
     previous = now;
@@ -558,6 +611,7 @@ async function start() {
     } else {
       driftPosition = null;
     }
+    animatePreview(now);
     requestAnimationFrame(animate);
   }
   new ResizeObserver(measure).observe(rail);

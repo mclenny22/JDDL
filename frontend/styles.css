@@ -12,7 +12,7 @@
   --gap: 15px;
   --footer-height: 38px;
   --tile-width: calc((100vw - 60px) / 3);
-  --tile-height: min(calc(var(--tile-width) * 1.25), calc(100svh - var(--rail-top, 89px) - var(--footer-height) - 70px));
+  --tile-height: 30vh;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -56,6 +56,7 @@ p { margin: 0; }
 .track { display: flex; align-items: flex-end; gap: var(--gap); width: max-content; padding-inline: var(--inset); padding-top: 16px; }
 .tile { position: relative; display: flex; flex-direction: column; flex: 0 0 var(--tile-width); width: var(--tile-width); gap: 15px; cursor: pointer; color: var(--ink); text-decoration: none; }
 .tile > :is(img, video) { display: block; flex: none; width: 100%; height: var(--tile-height); object-fit: cover; background: #eee; }
+.tile > .tile-preview { position: absolute; inset: auto 0 0; pointer-events: none; }
 .tile-caption { order: -1; position: relative; min-width: 0; }
 .tile-caption .caption-values { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 15px; padding-right: 12px; }
 .meta-pair { display: inline-flex; align-items: baseline; gap: 3px; min-width: 0; max-width: 100%; }
@@ -149,7 +150,7 @@ p { margin: 0; }
   .index-filters { left: 203px; right: 220px; width: auto; }
 }
 @media (max-width: 600px) {
-  :root { --tile-width: calc((100vw - 35px) * .75); --tile-height: min(calc(var(--tile-width) * 1.25), calc(100svh - var(--rail-top, 152px) - var(--footer-height) - 65px)); --footer-height: 68px; }
+  :root { --tile-width: calc((100vw - 35px) * .75); --footer-height: 68px; }
   .masthead { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 15px; }
   .studio { display: contents; }
   .studio-logo { width: 203px; max-width: 100%; grid-column: 1; grid-row: 1; }
@@ -221,7 +222,6 @@ p { margin: 0; }
       --highlight-logo-height: calc(2lh + 1cap);
     }
     --tile-width: 31.25vw;
-    --tile-height: max(1px, min(calc(var(--tile-width) * 1.39), calc(100svh - var(--rail-top, 124px) - var(--footer-height) - 70px)));
     --gap: 20px;
     font-family: Haffer, Arial, Helvetica, sans-serif;
 

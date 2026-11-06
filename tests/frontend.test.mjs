@@ -56,6 +56,11 @@ class Element {
   }
   cloneNode() { const clone = new Element(this.step); clone.src = this.src; return clone; }
   append(...elements) { elements.forEach(element => { element.parent = this; this.children.push(element); }); }
+  remove() {
+    if (!this.parent) return;
+    this.parent.children.splice(this.parent.children.indexOf(this), 1);
+    this.parent = null;
+  }
   focus() { this.focused = true; }
   closest() { return null; }
   querySelector() { return this.children.find(child => child.classes?.has('visible')) || this.children[0] || null; }
@@ -137,7 +142,10 @@ async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1
       matches: query === '(min-width: 1101px)' ? viewportWidth >= 1101 : reduced,
       addEventListener() {},
     }),
-    Image: class extends Element { constructor() { super(step); } },
+    Image: class extends Element {
+      constructor() { super(step); }
+      decode() { return Promise.resolve(); }
+    },
     IntersectionObserver: class { observe() {} unobserve() {} },
     MutationObserver: class { observe() {} },
     ResizeObserver: class {
@@ -173,6 +181,28 @@ test('each project keeps exactly one CMS thumbnail while the rail moves', async 
   for (let frame = 0; frame < 1000; frame++) tick();
   assert.deepEqual(tiles.map(tile => tile.children[0].src), thumbnails);
   assert.ok(tiles.every(tile => tile.children[0].classes.has('visible')));
+});
+
+test('rail hover cycles the project stills at 12 fps and restores the thumbnail on leave', async () => {
+  const { elements, tick } = await mount();
+  const tile = elements['.track'].children[12];
+  const thumbnail = tile.children[0];
+  const project = normalizePortfolio(seed)[0];
+  const stills = project.images.filter(image => image.mime_type !== 'video/mp4');
+  const start = stills.indexOf(project.thumbnail);
+  await tile.listeners.pointerenter({ pointerType: 'mouse' });
+  tick(83);
+  assert.equal(tile.children.at(-1).src, thumbnail.src);
+  tick(1);
+  assert.equal(tile.children.at(-1).src, stills[(start + 1) % stills.length].url);
+  tick(1000 / 12);
+  assert.equal(tile.children.at(-1).src, stills[(start + 2) % stills.length].url);
+  assert.equal(tile.children[0], thumbnail);
+  tile.listeners.pointerleave();
+  assert.equal(tile.children.length, 2);
+  await tile.listeners.pointerenter({ pointerType: 'touch' });
+  tick(100);
+  assert.equal(tile.children.length, 2);
 });
 
 test('wide landing crops the first tile without changing the rail step', async () => {
