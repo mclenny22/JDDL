@@ -107,9 +107,10 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   The active label uses the reference's pale rounded shape (Index is a pill);
   inactive numbers use triangle, hexagon, rounded square and circle shapes.
   Hover/focus varies inactive geometry without clipping labels or focus rings.
-  Pointer hover reveals the full destination name with a scramble. The
-  current destination repeats the effect until pointer exit. Reduced motion
-  shows the full name immediately.
+  Hover expands the menu button smoothly to reveal the destination. Scrambles
+  spread from the pointer or touch point across menu labels and visible
+  portfolio text. The current destination repeats on hover until pointer exit.
+  Reduced motion skips both the width animation and the scramble.
   Project opens a random published project's detail, excluding the currently
   open project when another is available. About (`#about`) uses studio
   settings and selected clients. On mobile MENU becomes CLOSE and reveals

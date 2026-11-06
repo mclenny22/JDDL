@@ -57,6 +57,9 @@ p { margin: 0; }
 .menu-revealed .menu-reveal { display: block; position: relative; white-space: nowrap; }
 .menu-reveal::before { content: attr(data-label); visibility: hidden; }
 .menu-reveal > span { position: absolute; inset: 0; overflow: hidden; text-align: center; }
+::highlight(scrambled-text) { color: transparent; }
+.text-scramble-overlay { position: fixed; inset: 0; z-index: 5100; pointer-events: none; }
+.text-scramble-overlay span { position: absolute; text-align: center; }
 .portfolio { position: fixed; inset: auto 0 var(--footer-height); }
 .rail { width: 100%; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; overscroll-behavior-x: contain; touch-action: pan-x; scroll-snap-type: none; }
 .rail::-webkit-scrollbar { display: none; }

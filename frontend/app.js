@@ -2,6 +2,7 @@ import { createMedia, isVideo } from './media.js';
 import { loadPortfolio } from './projects.js';
 import { createOrbitGrid } from './orbit.js';
 import { createProjectView } from './project-view.js';
+import { enableTextScramble, scrambleDuration, scrambleGlyph } from './text-scramble.js';
 
 async function start() {
   const { projects, settings } = await loadPortfolio();
@@ -67,11 +68,27 @@ async function start() {
   }).observe(document.querySelector('.site-footer'));
   nav.replaceChildren();
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  enableTextScramble(reducedMotion);
+  const menuWidths = new WeakMap();
   let menuPreview = null;
+
+  function revealMenu(button, reveal) {
+    const from = button.getBoundingClientRect().width;
+    menuWidths.get(button)?.cancel();
+    button.classList.toggle('menu-revealed', reveal);
+    if (reducedMotion.matches || !button.animate) return;
+    const to = button.getBoundingClientRect().width;
+    if (from && to && from !== to) {
+      menuWidths.set(button, button.animate(
+        [{ width: `${from}px` }, { width: `${to}px` }],
+        { duration: 220, easing: 'cubic-bezier(.2,.7,.25,1)' },
+      ));
+    }
+  }
 
   function animateMenu(now) {
     if (!menuPreview) return;
-    const { button, text, name } = menuPreview;
+    const { button, text, name, origin, touch } = menuPreview;
     const selected = button.classList.contains('selected');
     if (selected !== menuPreview.selected) {
       menuPreview.selected = selected;
@@ -79,16 +96,18 @@ async function start() {
       menuPreview.frame = -1;
     }
     const elapsed = now - menuPreview.started;
-    const phase = selected ? elapsed % 1000 : elapsed;
-    const frame = reducedMotion.matches ? 8 : Math.min(8, Math.floor(phase / 45));
+    if (touch && elapsed >= 520) {
+      revealMenu(button, false);
+      menuPreview = null;
+      return;
+    }
+    const phase = selected && !touch ? elapsed % 1000 : elapsed;
+    const frame = reducedMotion.matches ? scrambleDuration : Math.min(scrambleDuration, Math.floor(phase / 30) * 30);
     if (frame === menuPreview.frame) return;
     menuPreview.frame = frame;
-    const resolved = Math.floor(name.length * frame / 8);
-    const glyphs = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    text.textContent = name.slice(0, resolved) + Array.from(
-      { length: name.length - resolved },
-      () => glyphs[Math.floor(Math.random() * glyphs.length)],
-    ).join('');
+    const extent = Math.max(origin, name.length - 1 - origin);
+    text.textContent = Array.from(name, (character, index) =>
+      scrambleGlyph(character, Math.abs(index - origin), extent, frame)).join('');
   }
 
   function randomShape(choices, previous) {
@@ -121,19 +140,27 @@ async function start() {
     function varyHoverShape() {
       if (!button.classList.contains('selected')) button.dataset.hoverShape = randomShape(['triangle', 'square', 'circle'], button.dataset.hoverShape);
     }
-    button.addEventListener('pointerenter', event => {
-      if (event?.pointerType === 'touch') return;
+    function previewMenu(event, touch) {
       varyHoverShape();
       const name = (index === 0 ? 'Highlight' : menuLabels[index]).toUpperCase();
-      menuPreview?.button.classList.remove('menu-revealed');
+      if (menuPreview && menuPreview.button !== button) revealMenu(menuPreview.button, false);
+      const { left, width } = button.getBoundingClientRect();
+      const fraction = Number.isFinite(event?.clientX) && width ? (event.clientX - left) / width : .5;
+      const origin = Math.max(0, Math.min(name.length - 1, Math.floor(fraction * name.length)));
       reveal.dataset.label = name;
-      button.classList.add('menu-revealed');
-      menuPreview = { button, text: scrambled, name, started: performance.now(), selected: button.classList.contains('selected') };
+      revealMenu(button, true);
+      menuPreview = { button, text: scrambled, name, origin, touch, started: performance.now(), selected: button.classList.contains('selected') };
       animateMenu(performance.now());
+    }
+    button.addEventListener('pointerenter', event => {
+      if (event?.pointerType !== 'touch') previewMenu(event, false);
+    });
+    button.addEventListener('pointerdown', event => {
+      if (event.pointerType === 'touch' && !reducedMotion.matches) previewMenu(event, true);
     });
     button.addEventListener('pointerleave', () => {
-      if (menuPreview?.button !== button) return;
-      button.classList.remove('menu-revealed');
+      if (menuPreview?.button !== button || menuPreview.touch) return;
+      revealMenu(button, false);
       menuPreview = null;
     });
     button.addEventListener('focus', varyHoverShape);

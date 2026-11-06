@@ -156,6 +156,7 @@ async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1
   vm.runInContext(fs.readFileSync(new URL('../frontend/media.js', import.meta.url), 'utf8').replaceAll('export function', 'function').replace(/^import .*;\n/gm, ''), context);
   vm.runInContext(fs.readFileSync(new URL('../frontend/project-view.js', import.meta.url), 'utf8').replaceAll('export function', 'function').replace(/^import .*;\n/gm, ''), context);
   vm.runInContext(fs.readFileSync(new URL('../frontend/orbit.js', import.meta.url), 'utf8').replace('export function', 'function').replace(/^import .*;\n/gm, ''), context);
+  vm.runInContext(fs.readFileSync(new URL('../frontend/text-scramble.js', import.meta.url), 'utf8').replaceAll('export ', ''), context);
   const source = fs.readFileSync(new URL('../frontend/app.js', import.meta.url), 'utf8')
     .replace(/^import .*;\n/gm, '')
     .replace("import { loadPortfolio } from './projects.js';", '')
@@ -648,9 +649,11 @@ test('menu hover settles on the destination name and loops on the current page',
   const { elements, tick } = await mount();
   const [selected, index] = elements['.menu'].children;
   const revealText = button => button.children.at(-1).children[0].textContent;
-  index.listeners.pointerenter({ pointerType: 'mouse' });
+  index.listeners.pointerenter({ pointerType: 'mouse', clientX: index.getBoundingClientRect().left + index.getBoundingClientRect().width - 1 });
   assert.ok(index.classes.has('menu-revealed'));
   assert.equal(revealText(index).length, 5);
+  assert.equal(revealText(index).slice(0, -1), 'INDE');
+  assert.notEqual(revealText(index).at(-1), 'X');
   tick(360);
   assert.equal(revealText(index), 'INDEX');
   tick(1000);
