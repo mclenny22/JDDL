@@ -66,6 +66,31 @@ async function start() {
     document.documentElement.style.setProperty('--footer-height', `${document.querySelector('.site-footer').getBoundingClientRect().height}px`);
   }).observe(document.querySelector('.site-footer'));
   nav.replaceChildren();
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  let menuPreview = null;
+
+  function animateMenu(now) {
+    if (!menuPreview) return;
+    const { button, text, name } = menuPreview;
+    const selected = button.classList.contains('selected');
+    if (selected !== menuPreview.selected) {
+      menuPreview.selected = selected;
+      menuPreview.started = now;
+      menuPreview.frame = -1;
+    }
+    const elapsed = now - menuPreview.started;
+    const phase = selected ? elapsed % 1000 : elapsed;
+    const frame = reducedMotion.matches ? 8 : Math.min(8, Math.floor(phase / 45));
+    if (frame === menuPreview.frame) return;
+    menuPreview.frame = frame;
+    const resolved = Math.floor(name.length * frame / 8);
+    const glyphs = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    text.textContent = name.slice(0, resolved) + Array.from(
+      { length: name.length - resolved },
+      () => glyphs[Math.floor(Math.random() * glyphs.length)],
+    ).join('');
+  }
+
   function randomShape(choices, previous) {
     const candidates = choices.filter(value => value !== previous);
     return candidates[Math.floor(Math.random() * candidates.length)];
@@ -86,15 +111,34 @@ async function start() {
       highlight.textContent = 'Highlight';
       button.append(highlight);
     }
+    const reveal = document.createElement('span');
+    const scrambled = document.createElement('span');
+    reveal.className = 'menu-reveal';
+    reveal.setAttribute('aria-hidden', 'true');
+    reveal.append(scrambled);
+    button.append(reveal);
     button.dataset.project = String(index);
     function varyHoverShape() {
       if (!button.classList.contains('selected')) button.dataset.hoverShape = randomShape(['triangle', 'square', 'circle'], button.dataset.hoverShape);
     }
-    button.addEventListener('pointerenter', varyHoverShape);
+    button.addEventListener('pointerenter', event => {
+      if (event?.pointerType === 'touch') return;
+      varyHoverShape();
+      const name = (index === 0 && matchMedia('(min-width: 1101px)').matches ? 'Highlight' : menuLabels[index]).toUpperCase();
+      menuPreview?.button.classList.remove('menu-revealed');
+      reveal.dataset.label = name;
+      button.classList.add('menu-revealed');
+      menuPreview = { button, text: scrambled, name, started: performance.now(), selected: button.classList.contains('selected') };
+      animateMenu(performance.now());
+    });
+    button.addEventListener('pointerleave', () => {
+      if (menuPreview?.button !== button) return;
+      button.classList.remove('menu-revealed');
+      menuPreview = null;
+    });
     button.addEventListener('focus', varyHoverShape);
     button.setAttribute('aria-label', ['Highlight / Selected — View projects', 'Index — Explore all images', 'Project — Open a random project', 'About the studio'][index]);
     nav.append(button);
-    button.style.setProperty('--menu-label-width', `${label.scrollWidth}px`);
     return button;
   });
   const status = document.querySelector('#status');
@@ -220,7 +264,6 @@ async function start() {
       transitionTo(active, false, menu[1]);
     }
   });
-  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   let pageTransition = null;
   const transitionClasses = ['page-out', 'page-out-back', 'page-in', 'page-in-back'];
   function clearPageMotion() {
@@ -593,6 +636,7 @@ async function start() {
       driftPosition = null;
     }
     animatePreview(now);
+    animateMenu(now);
     requestAnimationFrame(animate);
   }
   new ResizeObserver(measure).observe(rail);

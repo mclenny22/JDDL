@@ -39,6 +39,8 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
 - `frontend/index.html`, `styles.css` and `app.js` implement the responsive
   light portfolio. Rail thumbnails are 50vh tall and retain a 4:5 frame
   with cover cropping.
+  Project tiles have a 25px horizontal gap. On wide screens the rail also
+  sits 25px above the viewport bottom.
   The AD4K logo and menu shapes are local, unmodified Figma SVG exports in
   `frontend/assets/`. Desktop and mobile logo exports keep their native sizes
   (460 × 34 and 203 × 34); the desktop asset includes its own whitespace.
@@ -94,6 +96,9 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   The active label uses the reference's pale rounded shape (Index is a pill);
   inactive numbers use triangle, hexagon, rounded square and circle shapes.
   Hover/focus varies inactive geometry without clipping labels or focus rings.
+  Pointer hover reveals the full destination name with a scramble. The
+  current destination repeats the effect until pointer exit. Reduced motion
+  shows the full name immediately.
   Project opens a random published project's detail, excluding the currently
   open project when another is available. About (`#about`) uses studio
   settings and selected clients. On mobile MENU becomes CLOSE and reveals

@@ -644,6 +644,28 @@ test('mobile menu opens on demand, dismisses with Escape and collapses after nav
 });
 
 
+test('menu hover settles on the destination name and loops on the current page', async () => {
+  const { elements, tick } = await mount();
+  const [selected, index] = elements['.menu'].children;
+  const revealText = button => button.children.at(-1).children[0].textContent;
+  index.listeners.pointerenter({ pointerType: 'mouse' });
+  assert.ok(index.classes.has('menu-revealed'));
+  assert.equal(revealText(index).length, 5);
+  tick(360);
+  assert.equal(revealText(index), 'INDEX');
+  tick(1000);
+  assert.equal(revealText(index), 'INDEX');
+  index.listeners.pointerleave();
+  assert.ok(!index.classes.has('menu-revealed'));
+  selected.listeners.pointerenter({ pointerType: 'mouse' });
+  tick(360);
+  assert.equal(revealText(selected), 'SELECTED');
+  tick(640);
+  assert.notEqual(revealText(selected), 'SELECTED');
+  tick(360);
+  assert.equal(revealText(selected), 'SELECTED');
+});
+
 test('navigation has four destinations, and number hover chooses varying shapes', async () => {
   const { elements, tick } = await mount(seed, true);
   const menu = elements['.menu'].children;
@@ -652,6 +674,7 @@ test('navigation has four destinations, and number hover chooses varying shapes'
   for (let frame = 0; frame < 60; frame++) tick();
   assert.equal(menu[0].attrs['aria-current'], 'true');
   menu[1].listeners.pointerenter();
+  assert.equal(menu[1].children.at(-1).children[0].textContent, 'INDEX');
   const shape = menu[1].dataset.hoverShape;
   assert.ok(['triangle', 'square', 'circle'].includes(shape));
   menu[1].listeners.pointerenter();

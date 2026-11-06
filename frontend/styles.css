@@ -9,7 +9,7 @@
   --muted: #b5b5b5;
   --surface: #e6e6e6;
   --inset: 15px;
-  --gap: 15px;
+  --gap: 25px;
   --footer-height: 38px;
   --tile-height: 50vh;
   --tile-width: calc(var(--tile-height) * 4 / 5);
@@ -50,6 +50,13 @@ p { margin: 0; }
 .menu button:not(.selected):is(:hover, :focus-visible)[data-hover-shape="circle"]::before { border-radius: 50%; }
 .menu button:not(.selected):is(:hover, :focus-visible)[data-hover-shape="square"]::before { border-radius: 4px; }
 .menu-shape-definitions { position: absolute; pointer-events: none; }
+.menu-reveal { display: none; }
+.menu button.menu-revealed { width: auto; padding-inline: 14px; }
+.menu button.menu-revealed:not(.selected):hover::before { background: var(--surface); border-radius: 4px; clip-path: none; }
+.menu button.menu-revealed > :not(.menu-reveal) { position: absolute; visibility: hidden; }
+.menu-revealed .menu-reveal { display: block; position: relative; white-space: nowrap; }
+.menu-reveal::before { content: attr(data-label); visibility: hidden; }
+.menu-reveal > span { position: absolute; inset: 0; overflow: hidden; text-align: center; }
 .portfolio { position: fixed; inset: auto 0 var(--footer-height); }
 .rail { width: 100%; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; overscroll-behavior-x: contain; touch-action: pan-x; scroll-snap-type: none; }
 .rail::-webkit-scrollbar { display: none; }
@@ -273,9 +280,7 @@ p { margin: 0; }
     & .menu button,
     & .menu button.selected { background: #b6b6b6; color: #000; }
     & .menu button[data-project="0"] { background: #fff; }
-    & .menu button.selected .menu-label,
     & .menu button[data-project="0"] .menu-number { display: none; }
-    & .menu button.selected .menu-number,
     & .menu button[data-project="0"] .menu-highlight { display: block; }
     & .project-detail-content {
       margin-inline: var(--highlight-inset);
@@ -298,7 +303,6 @@ p { margin: 0; }
   }
 
   .portfolio {
-    --gap: 40px;
     bottom: var(--gap);
     --tile-height: 60vh;
     --tile-width: calc(var(--tile-height) * 4 / 5);
