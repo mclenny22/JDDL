@@ -259,11 +259,11 @@ p { margin: 0; }
     & :is(.logo-dark, .about:not(.highlight-about)) { display: none; }
     & .studio-logo .logo-highlight {
       position: absolute;
-      inset: 0 auto auto 0;
+      inset: calc(-1 * var(--highlight-inset)) auto auto calc(-1 * var(--highlight-inset));
       display: block;
-      /* The animation canvas includes frames wider than the opening wordmark. */
-      width: calc(100% * 402.99 / 326.816);
-      height: auto;
+      /* Scale the full composition without moving its internal artwork. */
+      width: calc(100% * 446 / 326.816);
+      aspect-ratio: 446 / 213;
       pointer-events: none;
     }
     & .highlight-about {

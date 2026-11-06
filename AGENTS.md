@@ -13,6 +13,10 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
 `http://127.0.0.1:4174`. A local admin password is generated in the ignored
 `data/admin.password` file unless `ADMIN_PASSWORD` is set.
 
+Run `python3 server.py --preview` for a read-only placeholder portfolio at
+`http://127.0.0.1:4175/`. It serves the current frontend files and a fixture
+`/api/public` response without opening CMS databases or cloud connections.
+
 ## Frontend
 
 - On the alternate-page branch, the wide desktop landing (1101px and up)
@@ -22,11 +26,12 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   Public site text on this branch uses 14px with a line height of 1. The
   wide masthead uses the alternate studio copy with an inline opening
   sentence, muted body text and lighter Instagram and Imprint labels.
-  The animated wordmark uses the original masthead inset on the wide
-  landing and project pages. Its opening drawing matches the three lines of
-  copy in height. The SVG uses the supplied Lottie drawings and timing, plays
-  once, and shows the opening drawing for reduced motion. The copy sits 80px
-  from the opening drawing. The wide landing hides the site footer and puts 60vh
+  The animation canvas sits flush with the viewport's top-left corner on
+  wide landing and project pages, while the masthead copy keeps its inset.
+  The local Lottie player loads the original
+  `ad4k-1.json` on its full 446 × 213 canvas. Playback runs once and shows the
+  opening frame for reduced motion. The copy retains its 80px grid gap.
+  The wide landing hides the site footer and puts 60vh
   thumbnails 40px above the viewport bottom.
   Wide project detail uses the dark alternate masthead and three always-visible
   text blocks above the hero, following Figma node `906:2297`.

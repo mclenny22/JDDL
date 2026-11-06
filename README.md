@@ -17,6 +17,11 @@ python3 server.py
 - A local admin password is generated in the ignored `data/admin.password` file.
   Set `ADMIN_PASSWORD` to choose your own password.
 
+For local design review, run `python3 server.py --preview` and open
+<http://127.0.0.1:4175/> in the Codex in-app browser. Refresh after editing
+frontend files. The preview uses placeholder projects, images, and text in
+memory, so it works without a database or a Vercel deployment.
+
 The rail loops in both directions and snaps projects to the left inset. Mouse
 wheel input glides horizontally; touch and horizontal trackpad gestures use
 native scrolling and CSS snapping. Arrow keys work when the rail is focused.
