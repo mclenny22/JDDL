@@ -129,7 +129,10 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   follow the project images and scroll with the content.
 - Project links use `#project/<slug>/<image-id>` and real anchor hrefs.
   Native same-document View Transitions pair only the clicked repeated tile
-  with the hero, then reverse to its source on return. Unsupported browsers
+  with the hero, then reverse to its source on return. At wide widths the
+  rail media and hero both use 60vh, so the morph keeps its height while the
+  background crossfades and project facts enter after the rail starts fading.
+  Unsupported browsers
   use a Web Animations image morph. Interrupted transitions clean up temporary
   names and pause state; a new destination replaces pending navigation.
   Escape and the return button use the existing history entry when possible;

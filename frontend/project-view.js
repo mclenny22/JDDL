@@ -92,6 +92,7 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
     flyingImage?.remove();
     flyingImage = null;
     hero.style.visibility = '';
+    view.classList.remove('project-morph-fallback');
   }
   function finish() {
     cleanupNames();
@@ -147,7 +148,10 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
       clone.className = 'project-flying-image';
       document.body.append(clone);
       flyingImage = clone;
-      if (target === hero) hero.style.visibility = 'hidden';
+      if (target === hero) {
+        hero.style.visibility = 'hidden';
+        view.classList.add('project-morph-fallback');
+      }
       fallback = clone.animate([
         { left: `${origin.left}px`, top: `${origin.top}px`, width: `${origin.width}px`, height: `${origin.height}px` },
         { left: `${destination.left}px`, top: `${destination.top}px`, width: `${destination.width}px`, height: `${destination.height}px` },

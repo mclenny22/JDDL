@@ -151,6 +151,9 @@ p { margin: 0; }
 @keyframes page-out-back { from { opacity: var(--page-exit-opacity, 1); transform: var(--page-exit-transform, none); } 80% { opacity: 0; } to { opacity: 0; transform: translate3d(10px, 0, 0); } }
 @keyframes page-in { from { opacity: 0; transform: translate3d(max(1vw, 25px), 0, 0); } to { opacity: 1; transform: none; } }
 @keyframes page-in-back { from { opacity: 0; transform: translate3d(min(-1vw, -25px), 0, 0); } to { opacity: 1; transform: none; } }
+@keyframes project-fade-out { to { opacity: 0; } }
+@keyframes project-fade-in { from { opacity: 0; } }
+@keyframes project-darken { from { background-color: #f6f6f6; } }
 @media (min-width: 601px) and (max-width: 1100px) {
   .studio { grid-template-columns: 203px minmax(0, 1fr); }
   .about { max-width: 46vw; }
@@ -221,6 +224,8 @@ p { margin: 0; }
 .project-facts { display: none; }
 
 @media (min-width: 1101px) {
+  :root { --project-rail-image-height: 60vh; }
+
   body:has(> .portfolio:not([hidden]), > .project-detail:not([hidden])) {
     --highlight-inset: clamp(24px, 2.604167vw, 50px);
     --highlight-logo-height: 3lh;
@@ -287,6 +292,7 @@ p { margin: 0; }
       padding-top: max(clamp(180px, 15.78125vw, 303px), calc(var(--index-top, 124px) + 24px));
     }
     & .project-detail-info { display: block; padding: 0 0 11px; }
+    & .project-hero { height: var(--project-rail-image-height); aspect-ratio: auto; }
     & .project-detail-info > :not(.project-facts) { display: none; }
     & .project-facts {
       display: flex;
@@ -302,9 +308,29 @@ p { margin: 0; }
     & .project-facts dd { margin: 0; white-space: pre-line; }
   }
 
+  @media (prefers-reduced-motion: no-preference) {
+    .project-transitioning .rail { view-transition-name: project-rail; }
+    .project-transitioning .project-detail-info { view-transition-name: project-facts; }
+
+    ::view-transition-group(root) { animation-timing-function: ease-in-out; }
+    ::view-transition-group(project-image) { z-index: 3; }
+    ::view-transition-old(project-image):not(:only-child) { animation: none; }
+    ::view-transition-new(project-image):not(:only-child) {
+      animation: project-fade-in 340ms ease-in-out 80ms both;
+    }
+    ::view-transition-old(project-rail), ::view-transition-old(project-facts) {
+      animation: project-fade-out 240ms ease-out both;
+    }
+    ::view-transition-new(project-facts) { animation: project-fade-in 420ms ease-out 220ms both; }
+    ::view-transition-new(project-rail) { animation: project-fade-in 420ms ease-out 150ms both; }
+
+    .project-morph-fallback { animation: project-darken 600ms ease-in-out both; }
+    .project-morph-fallback .project-detail-info { animation: project-fade-in 420ms ease-out 220ms both; }
+  }
+
   .portfolio {
     bottom: var(--gap);
-    --tile-height: 60vh;
+    --tile-height: var(--project-rail-image-height);
     --tile-width: calc(var(--tile-height) * 4 / 5);
   }
   .portfolio .track { padding-inline: 0; }
