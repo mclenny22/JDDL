@@ -27,7 +27,15 @@
 </head>
 <body>
   <header class="masthead">
-    <div class="studio"><a class="studio-logo" href="#" aria-label="Selected projects"><picture class="logo-dark"><source media="(max-width: 600px)" srcset="assets/ad4k-logo-mobile.svg"><img src="assets/ad4k-logo.svg" alt="AD4K"></picture><picture class="logo-light" aria-hidden="true"><source media="(max-width: 600px)" srcset="assets/ad4k-logo-mobile-light.svg"><img src="assets/ad4k-logo-light.svg" alt=""></picture></a><p class="about"></p></div>
+    <div class="studio">
+      <a class="studio-logo" href="#" aria-label="Selected projects">
+        <picture class="logo-dark"><source media="(max-width: 600px)" srcset="assets/ad4k-logo-mobile.svg"><img src="assets/ad4k-logo.svg" alt="AD4K"></picture>
+        <picture class="logo-light" aria-hidden="true"><source media="(max-width: 600px)" srcset="assets/ad4k-logo-mobile-light.svg"><img src="assets/ad4k-logo-light.svg" alt=""></picture>
+        <img class="logo-highlight" src="assets/ad4k-logo-highlight.svg" alt="AD4K">
+      </a>
+      <p class="about"></p>
+      <p class="about highlight-about"><strong>AD4K Studio</strong><span></span></p>
+    </div>
     <nav class="index-filters" aria-label="Filter images by category" hidden></nav>
     <button class="mobile-menu-trigger" type="button" aria-controls="studio-menu" aria-expanded="false">MENU</button>
     <nav id="studio-menu" class="menu" aria-label="Projects"></nav>
@@ -52,6 +60,13 @@
     <footer class="project-footer"></footer>
   </section>
   <section id="studio-detail" class="studio-detail" hidden tabindex="-1" aria-label="About the studio"><div class="studio-detail-copy"></div><button class="studio-close" type="button">Back to selected ↗</button></section>
-  <footer class="site-footer"><p id="footer-contact"></p><p id="footer-email"></p><p id="footer-address"></p></footer>
+  <footer class="site-footer">
+    <p id="footer-contact"></p><p id="footer-email"></p><p id="footer-address"></p>
+    <div class="highlight-footer">
+      <p>©AD4K 2026</p>
+      <p>Instagram</p>
+      <a href="/imprint.html">Impressum</a>
+    </div>
+  </footer>
 </body>
 </html>

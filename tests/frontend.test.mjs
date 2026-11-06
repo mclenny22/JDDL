@@ -81,6 +81,7 @@ class Element {
 async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1000, initialHash = '', nativeTransitions = false) {
   const selectors = ['.rail', '.track', '.about', '.menu', '#status', '.portfolio', '#gallery', '#field', '.masthead', '.studio-logo', '.mobile-menu-trigger', '.site-footer', '#footer-contact', '#footer-address', '#footer-email', '#project-detail', '.project-detail-content', '.project-detail-info', '.project-hero', '.project-grid', '.project-close', '.project-footer', '#studio-detail', '.studio-detail-copy', '.studio-close', '.index-filters'];
   const elements = Object.fromEntries(selectors.map(selector => [selector, new Element(step)]));
+  elements['.highlight-about span'] = new Element(step);
   elements['#gallery'].getBoundingClientRect = () => ({ width: viewportWidth, height: 700 });
   const frames = new Map();
   let nextFrame = 0;
@@ -124,7 +125,11 @@ async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1
     getComputedStyle: () => ({ opacity: '.5', transform: 'matrix(1, 0, 0, 1, 12, 0)' }),
     console, document, performance: { now: () => time },
     loadPortfolio: async () => ({ projects: normalizePortfolio(data), settings: data.settings || {} }),
-    matchMedia: () => ({ matches: reduced, addEventListener() {} }), Image: class extends Element { constructor() { super(step); } },
+    matchMedia: query => ({
+      matches: query === '(min-width: 1101px)' ? viewportWidth >= 1101 : reduced,
+      addEventListener() {},
+    }),
+    Image: class extends Element { constructor() { super(step); } },
     IntersectionObserver: class { observe() {} unobserve() {} },
     MutationObserver: class { observe() {} },
     ResizeObserver: class { observe() {} }, requestAnimationFrame: callback => { frames.set(++nextFrame, callback); return nextFrame; },
@@ -154,6 +159,17 @@ test('each project keeps exactly one CMS thumbnail while the rail moves', async 
   for (let frame = 0; frame < 1000; frame++) tick();
   assert.deepEqual(tiles.map(tile => tile.children[0].src), thumbnails);
   assert.ok(tiles.every(tile => tile.children[0].classes.has('visible')));
+});
+
+test('wide landing crops the first tile without changing the rail step', async () => {
+  const step = 620;
+  const { elements } = await mount(seed, true, step, 1920);
+  const rail = elements['.rail'];
+  const start = 3 * normalizePortfolio(seed).length * step;
+  const initial = start + rail.clientWidth * 170 / 1920;
+  assert.equal(rail.scrollLeft, initial);
+  rail.listeners.keydown({ key: 'ArrowRight', preventDefault() {} });
+  assert.equal(rail.scrollLeft, initial + step);
 });
 
 test('wheel glide stops at the requested offset and loop rebase preserves free motion', async () => {

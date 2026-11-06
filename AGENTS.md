@@ -15,6 +15,13 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
 
 ## Frontend
 
+- On the alternate-page branch, the wide desktop landing (1101px and up)
+  follows Figma node `905:2230`. Highlight is the landing label for Selected.
+  Its rail opens with the first tile partly cropped, using the same CMS order
+  and thumbnail selection. Project titles and tags appear above each tile.
+  The alternate masthead uses the native 321.277 × 50 wordmark and CMS studio
+  copy. Narrower widths and the other views use the existing presentation.
+
 - The active screens follow Figma file `83EmCrcQUbPM4r2UiCcgnx`, section
   `731:61` (AD4K): desktop landing V1 `784:3845`, dark project `743:1124`,
   mobile landing `801:491`, mobile project `800:471`, mobile menu `811:601`

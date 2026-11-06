@@ -11,6 +11,7 @@ async function start() {
   const headline = document.createElement('strong');
   headline.textContent = split ? split[1] : copy;
   about.replaceChildren(headline, document.createTextNode(split ? split[2] : ''));
+  document.querySelector('.highlight-about span').textContent = copy;
   const footerValues = [['contact', 'Contact'], ['email', ''], ['address', '']];
   const projectFooter = document.querySelector('.project-footer');
   for (const [key, fallback] of footerValues) {
@@ -76,13 +77,19 @@ async function start() {
     label.className = 'menu-label';
     label.textContent = menuLabels[index];
     button.append(number, label);
+    if (index === 0) {
+      const highlight = document.createElement('span');
+      highlight.className = 'menu-highlight';
+      highlight.textContent = 'Highlight';
+      button.append(highlight);
+    }
     button.dataset.project = String(index);
     function varyHoverShape() {
       if (!button.classList.contains('selected')) button.dataset.hoverShape = randomShape(['triangle', 'square', 'circle'], button.dataset.hoverShape);
     }
     button.addEventListener('pointerenter', varyHoverShape);
     button.addEventListener('focus', varyHoverShape);
-    button.setAttribute('aria-label', ['Selected — View projects', 'Index — Explore all images', 'Project — Open a random project', 'About the studio'][index]);
+    button.setAttribute('aria-label', ['Highlight / Selected — View projects', 'Index — Explore all images', 'Project — Open a random project', 'About the studio'][index]);
     nav.append(button);
     button.style.setProperty('--menu-label-width', `${label.scrollWidth}px`);
     return button;
@@ -366,7 +373,7 @@ async function start() {
       for (const [text, label] of [[project.title, 'Project'], [project.client, 'Client']]) {
         if (!text) continue;
         const pair = document.createElement('span');
-        pair.className = 'meta-pair';
+        pair.className = label === 'Client' ? 'meta-pair tile-client' : 'meta-pair';
         const value = document.createElement('span');
         value.className = 'meta-value';
         value.textContent = text;
@@ -398,7 +405,9 @@ async function start() {
     const first = tiles[0].getBoundingClientRect();
     step = tiles[1].getBoundingClientRect().left - first.left;
     cycle = step * projects.length;
-    rail.scrollLeft = oldStep === step ? oldPosition : middle * cycle + savedProject * step;
+    // The wide landing opens partway through the first tile, as in the artboard.
+    const initialCrop = !oldStep && matchMedia('(min-width: 1101px)').matches ? rail.clientWidth * 170 / 1920 : 0;
+    rail.scrollLeft = oldStep === step ? oldPosition : middle * cycle + savedProject * step + initialCrop;
     onScroll();
   }
 
