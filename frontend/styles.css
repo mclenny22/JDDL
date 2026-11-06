@@ -238,7 +238,7 @@ p { margin: 0; }
     }
     font-family: Haffer, Arial, Helvetica, sans-serif;
 
-    & .masthead { inset: 0 var(--highlight-inset) auto 0; gap: 20px; }
+    & .masthead { inset: var(--highlight-inset) var(--highlight-inset) auto; gap: 20px; }
     & .studio {
       container-type: inline-size;
       grid-template-columns: auto minmax(0, 1fr);
@@ -279,7 +279,7 @@ p { margin: 0; }
     & .highlight-links a { text-decoration: none; }
     & .highlight-links a:is(:hover, :focus-visible) { color: var(--ink); text-decoration: underline; }
 
-    & .menu { height: auto; gap: 4px; margin-top: var(--highlight-inset); padding-top: 1px; }
+    & .menu { height: auto; gap: 4px; padding-top: 1px; }
     & .menu button {
       width: auto;
       min-width: 0;

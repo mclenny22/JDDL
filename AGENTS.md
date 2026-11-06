@@ -22,7 +22,7 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   Public site text on this branch uses 14px with a line height of 1. The
   wide masthead uses the alternate studio copy with an inline opening
   sentence, muted body text and lighter Instagram and Imprint labels.
-  The animated wordmark sits flush at the top-left of the viewport on the wide
+  The animated wordmark uses the original masthead inset on the wide
   landing and project pages. Its opening drawing matches the three lines of
   copy in height. The SVG uses the supplied Lottie drawings and timing, plays
   once, and shows the opening drawing for reduced motion. The copy sits 80px
