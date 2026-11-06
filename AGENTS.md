@@ -22,8 +22,11 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   Public site text on this branch uses 14px with a line height of 1. The
   wide masthead uses the alternate studio copy with an inline opening
   sentence, muted body text and lighter Instagram and Imprint labels.
-  The alternate wordmark scales with the base text metrics and sits 80px
-  from the copy. The wide landing hides the site footer and puts 60vh
+  The animated wordmark sits flush at the top-left of the viewport on the wide
+  landing and project pages. Its opening drawing matches the three lines of
+  copy in height. The SVG uses the supplied Lottie drawings and timing, plays
+  once, and shows the opening drawing for reduced motion. The copy sits 80px
+  from the opening drawing. The wide landing hides the site footer and puts 60vh
   thumbnails 40px above the viewport bottom.
   Wide project detail uses the dark alternate masthead and three always-visible
   text blocks above the hero, following Figma node `906:2297`.
@@ -128,13 +131,12 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   technology; reduced motion switches immediately. The footer and return control
   follow the project images and scroll with the content.
 - Project links use `#project/<slug>/<image-id>` and real anchor hrefs.
-  Native same-document View Transitions pair only the clicked repeated tile
-  with the hero, then reverse to its source on return. At wide widths the
-  rail media and hero both use 60vh, so the morph keeps its height while the
-  background crossfades and project facts enter after the rail starts fading.
-  Unsupported browsers
-  use a Web Animations image morph. Interrupted transitions clean up temporary
-  names and pause state; a new destination replaces pending navigation.
+  Native same-document View Transitions crossfade the background and move
+  outgoing and incoming page content with a short vertical slide and fade.
+  At wide widths the rail media and hero both use 60vh. Browsers without
+  View Transitions animate the incoming content when Web Animations is
+  available. A new destination replaces pending navigation, and interrupted
+  transitions clear their animation state.
   Escape and the return button use the existing history entry when possible;
   direct links return locally. Focus and gallery offsets are restored.
 - Automatic and manual project layouts share twelve integer columns and identical

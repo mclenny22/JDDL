@@ -83,81 +83,42 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
   let transition = null;
   let pending = null;
   let fallback = null;
-  let flyingImage = null;
-  let cleanupNames = () => {};
+  const root = document.documentElement;
+  const galleryViews = ['.portfolio', '#gallery', '#studio-detail'].map(selector => document.querySelector(selector));
 
-  function stopFallback() {
-    fallback?.cancel();
-    fallback = null;
-    flyingImage?.remove();
-    flyingImage = null;
-    hero.style.visibility = '';
-    view.classList.remove('project-morph-fallback');
-  }
   function finish() {
-    cleanupNames();
-    cleanupNames = () => {};
     transition = null;
-    document.documentElement.classList.remove('project-transitioning');
+    root.classList.remove('project-transitioning');
+    root.classList.remove('project-transition-in');
     if (pending) { const next = pending; pending = null; next(); }
   }
-  function imageFor(source) { return source?.querySelector('.visible') || source?.querySelector('img, video'); }
-  function transitionView(update, from, getTarget) {
+
+  function transitionView(update) {
     if (transition) {
-      pending = () => transitionView(update, from, getTarget);
+      pending = () => transitionView(update);
       transition.skipTransition();
       return;
     }
-    stopFallback();
-    const origin = from?.getBoundingClientRect();
+    fallback?.cancel();
     if (!reducedMotion.matches && document.startViewTransition) {
-      document.documentElement.classList.add('project-transitioning');
-      if (from) from.style.viewTransitionName = 'project-image';
-      let target;
-      cleanupNames = () => {
-        if (from) from.style.viewTransitionName = '';
-        if (target) target.style.viewTransitionName = '';
-      };
+      root.classList.add('project-transitioning');
       try {
         transition = document.startViewTransition(() => {
-          if (from) from.style.viewTransitionName = '';
           update();
-          target = getTarget();
-          if (target) target.style.viewTransitionName = 'project-image';
+          root.classList.add('project-transition-in');
         });
-        // A skipped animation (background tab, resize or a rapid second choice)
-        // still runs its DOM callback and must not leave names or a paused rail.
         transition.ready.catch(() => {});
         transition.finished.then(finish, finish);
         return;
-      } catch { cleanupNames(); transition = null; document.documentElement.classList.remove('project-transitioning'); }
+      } catch { finish(); }
     }
     update();
-    const target = getTarget();
-    if (!reducedMotion.matches && origin?.width && target && typeof target.animate === 'function') {
-      const destination = target.getBoundingClientRect();
-      if (!destination.width || !destination.height) return;
-      const clone = from.cloneNode(true);
-      clone.removeAttribute('controls');
-      clone.removeAttribute('id');
-      clone.style.viewTransitionName = '';
-      if (clone.tagName === 'VIDEO') {
-        clone.muted = true;
-        clone.currentTime = from.currentTime;
-      }
-      clone.className = 'project-flying-image';
-      document.body.append(clone);
-      flyingImage = clone;
-      if (target === hero) {
-        hero.style.visibility = 'hidden';
-        view.classList.add('project-morph-fallback');
-      }
-      fallback = clone.animate([
-        { left: `${origin.left}px`, top: `${origin.top}px`, width: `${origin.width}px`, height: `${origin.height}px` },
-        { left: `${destination.left}px`, top: `${destination.top}px`, width: `${destination.width}px`, height: `${destination.height}px` },
-      ], { duration: 850, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'forwards' });
-      fallback.onfinish = stopFallback;
-    }
+    if (reducedMotion.matches) return;
+    const incoming = view.hidden ? galleryViews.find(page => !page.hidden) : content;
+    fallback = incoming?.animate?.([
+      { opacity: 0, transform: 'translateY(10px)' },
+      { opacity: 1, transform: 'none' },
+    ], { duration: 340, easing: 'ease-out' });
   }
   function pair(value, label) {
     const block = document.createElement('span');
@@ -323,12 +284,11 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
   }
   function open(project, selectedImage, source = null, onSwitch = () => {}, layoutDefault = false) {
     const image = selectedImage || project.hero || project.thumbnail || project.images[0];
-    const origin = imageFor(source);
     transitionView(() => {
       sourceLink = source;
       render(project, image, layoutDefault);
       onSwitch();
-    }, project.heroHidden && layoutDefault ? null : origin, () => hero.hidden ? null : hero);
+    });
   }
   function close(onSwitch = () => {}) {
     if (transition) {
@@ -337,23 +297,18 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
       return sourceLink;
     }
     const source = sourceLink;
-    // A return to a different image or an offscreen source uses a quiet fade.
-    const target = imageFor(source);
-    const rect = hero.getBoundingClientRect();
-    const visibleHero = !hero.hidden && rect.bottom > 0 && rect.top < window.innerHeight;
     transitionView(() => {
       view.hidden = true;
       document.documentElement.classList.remove('project-open');
       onSwitch(source);
-    }, target && visibleHero ? hero : null, () => target && (hero.currentSrc || hero.src) === (target.currentSrc || target.src) ? target : null);
+    });
     return source;
   }
-  function cancelMotion() { stopFallback(); transition?.skipTransition(); }
+  function cancelMotion() { fallback?.cancel(); transition?.skipTransition(); }
   document.querySelector('.project-close').addEventListener('click', () => onClose());
   view.addEventListener('keydown', event => {
     if (event.key === 'Escape') { event.preventDefault(); onClose(); }
   });
-  view.addEventListener('scroll', stopFallback, { passive: true });
   window.addEventListener('resize', cancelMotion);
   reducedMotion.addEventListener('change', cancelMotion);
   document.addEventListener('visibilitychange', () => { if (document.hidden) cancelMotion(); });

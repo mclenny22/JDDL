@@ -122,7 +122,6 @@ p { margin: 0; }
 .project-grid.custom-layout :is(img, video) { aspect-ratio: auto; }
 .project-close, .studio-close { display: block; margin-block: 30px 15px; padding: 0; background: transparent; color: var(--muted); text-transform: uppercase; }
 .project-close:hover, .studio-close:hover { color: inherit; }
-.project-flying-image { position: fixed; z-index: 4900; display: block; object-fit: cover; pointer-events: none; }
 .project-open { --paper: #000; --ink: #fff; --surface: #2a2a2a; }
 .project-open .masthead::before { content: ''; position: absolute; inset: -15px -15px -15px; z-index: -1; background: #000; pointer-events: none; }
 .project-open .logo-dark { display: none; }
@@ -136,13 +135,20 @@ p { margin: 0; }
 .studio-detail-copy h1, .studio-detail-copy h2 { font: inherit; font-weight: 500; margin: 0 0 15px; }
 .studio-detail-copy p { color: var(--muted); margin-bottom: 30px; white-space: pre-line; }
 .studio-close { margin-left: calc((100vw - 60px) / 3 + 15px); }
-/* Match the clicked crop to the hero in both directions; names are assigned to
-   exactly one image in each snapshot, even though the rail repeats seven times. */
+/* Keep the masthead in the background crossfade and slide the page content. */
 ::view-transition { pointer-events: none; }
-::view-transition-group(root) { animation-duration: 600ms; }
-::view-transition-group(project-image) { animation-duration: 850ms; animation-timing-function: cubic-bezier(.22, 1, .36, 1); z-index: 2; }
-::view-transition-old(project-image), ::view-transition-new(project-image) { width: 100%; height: 100%; object-fit: cover; mix-blend-mode: normal; }
+.project-transitioning::view-transition-group(root) { animation-duration: 360ms; }
 .project-transitioning .rail { pointer-events: none; }
+.project-transitioning :is(.portfolio, .orbit-gallery, .studio-detail, .project-detail-content) {
+  view-transition-name: project-outgoing;
+}
+.project-transition-in :is(.portfolio, .orbit-gallery, .studio-detail, .project-detail-content) {
+  view-transition-name: project-incoming;
+}
+::view-transition-old(project-outgoing) { animation: project-page-out 200ms ease-in both; }
+::view-transition-new(project-incoming) { animation: project-page-in 340ms ease-out 60ms both; }
+@keyframes project-page-out { to { opacity: 0; transform: translateY(-8px); } }
+@keyframes project-page-in { from { opacity: 0; transform: translateY(10px); } }
 .page-out { animation: page-out 400ms ease-in both; }
 .page-out-back { animation: page-out-back 400ms ease-in both; }
 .page-in { animation: page-in 800ms cubic-bezier(0, .635, .345, 1) both; }
@@ -151,9 +157,6 @@ p { margin: 0; }
 @keyframes page-out-back { from { opacity: var(--page-exit-opacity, 1); transform: var(--page-exit-transform, none); } 80% { opacity: 0; } to { opacity: 0; transform: translate3d(10px, 0, 0); } }
 @keyframes page-in { from { opacity: 0; transform: translate3d(max(1vw, 25px), 0, 0); } to { opacity: 1; transform: none; } }
 @keyframes page-in-back { from { opacity: 0; transform: translate3d(min(-1vw, -25px), 0, 0); } to { opacity: 1; transform: none; } }
-@keyframes project-fade-out { to { opacity: 0; } }
-@keyframes project-fade-in { from { opacity: 0; } }
-@keyframes project-darken { from { background-color: #f6f6f6; } }
 @media (min-width: 601px) and (max-width: 1100px) {
   .studio { grid-template-columns: 203px minmax(0, 1fr); }
   .about { max-width: 46vw; }
@@ -228,26 +231,46 @@ p { margin: 0; }
 
   body:has(> .portfolio:not([hidden]), > .project-detail:not([hidden])) {
     --highlight-inset: clamp(24px, 2.604167vw, 50px);
+    --highlight-gap: 80px;
     --highlight-logo-height: 3lh;
     @supports (text-box: trim-both cap alphabetic) {
       --highlight-logo-height: calc(2lh + 1cap);
     }
     font-family: Haffer, Arial, Helvetica, sans-serif;
 
-    & .masthead { inset: var(--highlight-inset) var(--highlight-inset) auto; gap: 20px; }
+    & .masthead { inset: 0 var(--highlight-inset) auto 0; gap: 20px; }
     & .studio {
-      grid-template-columns: calc(var(--highlight-logo-height) * 6.42554) minmax(0, 1fr);
-      gap: 80px;
+      container-type: inline-size;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: var(--highlight-gap);
     }
-    & .studio-logo { height: var(--highlight-logo-height); }
+    & :is(.studio-logo, .highlight-about) {
+      /* Leave room for the opening wordmark and the longest line of copy. */
+      font-size: min(14px, calc((100cqi - var(--highlight-gap)) / 72));
+      line-height: 1.2;
+    }
+    & .studio-logo {
+      position: relative;
+      width: calc(var(--highlight-logo-height) * 326.816 / 50.923);
+      height: var(--highlight-logo-height);
+      overflow: visible;
+    }
+    & .studio-logo:focus-visible { outline-offset: -2px; }
     & :is(.logo-dark, .about:not(.highlight-about)) { display: none; }
-    & .studio-logo .logo-highlight { display: block; height: 100%; width: auto; }
+    & .studio-logo .logo-highlight {
+      position: absolute;
+      inset: 0 auto auto 0;
+      display: block;
+      /* The animation canvas includes frames wider than the opening wordmark. */
+      width: calc(100% * 402.99 / 326.816);
+      height: auto;
+      pointer-events: none;
+    }
     & .highlight-about {
       display: block;
       max-width: 774px;
       color: #999;
       font-weight: 400;
-      line-height: 1.2;
       overflow-wrap: anywhere;
       text-box: trim-both cap alphabetic;
     }
@@ -256,7 +279,7 @@ p { margin: 0; }
     & .highlight-links a { text-decoration: none; }
     & .highlight-links a:is(:hover, :focus-visible) { color: var(--ink); text-decoration: underline; }
 
-    & .menu { height: auto; gap: 4px; padding-top: 1px; }
+    & .menu { height: auto; gap: 4px; margin-top: var(--highlight-inset); padding-top: 1px; }
     & .menu button {
       width: auto;
       min-width: 0;
@@ -306,26 +329,6 @@ p { margin: 0; }
     & .project-facts > div { min-width: 0; }
     & .project-facts dt { color: #e5e5e5; }
     & .project-facts dd { margin: 0; white-space: pre-line; }
-  }
-
-  @media (prefers-reduced-motion: no-preference) {
-    .project-transitioning .rail { view-transition-name: project-rail; }
-    .project-transitioning .project-detail-info { view-transition-name: project-facts; }
-
-    ::view-transition-group(root) { animation-timing-function: ease-in-out; }
-    ::view-transition-group(project-image) { z-index: 3; }
-    ::view-transition-old(project-image):not(:only-child) { animation: none; }
-    ::view-transition-new(project-image):not(:only-child) {
-      animation: project-fade-in 340ms ease-in-out 80ms both;
-    }
-    ::view-transition-old(project-rail), ::view-transition-old(project-facts) {
-      animation: project-fade-out 240ms ease-out both;
-    }
-    ::view-transition-new(project-facts) { animation: project-fade-in 420ms ease-out 220ms both; }
-    ::view-transition-new(project-rail) { animation: project-fade-in 420ms ease-out 150ms both; }
-
-    .project-morph-fallback { animation: project-darken 600ms ease-in-out both; }
-    .project-morph-fallback .project-detail-info { animation: project-fade-in 420ms ease-out 220ms both; }
   }
 
   .portfolio {

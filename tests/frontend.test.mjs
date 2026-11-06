@@ -701,7 +701,7 @@ test('idle rail moves at 40px per second across normal and sparse animation fram
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
-test('native transitions name only the clicked repeated image and restore history, focus and scroll', async () => {
+test('project page transitions preserve history, focus and scroll', async () => {
   const { elements, transitions, document, history, location, tick } = await mount(seed, false, 310, 1000, '', true);
   const tile = elements['.track'].children[12];
   const rail = elements['.rail'];
@@ -709,22 +709,20 @@ test('native transitions name only the clicked repeated image and restore histor
   const position = rail.scrollLeft;
   tile.listeners.click();
   assert.equal(transitions.length, 1);
-  assert.equal(tile.children[0].style.viewTransitionName, 'project-image');
-  assert.equal(elements['.track'].children.filter(item => item.children[0].style.viewTransitionName === 'project-image').length, 1);
+  assert.equal(document.documentElement.classes.has('project-transitioning'), true);
+  assert.equal(document.documentElement.classes.has('project-transition-in'), false);
   await transitions[0].ready;
-  assert.equal(elements['.project-hero'].style.viewTransitionName, 'project-image');
-  assert.equal(tile.children[0].style.viewTransitionName, '');
+  assert.equal(document.documentElement.classes.has('project-transition-in'), true);
   assert.equal(elements['.portfolio'].hidden, true);
   tick(1000);
   assert.equal(rail.scrollLeft, position);
   transitions[0].finish(); await settle();
-  assert.equal(elements['.project-hero'].style.viewTransitionName, '');
   assert.equal(document.documentElement.classes.has('project-transitioning'), false);
+  assert.equal(document.documentElement.classes.has('project-transition-in'), false);
   elements['#project-detail'].listeners.keydown({ key: 'Escape', preventDefault() {} });
   await transitions[1].ready;
   assert.equal(location.hash, '');
   assert.equal(elements['#project-detail'].hidden, true);
-  assert.equal(tile.children[0].style.viewTransitionName, 'project-image');
   assert.equal(tile.focused, true);
   assert.equal(rail.scrollLeft, position);
   transitions[1].finish(); await settle();
@@ -747,7 +745,7 @@ test('a new menu destination safely skips an active project transition', async (
   assert.equal(location.hash, '#index/field');
   transitions[1].finish(); await settle(); tick();
   assert.equal(document.documentElement.classes.has('project-transitioning'), false);
-  assert.equal(elements['.project-hero'].style.viewTransitionName, '');
+  assert.equal(document.documentElement.classes.has('project-transition-in'), false);
 });
 
 test('reduced motion avoids the native transition API and Project Info reflects CMS copy', async () => {
