@@ -210,10 +210,21 @@ test('wide landing crops the first tile without changing the rail step', async (
   const { elements } = await mount(seed, true, step, 1920);
   const rail = elements['.rail'];
   const start = 3 * normalizePortfolio(seed).length * step;
-  const initial = start + rail.clientWidth * 170 / 1920;
+  const initial = start + elements['.track'].children[0].getBoundingClientRect().width * 170 / 600;
   assert.equal(rail.scrollLeft, initial);
   rail.listeners.keydown({ key: 'ArrowRight', preventDefault() {} });
   assert.equal(rail.scrollLeft, initial + step);
+});
+
+test('a short project cycle leaves enough tiles beyond the rebase point to fill the rail', async () => {
+  const data = { ...seed, projects: [seed.projects[0]] };
+  const step = 100;
+  const { elements } = await mount(data, true, step);
+  const rail = elements['.rail'];
+  const track = elements['.track'];
+  const lastTile = track.children.at(-1).getBoundingClientRect();
+  const firstTile = track.children[0].getBoundingClientRect();
+  assert.ok(lastTile.left + lastTile.width - firstTile.left >= 5 * step + rail.clientWidth);
 });
 
 test('Highlight balances the CMS description without scaling text on resize', async () => {

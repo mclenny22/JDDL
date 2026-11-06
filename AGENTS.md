@@ -34,9 +34,8 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   and Index `743:922`. V1 is the bottom-aligned horizontal rail; V2 is an
   alternate artboard, not a separate site mode.
 - `frontend/index.html`, `styles.css` and `app.js` implement the responsive
-  light portfolio. The desktop grid uses 15px margins/gutters and three
-  project tiles across. At 390px the tiles are 266.25px wide. Rail thumbnails
-  are 30vh tall with cover cropping.
+  light portfolio. Rail thumbnails are 50vh tall and retain a 4:5 frame
+  with cover cropping.
   The AD4K logo and menu shapes are local, unmodified Figma SVG exports in
   `frontend/assets/`. Desktop and mobile logo exports keep their native sizes
   (460 × 34 and 203 × 34); the desktop asset includes its own whitespace.
@@ -60,7 +59,8 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   motion disables autoplay; offscreen/hidden videos pause and repeated copies load
   only when visible. Admin previews are paused. Print portfolio export includes only
   still images. Local MP4 serving supports byte ranges for seeking.
-- Seven repeated project sets rebase by whole cycles for an endless rail.
+- At least seven repeated project sets rebase by whole cycles for an endless
+  rail, with extra sets added when a short cycle needs to cover a wide viewport.
   Each project uses its chosen published, unarchived assigned image as a stable
   thumbnail; an empty or unavailable choice falls back to its first eligible image.
   The project editor offers a Vorschaubild picker and an automatically populated

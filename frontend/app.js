@@ -420,7 +420,7 @@ async function start() {
     preview.visible = frame;
   }
 
-  for (let copy = 0; copy < copies; copy++) {
+  function appendProjectSet() {
     projects.forEach((project, index) => {
       const tile = document.createElement('a');
       tile.className = 'tile';
@@ -471,6 +471,7 @@ async function start() {
       tiles.push(tile);
     });
   }
+  for (let copy = 0; copy < copies; copy++) appendProjectSet();
 
   function measure() {
     const oldStep = step;
@@ -482,10 +483,15 @@ async function start() {
     const savedProject = step ? (rail.scrollLeft / step) % projects.length : active;
     // Preserve the fractional position through resizing and whole-cycle rebasing.
     const first = tiles[0].getBoundingClientRect();
-    step = tiles[1].getBoundingClientRect().left - first.left;
+    const measuredStep = tiles[1].getBoundingClientRect().left - first.left;
+    if (measuredStep <= 0) return;
+    step = measuredStep;
     cycle = step * projects.length;
+    // Keep enough track beyond the five-cycle rebase point to fill wide viewports.
+    const requiredSets = 6 + Math.ceil(rail.clientWidth / cycle);
+    for (let count = tiles.length / projects.length; count < requiredSets; count++) appendProjectSet();
     // The wide landing opens partway through the first tile, as in the artboard.
-    const initialCrop = !oldStep && matchMedia('(min-width: 1101px)').matches ? rail.clientWidth * 170 / 1920 : 0;
+    const initialCrop = !oldStep && matchMedia('(min-width: 1101px)').matches ? first.width * 170 / 600 : 0;
     rail.scrollLeft = oldStep === step ? oldPosition : middle * cycle + savedProject * step + initialCrop;
     onScroll();
   }
