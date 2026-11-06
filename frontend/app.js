@@ -3,7 +3,7 @@ import { loadPortfolio } from './projects.js';
 import { createOrbitGrid } from './orbit.js';
 import { createProjectView } from './project-view.js';
 
-function fitHighlightDescription(copy) {
+function balanceHighlightDescription(copy) {
   const about = document.querySelector('.highlight-about');
   const [firstLine, secondLine] = about.querySelectorAll('span');
   const words = copy.trim().split(/\s+/);
@@ -29,7 +29,6 @@ function fitHighlightDescription(copy) {
     }
     firstLine.textContent = words.slice(0, splitAt).join(' ');
     secondLine.textContent = words.slice(splitAt).join(' ');
-    about.style.setProperty('--description-scale', Math.min(1, width / Math.ceil(widestLine)));
   }).observe(about);
 }
 
@@ -41,7 +40,7 @@ async function start() {
   const headline = document.createElement('strong');
   headline.textContent = split ? split[1] : copy;
   about.replaceChildren(headline, document.createTextNode(split ? split[2] : ''));
-  fitHighlightDescription(copy);
+  balanceHighlightDescription(copy);
   const footerValues = [['contact', 'Contact'], ['email', ''], ['address', '']];
   const projectFooter = document.querySelector('.project-footer');
   for (const [key, fallback] of footerValues) {

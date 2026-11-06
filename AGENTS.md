@@ -19,8 +19,9 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   follows Figma node `905:2230`. Highlight is the landing label for Selected.
   Its rail opens with the first tile partly cropped, using the same CMS order
   and thumbnail selection. Project titles and tags appear above each tile.
-  The alternate masthead uses the native 321.277 × 50 wordmark and CMS studio
-  copy. Narrower widths and the other views use the existing presentation.
+  Public site text on this branch uses 14px with a line height of 1. The
+  alternate wordmark scales proportionally to the visible height of three
+  lines of studio copy. Longer copy can wrap without shrinking the type. Narrower widths and the other views use the existing presentation.
 
 - The active screens follow Figma file `83EmCrcQUbPM4r2UiCcgnx`, section
   `731:61` (AD4K): desktop landing V1 `784:3845`, dark project `743:1124`,

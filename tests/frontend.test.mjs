@@ -186,7 +186,7 @@ test('wide landing crops the first tile without changing the rail step', async (
   assert.equal(rail.scrollLeft, initial + step);
 });
 
-test('Highlight fits the full CMS description into two lines at each width', async () => {
+test('Highlight balances the CMS description without scaling text on resize', async () => {
   const about = 'Studio practice across identity and motion design.';
   const { elements } = await mount({ ...seed, settings: { ...seed.settings, about } });
   const highlight = elements['.highlight-about'];
@@ -194,10 +194,9 @@ test('Highlight fits the full CMS description into two lines at each width', asy
   const lines = highlight.children.map(line => line.textContent);
   assert.ok(lines.every(Boolean));
   assert.equal(lines.join(' '), about);
-  assert.equal(highlight.style['--description-scale'], 1);
   highlight.resize(200);
   assert.deepEqual(highlight.children.map(line => line.textContent), lines);
-  assert.equal(highlight.style['--description-scale'], 200 / (Math.max(...lines.map(line => line.length)) * 10));
+  assert.equal(highlight.style['--description-scale'], undefined);
 });
 
 test('wheel glide stops at the requested offset and loop rebase preserves free motion', async () => {
