@@ -727,9 +727,15 @@ test('reduced motion avoids the native transition API and Project Info reflects 
   const { elements, transitions } = await mount(seed, true, 310, 1000, '', true);
   elements['.track'].children[12].listeners.click();
   assert.equal(transitions.length, 0);
-  const [identity, categories, toggle, description] = elements['.project-detail-info'].children;
+  const [identity, categories, toggle, description, facts] = elements['.project-detail-info'].children;
+  const project = normalizePortfolio(seed)[0];
   assert.ok(identity.children.length > 0 && categories.children.length > 0);
-  assert.equal(description.children[0].children[0].textContent, normalizePortfolio(seed)[0].description);
+  assert.deepEqual(facts.children.map(block => block.children.map(field => field.textContent)), [
+    ['Client', project.client || ''],
+    ['Services', [...new Set(project.images.flatMap(image => image.tags))].join(', ')],
+    ['Info', project.description || ''],
+  ]);
+  assert.equal(description.children[0].children[0].textContent, project.description);
   assert.equal(description.inert, true);
   assert.equal(description.attrs['aria-hidden'], 'true');
   toggle.listeners.click();

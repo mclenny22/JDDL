@@ -21,7 +21,12 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   and thumbnail selection. Project titles and tags appear above each tile.
   Public site text on this branch uses 14px with a line height of 1. The
   alternate wordmark scales proportionally to the visible height of three
-  lines of studio copy. Longer copy can wrap without shrinking the type. Narrower widths and the other views use the existing presentation.
+  lines of studio copy. Longer copy can wrap without shrinking the type.
+  Wide project detail uses the dark alternate masthead and three always-visible
+  text blocks above the hero, following Figma node `906:2297`.
+  Client and Info use the CMS client and description, and Services lists
+  distinct tags from published project assets. Narrower project views retain
+  the expandable Project Info presentation.
 
 - The active screens follow Figma file `83EmCrcQUbPM4r2UiCcgnx`, section
   `731:61` (AD4K): desktop landing V1 `784:3845`, dark project `743:1124`,

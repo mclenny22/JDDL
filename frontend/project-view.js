@@ -212,7 +212,18 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
       toggle.setAttribute('aria-expanded', String(expanded));
       indicator.textContent = expanded ? '−' : '+';
     });
-    info.append(identity, categories, toggle, description);
+    const facts = document.createElement('dl');
+    facts.className = 'project-facts';
+    for (const [label, value] of [['Client', project.client], ['Services', services], ['Info', project.description]]) {
+      const block = document.createElement('div');
+      const term = document.createElement('dt');
+      const detail = document.createElement('dd');
+      term.textContent = label;
+      detail.textContent = value || '';
+      block.append(term, detail);
+      facts.append(block);
+    }
+    info.append(identity, categories, toggle, description, facts);
     const nextHero = createMedia(image, project.title, true);
     nextHero.className = 'project-hero';
     nextHero.dataset.mediaId = image.id;
