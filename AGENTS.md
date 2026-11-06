@@ -111,6 +111,9 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   spread from the pointer or touch point across menu labels and visible
   portfolio text. The current destination repeats on hover until pointer exit.
   Reduced motion skips both the width animation and the scramble.
+  Fine pointers use a 10px dot. After two seconds without movement, the
+  cursor plays the supplied `ad4k-cursor1.json` until the pointer moves.
+  Reduced motion keeps the dot.
   Project opens a random published project's detail, excluding the currently
   open project when another is available. About (`#about`) uses studio
   settings and selected clients. On mobile MENU becomes CLOSE and reveals

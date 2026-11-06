@@ -293,6 +293,42 @@ body:has(> .portfolio:not([hidden]), > .project-detail:not([hidden])) {
 .project-open .studio-logo .logo-highlight { filter: invert(1); }
 .project-open .highlight-links { color: #777; }
 
+@media (hover: hover) and (pointer: fine) {
+  :root {
+    --dot-cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Ccircle cx='8' cy='8' r='5' fill='black'/%3E%3C/svg%3E") 8 8, auto;
+  }
+  .project-open {
+    --dot-cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Ccircle cx='8' cy='8' r='5' fill='white'/%3E%3C/svg%3E") 8 8, auto;
+  }
+  body, body :is(a, button, .tile, .orbit-gallery, .orbit-gallery.is-dragging, .orbit-tile) {
+    cursor: var(--dot-cursor);
+  }
+  .cursor-managed { --dot-cursor: none; }
+}
+
+.idle-cursor {
+  position: fixed;
+  z-index: 5200;
+  width: 27.5px;
+  height: 27.5px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.idle-cursor::before {
+  content: '';
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #000;
+  transform: translate(-50%, -50%);
+}
+.idle-cursor > svg { visibility: hidden; }
+.cursor-idle .idle-cursor::before { display: none; }
+.cursor-idle .idle-cursor > svg { visibility: visible; }
+.project-open .idle-cursor { filter: invert(1); }
+
 @media (max-width: 1100px) {
   body:has(> .portfolio:not([hidden]), > .project-detail:not([hidden])) {
     --stacked-logo-unit: min(calc(var(--highlight-logo-height) / 50.923), calc(100vw / 446));
