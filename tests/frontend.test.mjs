@@ -86,9 +86,6 @@ class Element {
 async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1000, initialHash = '', nativeTransitions = false) {
   const selectors = ['.rail', '.track', '.about', '.menu', '#status', '.portfolio', '#gallery', '#field', '.masthead', '.studio-logo', '.mobile-menu-trigger', '.site-footer', '#footer-contact', '#footer-address', '#footer-email', '#project-detail', '.project-detail-content', '.project-detail-info', '.project-hero', '.project-grid', '.project-close', '.project-footer', '#studio-detail', '.studio-detail-copy', '.studio-close', '.index-filters'];
   const elements = Object.fromEntries(selectors.map(selector => [selector, new Element(step)]));
-  const highlightAbout = elements['.highlight-about'] = new Element(step);
-  highlightAbout.append(new Element(step), new Element(step));
-  highlightAbout.querySelectorAll = () => highlightAbout.children;
   elements['#gallery'].getBoundingClientRect = () => ({ width: viewportWidth, height: 700 });
   const frames = new Map();
   let nextFrame = 0;
@@ -100,7 +97,6 @@ async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1
     createElement: tag => {
       const element = new Element(step);
       element.tagName = tag.toUpperCase();
-      if (tag === 'canvas') element.getContext = () => ({ measureText: text => ({ width: text.length * 10 }) });
       return element;
     },
     createTextNode: text => ({ textContent: text }),
@@ -151,7 +147,6 @@ async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1
     ResizeObserver: class {
       constructor(callback) { this.callback = callback; }
       observe(element) {
-        if (element === highlightAbout) element.resize = width => this.callback([{ contentRect: { width } }]);
       }
     },
     requestAnimationFrame: callback => { frames.set(++nextFrame, callback); return nextFrame; },
@@ -227,17 +222,15 @@ test('a short project cycle leaves enough tiles beyond the rebase point to fill 
   assert.ok(lastTile.left + lastTile.width - firstTile.left >= 5 * step + rail.clientWidth);
 });
 
-test('Highlight balances the CMS description without scaling text on resize', async () => {
-  const about = 'Studio practice across identity and motion design.';
+test('The studio masthead separates the opening sentence from the remaining CMS copy', async () => {
+  const opening = 'Studio practice across identity and motion design.';
+  const body = 'We build visual identities. We work across media.';
+  const about = `${opening} ${body}`;
   const { elements } = await mount({ ...seed, settings: { ...seed.settings, about } });
-  const highlight = elements['.highlight-about'];
-  highlight.resize(774);
-  const lines = highlight.children.map(line => line.textContent);
-  assert.ok(lines.every(Boolean));
-  assert.equal(lines.join(' '), about);
-  highlight.resize(200);
-  assert.deepEqual(highlight.children.map(line => line.textContent), lines);
-  assert.equal(highlight.style['--description-scale'], undefined);
+  const [headline, description] = elements['.about'].children;
+  assert.equal(headline.tagName, 'STRONG');
+  assert.equal(headline.textContent, opening);
+  assert.equal(description.textContent, body);
 });
 
 test('wheel glide stops at the requested offset and loop rebase preserves free motion', async () => {

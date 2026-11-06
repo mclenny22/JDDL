@@ -20,8 +20,11 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   Its rail opens with the first tile partly cropped, using the same CMS order
   and thumbnail selection. Project titles and tags appear above each tile.
   Public site text on this branch uses 14px with a line height of 1. The
-  alternate wordmark scales proportionally to the visible height of three
-  lines of studio copy. Longer copy can wrap without shrinking the type.
+  wide masthead uses the alternate studio copy with an inline opening
+  sentence, muted body text and lighter Instagram and Imprint labels.
+  The alternate wordmark scales with the base text metrics and sits 80px
+  from the copy. The wide landing hides the site footer and puts 60vh
+  thumbnails 40px above the viewport bottom.
   Wide project detail uses the dark alternate masthead and three always-visible
   text blocks above the hero, following Figma node `906:2297`.
   Client and Info use the CMS client and description, and Services lists
