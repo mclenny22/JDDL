@@ -450,6 +450,43 @@ class BackendIntegrationTests(unittest.TestCase):
         self.assertEqual(next(p for p in data['projects'] if p['id'] == project['id'])['thumbnail_id'], image_id)
         self.assertEqual(json.loads(data['settings']['project_compositions'])[project['id']], composition)
 
+    def test_batch_delete_assets_is_atomic_and_cleans_up_uploads_and_assignments(self):
+        path = '/api/images/batch-delete'
+        selection = {'ids': ['upload-one', 'upload-two']}
+        self.assertEqual(self.request('POST', path, selection)[0], 401)
+        self.login()
+        data = json.loads(self.request('GET', '/api/admin/bootstrap')[2])
+        project_id = data['projects'][0]['id']
+        tag_id = data['tags'][0]['id']
+        with server.connect(server.IMAGES_DB) as db:
+            for image_id in selection['ids']:
+                filename = f'{image_id}.png'
+                (server.UPLOADS / filename).write_bytes(b'image')
+                db.execute("INSERT INTO images (id, filename, original_name, mime_type) VALUES (?, ?, ?, 'image/png')",
+                           (image_id, filename, filename))
+                db.execute("INSERT INTO image_projects (image_id, project_id) VALUES (?, ?)", (image_id, project_id))
+                db.execute("INSERT INTO image_tags VALUES (?, ?)", (image_id, tag_id))
+            db.execute("""CREATE TRIGGER block_asset_delete BEFORE DELETE ON images
+                          WHEN OLD.id = 'upload-two'
+                          BEGIN SELECT RAISE(ABORT, 'Delete blocked'); END""")
+        self.assertEqual(self.request('POST', path, {'ids': ['upload-one', {}]})[0], 400)
+        self.assertEqual(self.request('POST', path, selection)[0], 400)
+        for image_id in selection['ids']:
+            self.assertTrue((server.UPLOADS / f'{image_id}.png').exists())
+        with server.connect(server.IMAGES_DB) as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM images WHERE id LIKE 'upload-%'").fetchone()[0], 2)
+            db.execute("DROP TRIGGER block_asset_delete")
+        status, _, body = self.request('POST', path, {'ids': [*selection['ids'], 'upload-one']})
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body), {'deleted': 2})
+        self.assertEqual(list(server.UPLOADS.iterdir()), [])
+        with server.connect(server.IMAGES_DB) as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM image_projects WHERE image_id LIKE 'upload-%'").fetchone()[0], 0)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM image_tags WHERE image_id LIKE 'upload-%'").fetchone()[0], 0)
+        after = json.loads(self.request('GET', '/api/admin/bootstrap')[2])
+        self.assertEqual(after, data)
+        self.assertEqual(json.loads(self.request('POST', path, selection)[2]), {'deleted': 0})
+
     def test_project_reordering_is_atomic_and_controls_public_order(self):
         self.assertEqual(self.request('POST', '/api/projects/reorder', {'project_ids': []})[0], 401)
         self.login()

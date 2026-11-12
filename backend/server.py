@@ -848,7 +848,7 @@ class Handler(SimpleHTTPRequestHandler):
         with connect(IMAGES_DB) as db:
             db.execute("BEGIN IMMEDIATE")
             for start in range(0, len(ids), 500):
-                chunk = ids[start:start + 500]
+                chunk = tuple(ids[start:start + 500])
                 placeholders = ",".join("?" for _ in chunk)
                 removed.extend(db.execute(f"SELECT filename, remote_url FROM images WHERE id IN ({placeholders})", chunk))
                 db.execute(f"DELETE FROM images WHERE id IN ({placeholders})", chunk)

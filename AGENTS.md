@@ -177,11 +177,14 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   toolbar at the selection's bottom right. + adds an asset, the exchange icon
   replaces it, T adds plain white text only when an empty column is selected,
   and the trash icon removes the element from the layout without deleting the
-  asset or changing project assignments. Empty columns are native focusable
+  asset or changing project assignments. Newly placed or swapped body assets
+  use their own aspect ratio on desktop and mobile. Empty columns are native focusable
   buttons; Left/Right selects adjacent free columns. Image/text movement still
   uses arrow keys, Shift+Left/Right resizing, and pointer/touch dragging with
   autoscroll and a right-edge resize grip. Toolbar controls never start a drag.
-  Explicit row insertion/removal remains; dragging/resizing never appends rows.
+  Manual rows can be reordered with their drag grips or Up/Down, including
+  rows containing text and empty rows. Row order saves with the project.
+  Explicit row insertion/removal remains. Dragging and resizing never append rows.
 - The asset toolbar opens a native modal with searchable published project assets,
   paused image/MP4 previews, single selection and explicit confirmation. Cancel,
   Escape and closing discard picker changes and restore focus. Choosing an
@@ -282,6 +285,9 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   selection checkboxes and select-all for the filtered results. Clicking a status,
   project or tag cell opens an inline editor; if that row is selected, changes
   apply to the full selection. Mixed tags/projects remain unchanged until toggled.
+  “Auswahl löschen” confirms the full selection in a modal, including assets
+  outside the current filter. `/api/images/batch-delete` deletes the selected
+  assets and their assignments in one transaction, then removes stored uploads.
   `/api/images/batch` validates the whole selection and applies status/relation
   changes in one transaction, preserving unrelated metadata and relations.
   Multi-file selection/drop uploads each file in a separate request, derives its

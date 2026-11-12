@@ -192,12 +192,8 @@ test('project layout drafts use the public hero, preserve saved placements and r
   assert.equal(run('layoutEditor.dirty'), false);
   assert.match(elements.get('#layout-page').innerHTML, /grid-column:3\/span 5;grid-row:8/);
   assert.match(elements.get('#layout-hidden-images').textContent, /1 nicht veröffentlichte/);
-  elements.get('#layout-mode').listeners.click();
-  assert.equal(run('layoutEditor.custom'), false);
-  assert.equal(run('layoutEditor.dirty'), true);
-  run('openProject(state.data.projects[0])');
-  assert.equal(run('layoutEditor.custom'), true);
-  assert.equal(run('layoutEditor.dirty'), false);
+  const admin = fs.readFileSync(new URL('../backend/static/admin.html', import.meta.url), 'utf8');
+  assert.doesNotMatch(admin, /id="layout-mode"/);
 });
 
 test('grid movement and resizing reject occupied cells and out-of-range placements', () => {
@@ -302,7 +298,7 @@ test('enabling the twelve-column editor retains automatic composition without ad
     for (let i = 0; i < 7; i++) state.data.images.push({ id: 'layout-' + i, original_name: 'Image ' + i, url: '/image.jpg', published: 1, archived: 0, project_ids: ['alpha'] });
     openProject(state.data.projects[0]);`);
   const automatic = JSON.parse(run('JSON.stringify(layoutEditor.placements)'));
-  elements.get('#layout-mode').listeners.click();
+  run('ensureManualLayout(); renderLayoutEditor();');
   assert.deepEqual(JSON.parse(run('JSON.stringify(layoutEditor.placements)')), automatic);
   assert.equal(run('layoutEditor.rows'), 3);
   const markup = elements.get('#layout-page').innerHTML;
@@ -316,7 +312,7 @@ test('row insertion shifts later images once and persists a bottom empty row on 
   run(`state.data.images[0].url = '/hero.jpg';
     state.data.images.push({ id: 'second', url: '/second.jpg', original_name: 'Second', published: 1, archived: 0, project_ids: ['alpha'] });
     openProject(state.data.projects[0]); refresh = async () => {};`);
-  elements.get('#layout-mode').listeners.click();
+  run('ensureManualLayout(); renderLayoutEditor();');
   run('insertLayoutRow(1)');
   assert.equal(run('layoutEditor.placements.second.row'), 2);
   assert.equal(run('layoutEditor.rows'), 2);
@@ -340,6 +336,53 @@ test('row insertion shifts later images once and persists a bottom empty row on 
   assert.equal(run('layoutEditor.placements.second.row'), 2);
 });
 
+
+test('dragging a row moves its assets and text together and keyboard reordering saves the draft order', async () => {
+  const { run, elements, calls, context, Element } = mountLayout();
+  run(`layoutEditor.custom = true; layoutEditor.composed = true; layoutEditor.rows = 3;
+    layoutEditor.placements = { second: { column: 1, span: 4, row: 1, ratio: 2 }, third: { column: 1, span: 4, row: 3 } };
+    layoutEditor.texts = { note: { column: 5, span: 8, row: 1, text: 'Note' } };
+    renderLayoutEditor();`);
+  const page = elements.get('#layout-page');
+  assert.equal((page.innerHTML.match(/data-move-row=/g) || []).length, 3);
+  const marker = new Element();
+  const grip = new Element('button');
+  grip.dataset.moveRow = '1';
+  const grid = new Element();
+  grid.querySelector = () => marker;
+  grid.querySelectorAll = () => [0, 100, 200].map(top => ({
+    getBoundingClientRect: () => ({ top, bottom: top + 90, height: 90 }),
+  }));
+  grip.closest = selector => selector === '[data-move-row]' ? grip : selector === '.layout-grid' ? grid : null;
+  grip.setPointerCapture = grip.releasePointerCapture = () => {};
+  grip.hasPointerCapture = () => true;
+  context.requestAnimationFrame = () => 1;
+  context.cancelAnimationFrame = () => {};
+  const pointer = clientY => ({ target: grip, button: 0, pointerId: 1, clientX: 10, clientY });
+  page.listeners.pointerdown(pointer(10));
+  page.listeners.pointermove(pointer(275));
+  assert.equal(marker.hidden, false);
+  assert.equal(marker.style.top, '290px');
+  assert.equal(run('layoutEditor.placements.second.row'), 1);
+  page.listeners.pointercancel(pointer(275));
+  assert.equal(marker.hidden, true);
+  assert.equal(run('layoutEditor.dirty'), false);
+
+  page.listeners.pointerdown(pointer(10));
+  page.listeners.pointermove(pointer(275));
+  page.listeners.pointerup(pointer(275));
+  assert.equal(run('layoutEditor.placements.second.row'), 3);
+  assert.equal(run('layoutEditor.texts.note.row'), 3);
+  assert.equal(run('layoutEditor.placements.third.row'), 2);
+  grip.dataset.moveRow = '3';
+  page.listeners.keydown({ key: 'ArrowUp', target: grip, preventDefault() {} });
+  await elements.get('#project-form').listeners.submit({ preventDefault() {}, submitter: { disabled: false } });
+  const { composition } = JSON.parse(calls.find(call => call.url === '/api/projects').options.body);
+  assert.deepEqual(composition.placements.second, { column: 1, span: 4, row: 2, ratio: 2 });
+  assert.deepEqual(composition.texts.note, { column: 5, span: 8, row: 2, text: 'Note' });
+  assert.equal(composition.placements.third.row, 3);
+  assert.equal(composition.rows, 3);
+});
 
 test('MP4 upload previews and saves video dimensions with the existing publication and assignment fields', async () => {
   const { elements, calls, run } = mount();
@@ -539,8 +582,10 @@ test('context asset picker scopes and searches project assets, cancels without c
   run(`openLayoutAssetPicker(); layoutEditor.picker.selectedId='third';`);
   elements.get('#layout-asset-form').listeners.submit({preventDefault(){}});
   assert.equal(elements.get('#layout-asset-dialog').open,false);
-  assert.deepEqual(JSON.parse(run('JSON.stringify(layoutEditor.placements.third)')),original.second);
-  assert.deepEqual(JSON.parse(run('JSON.stringify(layoutEditor.placements.second)')),original.third);
+  const { ratio: secondCrop, ...secondSlot } = original.second;
+  const { ratio: thirdCrop, ...thirdSlot } = original.third;
+  assert.deepEqual(JSON.parse(run('JSON.stringify(layoutEditor.placements.third)')),secondSlot);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(layoutEditor.placements.second)')),thirdSlot);
   assert.equal(run('layoutEditor.custom'),true);
 });
 
@@ -555,6 +600,7 @@ test('empty-column controls respect occupied cells and the edge of the twelve-co
   elements.get('#layout-asset-form').listeners.submit({preventDefault(){}});
   assert.equal(run('layoutEditor.placements.third.column'),11);
   assert.equal(run('layoutEditor.placements.third.span'),2);
+  assert.equal(run('layoutEditor.placements.third.ratio'),undefined);
   assert.equal(run('layoutEditor.rows'),1);
   assert.equal(run("applyLayoutAsset({kind:'slot',id:null,placement:{column:7,span:4,row:1}},'image')"),false);
   assert.equal(run('layoutEditor.hero.id'),'image');
@@ -634,6 +680,47 @@ test('inline multi-edit targets the selection and sends only changed tag relatio
   await body.listeners.click({target:{closest:selector=>selector==='[data-inline-save]'?{}:null}});
   const payload=JSON.parse(calls.find(call=>call.url==='/api/images/batch').options.body);
   assert.deepEqual(payload,{ids:['image','second'],changes:{add_tag_ids:['shared'],remove_tag_ids:[]}});
+});
+
+test('batch deletion confirms the full selection, keeps it on failure, and clears it after success', async () => {
+  const { run, elements, calls, context, document } = mount();
+  const trigger = elements.get('#library-delete-selection');
+  const dialog = elements.get('#library-delete-dialog');
+  const submit = () => elements.get('#library-delete-form').listeners.submit({ preventDefault() {} });
+  run('updateLibrarySelection()');
+  assert.equal(trigger.hidden, true);
+  run(`state.data.images.push({ ...state.data.images[0], id: 'second', original_name: 'Video' });
+    state.librarySelected = new Set(['image', 'second']);
+    state.search = 'Photo';
+    updateLibrarySelection();`);
+  assert.equal(trigger.hidden, false);
+  trigger.listeners.click();
+  assert.equal(dialog.open, true);
+  assert.match(elements.get('#library-delete-title').textContent, /2 Assets/);
+  assert.match(elements.get('#library-delete-description').textContent, /Filter blendet 1 davon aus/);
+  dialog.close();
+  await submit();
+  assert.equal(calls.some(call => call.url === '/api/images/batch-delete'), false);
+  assert.equal(run('state.librarySelected.size'), 2);
+
+  trigger.listeners.click();
+  const originalFetch = context.fetch;
+  context.fetch = async () => { throw new Error('Offline'); };
+  await submit();
+  assert.equal(dialog.open, true);
+  assert.equal(elements.get('#library-delete-error').textContent, 'Offline');
+  assert.equal(run('state.librarySelected.size'), 2);
+
+  context.fetch = originalFetch;
+  await submit();
+  const requests = calls.filter(call => call.url === '/api/images/batch-delete');
+  assert.equal(requests.length, 1);
+  assert.deepEqual(JSON.parse(requests[0].options.body), { ids: ['image', 'second'] });
+  assert.equal(dialog.open, false);
+  assert.equal(trigger.hidden, true);
+  assert.equal(run('state.librarySelected.size'), 0);
+  assert.equal(run('state.data.images.length'), 0);
+  assert.equal(document.activeElement, elements.get('#image-search'));
 });
 
 test('multi-upload uses one request per file and retries only files not yet uploaded', async () => {

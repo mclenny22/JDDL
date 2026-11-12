@@ -518,12 +518,16 @@ html.has-open-drawer { overflow: hidden; }
 .layout-grid.composed-layout .layout-row { margin-right: 0; border: 0; }
 .layout-grid.composed-layout .layout-row.is-empty { min-height: 10cqw; }
 .layout-grid.composed-layout .layout-move :is(img, video) { aspect-ratio: var(--layout-ratio, auto); object-fit: cover; }
-.layout-row-add, .layout-row-remove { position: absolute; z-index: 5; display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 1px solid #60a5fa; border-radius: 5px; background: #171717; color: white; font-size: 18px; pointer-events: auto; cursor: pointer; }
+.layout-row-add, .layout-row-remove, .layout-row-grip { position: absolute; z-index: 5; display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 1px solid #60a5fa; border-radius: 5px; background: #171717; color: white; font-size: 18px; pointer-events: auto; cursor: pointer; }
 .layout-row-add { left: calc(50% - 13px); bottom: calc(-.532cqw - 13px); }
 .layout-row-add.is-top { top: calc(-.532cqw - 13px); bottom: auto; }
-.layout-row-add:focus-visible, .layout-row-remove:focus-visible { outline: 3px solid #60a5fa; outline-offset: 3px; }
+.layout-row-add:focus-visible, .layout-row-remove:focus-visible, .layout-row-grip:focus-visible { outline: 3px solid #60a5fa; outline-offset: 3px; }
 .layout-row-add:disabled { opacity: .4; cursor: default; }
 .layout-row-remove { right: 6px; top: calc(50% - 13px); border-color: #ffffff50; }
+.layout-row:has(.layout-row-grip) { min-height: 36px; }
+.layout-row-grip { top: 4px; left: 4px; width: 32px; height: 28px; color: white; cursor: grab; touch-action: none; }
+.layout-row-grip.is-dragging { cursor: grabbing; }
+.layout-target.is-row-target { background: #60a5fa; outline: 0; }
 .layout-row-empty { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #777; font-size: 10px; }
 .layout-grid { margin-bottom: 16px; }
 
