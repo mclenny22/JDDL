@@ -109,7 +109,7 @@ class Element {
 }
 
 async function mount(data = seed, reduced = false, step = 310, viewportWidth = 1000, initialHash = '', nativeTransitions = false) {
-  const selectors = ['.rail', '.track', '.about', '.menu', '#status', '.portfolio', '#gallery', '#field', '.masthead', '.studio-logo', '.mobile-menu-trigger', '.site-footer', '#footer-contact', '#footer-address', '#footer-email', '#project-detail', '.project-detail-content', '.project-detail-info', '.project-hero', '.project-grid', '.project-close', '.project-footer', '#studio-detail', '.studio-detail-copy', '.studio-close', '.index-filters'];
+  const selectors = ['.rail', '.track', '.about', '.menu', '#status', '.portfolio', '#gallery', '#field', '.masthead', '.studio-logo', '.mobile-menu-trigger', '.site-footer', '#footer-contact', '#footer-address', '#footer-email', '#project-detail', '.project-detail-content', '.project-detail-info', '.project-hero', '.project-grid', '#studio-detail', '.studio-detail-copy', '.studio-close', '.index-filters'];
   const elements = Object.fromEntries(selectors.map(selector => [selector, new Element(step)]));
   elements['#gallery'].getBoundingClientRect = () => ({ width: viewportWidth, height: 700 });
   const frames = new Map();

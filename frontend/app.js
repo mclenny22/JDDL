@@ -18,22 +18,16 @@ async function start() {
     about.append(description);
   }
   const footerValues = [['contact', 'Contact'], ['email', ''], ['address', '']];
-  const projectFooter = document.querySelector('.project-footer');
   for (const [key, fallback] of footerValues) {
     const value = settings[`footer_${key}`] ?? fallback;
     const footerField = document.querySelector(`#footer-${key}`);
     footerField.textContent = value;
-    const text = document.createElement('p');
-    text.textContent = value;
-    projectFooter.append(text);
     if (key === 'contact') {
-      for (const field of [footerField, text]) {
-        const link = document.createElement('a');
-        link.href = '/imprint.html';
-        link.className = 'footer-imprint';
-        link.textContent = 'Imprint';
-        field.append(link);
-      }
+      const link = document.createElement('a');
+      link.href = '/imprint.html';
+      link.className = 'footer-imprint';
+      link.textContent = 'Imprint';
+      footerField.append(link);
     }
   }
   const baseTitle = 'AD4K — Independent design studio';
@@ -264,10 +258,6 @@ async function start() {
     stopWheel();
     detail.open(project, image, source, () => {
       detailProject = project;
-      const returnView = returnHash.startsWith('#index') ? 'index' : returnHash === '#about' ? 'about' : 'selected';
-      const back = document.querySelector('.project-close');
-      back.textContent = `Back to ${returnView} ↗`;
-      back.setAttribute('aria-label', `Return to ${returnView === 'selected' ? 'selected projects' : returnView}`);
       updateMenu();
       syncShell();
       portfolio.hidden = true;

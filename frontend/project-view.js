@@ -306,7 +306,6 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
     return source;
   }
   function cancelMotion() { fallback?.cancel(); transition?.skipTransition(); }
-  document.querySelector('.project-close').addEventListener('click', () => onClose());
   view.addEventListener('keydown', event => {
     if (event.key === 'Escape') { event.preventDefault(); onClose(); }
   });

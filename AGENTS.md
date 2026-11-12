@@ -44,7 +44,8 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   thumbnails 40px above the viewport bottom.
   Wide project detail uses the dark alternate masthead and three always-visible
   text blocks above the hero, following Figma node `906:2297`.
-  Project content starts 40px below the measured masthead.
+  Wide project info aligns with the rail's standard two-line caption, with
+  at least 40px below the measured masthead.
   Client and Info use the CMS client and description, and Services lists
   distinct tags from published project assets. Narrower project views retain
   the expandable Project Info presentation.
@@ -163,8 +164,8 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   Project/client, categories and derived format sit above the hero;
   Project Info + expands the CMS description with a reversible 450ms height
   easing and text fade. Collapsed text is inert and hidden from assistive
-  technology; reduced motion switches immediately. The footer and return control
-  follow the project images and scroll with the content.
+  technology; reduced motion switches immediately. The project page ends
+  with the project composition.
 - Project links use `#project/<slug>/<image-id>` and real anchor hrefs.
   Native same-document View Transitions crossfade the background and move
   outgoing and incoming page content with a short vertical slide and fade.
@@ -172,7 +173,7 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   View Transitions animate the incoming content when Web Animations is
   available. A new destination replaces pending navigation, and interrupted
   transitions clear their animation state.
-  Escape and the return button use the existing history entry when possible;
+  Escape uses the existing history entry when possible;
   direct links return locally. Focus and gallery offsets are restored.
 - Automatic and manual project layouts share twelve integer columns and identical
   gutters/crop ratios. Entering manual mode copies the automatic composition
@@ -215,8 +216,8 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   from Index; explicit image links still open their selected asset as hero. Hidden heroes use a quiet
   page transition and retain the normal source focus/history restoration.
 - No frontend framework, package dependencies or frontend build is required.
-- `frontend/imprint.html` is the static imprint page, linked from both site and
-  project footers and included in the Vercel export. It lists Lennard Makosch,
+- `frontend/imprint.html` is the static imprint page, linked from the masthead
+  and site footer and included in the Vercel export. It lists Lennard Makosch,
   Wrangelstr. 79, Berlin; the studio contact address is a separate CMS setting.
 - Link previews use static Open Graph and social-card metadata in the initial
   `frontend/index.html` head, so crawlers do not need JavaScript or CMS access.
