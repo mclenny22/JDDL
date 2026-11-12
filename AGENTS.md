@@ -267,6 +267,10 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   Drawer entrance motion respects reduced motion; mobile drawers fill the width.
   Image aspect ratio is hidden metadata: uploads derive it from natural dimensions,
   and editing retains the stored ratio without a manual dimension control.
+  In the asset drawer, “Datei ersetzen” stages one image or MP4 for the next
+  save. Multipart PUT to `/api/images/<id>` replaces the file and media dimensions
+  in place, retaining the asset ID, metadata unless edited, and references from
+  projects, thumbnails and layouts. The file receives a fresh URL.
   Image/project row actions live in ellipsis dropdowns with edit and delete items;
   menus support arrow keys, Home/End, Escape and return focus to their trigger.
   The shared menu sits outside table overflow and closes on outside click/scroll.

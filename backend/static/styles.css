@@ -224,6 +224,11 @@ button { color: inherit; }
 .button:disabled { opacity: .5; cursor: default; }
 .button.primary { border-color: #18181b; background: #18181b; color: white; box-shadow: 0 1px 2px #0000000d; }
 .button.primary:hover { background: #303036; }
+.text-button.danger { color: #a33; }
+.text-button.danger:hover:not(:disabled) { background: #fef2f2; }
+.text-button:disabled { opacity: .5; cursor: default; }
+.button.danger { border-color: #a33; background: #a33; color: white; }
+.button.danger:hover:not(:disabled) { background: #842727; }
 .asset-save { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-width: 150px; }
 #image-form[aria-busy="true"] .asset-save { opacity: .8; cursor: wait; }
 #image-form[aria-busy="true"] .asset-save::before { content: ''; flex: none; width: 12px; height: 12px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: asset-save-spin .7s linear infinite; }
@@ -306,11 +311,11 @@ dialog form, .dialog-panel { padding: 1.5rem; }
 .icon-button { width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: transparent; font-size: 1.2rem; cursor: pointer; }
 .dropzone { position: relative; display: grid; min-height: 190px; place-items: center; overflow: hidden; border: 1px dashed #d4d4d8; border-radius: 8px; background: #fafafa; text-align: center; cursor: pointer; }
 .dropzone:focus-within { outline: 2px solid #a1a1aa; outline-offset: 3px; }
-.dropzone.is-readonly { cursor: default; }
 .dropzone input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .dropzone strong, .dropzone small { display: block; }
 .dropzone small { margin-top: .35rem; color: var(--muted); font-size: .72rem; }
 #image-preview { width: 100%; height: 220px; object-fit: contain; }
+#replace-image-file { margin-top: .5rem; }
 .tag-options { display: flex; flex-wrap: wrap; gap: .4rem; }
 .tag-check { position: relative; cursor: pointer; }
 .tag-check input { position: absolute; width: 1px; height: 1px; opacity: 0; }

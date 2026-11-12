@@ -397,6 +397,59 @@ class BackendIntegrationTests(unittest.TestCase):
         self.assertEqual(self.request('DELETE', f'/api/images/{media_id}')[0], 200)
         self.assertEqual(self.request('GET', media['url'])[0], 404)
 
+    def test_replace_asset_file_preserves_project_references_and_rolls_back_invalid_edits(self):
+        boundary = 'replace-media'
+        content_type = f'multipart/form-data; boundary={boundary}'
+
+        def upload_payload(filename, mime_type, content, **fields):
+            parts = [f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'
+                     for name, value in fields.items()]
+            parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="image"; filename="{filename}"\r\n'
+                         f'Content-Type: {mime_type}\r\n\r\n')
+            return ''.join(parts).encode() + content + f'\r\n--{boundary}--\r\n'.encode()
+
+        clip = b'\x00\x00\x00\x18ftypmp42' + bytes(range(32))
+        replacement = upload_payload('clip.mp4', 'video/mp4', clip, aspect_ratio=16 / 9)
+        self.assertEqual(self.request('PUT', '/api/images/missing', replacement, content_type)[0], 401)
+        self.login()
+        self.assertEqual(self.request('PUT', '/api/images/missing', replacement, content_type)[0], 404)
+        public = json.loads(self.request('GET', '/api/public')[2])
+        project_ids = [project['id'] for project in public['projects'][:2]]
+        png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN1kAAAAASUVORK5CYII=')
+        original = upload_payload('original.png', 'image/png', png, published='true', tag_names='Test tag',
+                                  alt_text='Original description', project_ids=json.dumps(project_ids))
+        status, _, body = self.request('POST', '/api/images', original, content_type)
+        self.assertEqual(status, 201)
+        image_id = json.loads(body)['image']
+        path = f'/api/images/{image_id}'
+        project = public['projects'][0]
+        composition = {'columns': 12, 'manual': True, 'hero_id': image_id, 'placements': {}, 'texts': {}, 'rows': 0}
+        self.assertEqual(self.request('POST', '/api/projects',
+                                      {**project, 'thumbnail_id': image_id, 'composition': composition})[0], 200)
+
+        def public_asset():
+            data = json.loads(self.request('GET', '/api/public')[2])
+            return data, next(image for image in data['images'] if image['id'] == image_id)
+
+        _, before = public_asset()
+        invalid = upload_payload('clip.mp4', 'video/mp4', clip, original_name='Changed', project_ids='["missing"]')
+        self.assertEqual(self.request('PUT', path, invalid, content_type)[0], 400)
+        self.assertEqual(public_asset()[1], before)
+        self.assertEqual(list(server.UPLOADS.iterdir()), [server.UPLOADS / before['filename']])
+        self.assertEqual(self.request('GET', before['url'])[2], png)
+
+        self.assertEqual(self.request('PUT', path, replacement, content_type)[0], 200)
+        data, after = public_asset()
+        for field in ('id', 'original_name', 'alt_text', 'published', 'archived', 'project_ids', 'tag_ids', 'created_at'):
+            self.assertEqual(after[field], before[field], field)
+        self.assertNotEqual(after['url'], before['url'])
+        self.assertEqual(after['mime_type'], 'video/mp4')
+        self.assertAlmostEqual(after['aspect_ratio'], 16 / 9)
+        self.assertEqual(self.request('GET', after['url'])[2], clip)
+        self.assertEqual(self.request('GET', before['url'])[0], 404)
+        self.assertEqual(next(p for p in data['projects'] if p['id'] == project['id'])['thumbnail_id'], image_id)
+        self.assertEqual(json.loads(data['settings']['project_compositions'])[project['id']], composition)
+
     def test_project_reordering_is_atomic_and_controls_public_order(self):
         self.assertEqual(self.request('POST', '/api/projects/reorder', {'project_ids': []})[0], 401)
         self.login()

@@ -361,6 +361,42 @@ test('MP4 upload previews and saves video dimensions with the existing publicati
   assert.equal(elements.get('#image-preview').tagName, 'IMG');
 });
 
+test('editing stages one replacement, discards it on cancel, and saves it with changed metadata', async () => {
+  const { elements, calls, run } = mount();
+  run('openImage()');
+  assert.equal(elements.get('#replace-image-file').hidden, true);
+  assert.equal(elements.get('#image-file').multiple, true);
+  run('openImage(state.data.images[0]); refresh = async () => {};');
+  const picker = elements.get('#image-file');
+  assert.equal(elements.get('#replace-image-file').hidden, false);
+  assert.equal(picker.multiple, false);
+  const clip = { type: 'video/mp4', name: 'new.mp4', size: 1024 };
+  picker.files = [clip, clip];
+  picker.listeners.change();
+  assert.equal(run('state.selectedFile'), null);
+  assert.match(elements.get('#image-error').textContent, /genau eine Datei/);
+  picker.files = [clip];
+  picker.listeners.change();
+  assert.match(elements.get('#upload-queue').textContent, /Neue Datei · new.mp4/);
+  assert.equal(elements.get('#image-preview').src, 'blob:new.mp4');
+  assert.equal(calls.some(call => call.url.startsWith('/api/images')), false);
+  run('el.imageDialog.close(); openImage(state.data.images[0]);');
+  assert.equal(run('state.selectedFile'), null);
+
+  picker.listeners.change();
+  run('el.imagePreview.readyState = 1; el.imagePreview.videoWidth = 1920; el.imagePreview.videoHeight = 1080;');
+  elements.get('#image-alt').value = 'Updated description';
+  await elements.get('#image-form').listeners.submit({ preventDefault() {}, submitter: { disabled: false } });
+  const request = calls.find(call => call.url === '/api/images/image');
+  assert.equal(request.options.method, 'PUT');
+  assert.equal(request.options.body.get('image'), clip);
+  assert.equal(Number(request.options.body.get('aspect_ratio')), 16 / 9);
+  assert.equal(request.options.body.get('alt_text'), 'Updated description');
+  for (const field of ['original_name', 'project_ids', 'tag_names', 'published']) {
+    assert.equal(request.options.body.get(field), undefined);
+  }
+});
+
 test('MP4 thumbnails and layout previews render video, and print selection excludes videos', () => {
   const { elements, run } = mount();
   run(`state.data.images[0].mime_type = 'video/mp4'; state.data.images[0].url = '/clip.mp4';
