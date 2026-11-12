@@ -1,4 +1,4 @@
-import { projectRows, automaticPlacements, projectComposition } from "/project-view.js";
+import { automaticPlacements, projectComposition } from "/project-view.js";
 
 const $ = (selector) => document.querySelector(selector);
 const state = {
@@ -6,6 +6,9 @@ const state = {
   view: "library",
   projectReturnScroll: 0,
   projectReturnFocus: null,
+  projectInitialFields: null,
+  projectLeave: null,
+  projectSaving: false,
   search: "",
   selectedTags: new Set(),
   selectedFile: null,
@@ -718,6 +721,7 @@ function openProject(project = null) {
   $('#project-editor-title').textContent = project?.title || 'Neues Projekt';
   openThumbnailPicker(project);
   openLayoutEditor(project);
+  state.projectInitialFields = projectFields();
   setView('project-editor');
   updateProjectHeaderInset();
   window.scrollTo?.({ top: 0, behavior: 'instant' });
@@ -739,8 +743,55 @@ function closeProjectEditor() {
   const fallback = $(`[data-edit-project="${$('#project-id').value}"]`) || $('#add-project-button');
   (previous?.isConnected ? previous : fallback).focus({ preventScroll: true });
 }
-$('#project-back').addEventListener('click', closeProjectEditor);
-$('#project-cancel').addEventListener('click', closeProjectEditor);
+const projectLeaveDialog = $('#project-leave-dialog');
+
+function projectFields() {
+  return {
+    title: $('#project-title').value,
+    client: $('#project-client').value,
+    description: $('#project-description').value,
+    published: $('#project-published').checked,
+    thumbnail_id: $('#project-thumbnail').value,
+  };
+}
+
+function projectHasChanges() {
+  const textDraft = layoutEditor.textDraft;
+  return layoutEditor.dirty ||
+    (textDraft && $('#layout-text-content').value !== (layoutEditor.texts[textDraft.target.id]?.text || '')) ||
+    Object.entries(projectFields()).some(([field, value]) => value !== state.projectInitialFields?.[field]);
+}
+
+function requestProjectLeave(leave) {
+  if (state.projectSaving) return;
+  if (state.view !== 'project-editor' || !projectHasChanges()) return leave();
+  if (projectLeaveDialog.open) return;
+  state.projectLeave = leave;
+  projectLeaveDialog.showModal();
+}
+
+function takeProjectLeave() {
+  const leave = state.projectLeave;
+  state.projectLeave = null;
+  projectLeaveDialog.close();
+  return leave;
+}
+
+projectLeaveDialog.addEventListener('close', () => {
+  if (!projectLeaveDialog.open) state.projectLeave = null;
+});
+$('#project-leave-discard').addEventListener('click', () => takeProjectLeave()?.());
+$('#project-leave-save').addEventListener('click', () => {
+  const leave = takeProjectLeave();
+  if (leave && el.projectForm.reportValidity()) return saveProject($('#project-save'), leave);
+});
+$('#project-back').addEventListener('click', () => requestProjectLeave(closeProjectEditor));
+$('#project-cancel').addEventListener('click', () => requestProjectLeave(closeProjectEditor));
+window.addEventListener('beforeunload', event => {
+  if (state.view !== 'project-editor' || (!state.projectSaving && !projectHasChanges())) return;
+  event.preventDefault();
+  event.returnValue = true;
+});
 
 function openTags() {
   $("#tag-error").textContent = "";
@@ -879,15 +930,20 @@ $("#login-form").addEventListener("submit", async (event) => {
   } catch (error) { $("#login-error").textContent = error.message; }
 });
 
-$("#logout").addEventListener("click", async () => {
-  if (state.view === 'project-editor') closeProjectEditor();
+$("#logout").addEventListener("click", () => requestProjectLeave(logout));
+
+async function logout() {
   await api("/api/logout", { method: "POST" });
   el.adminApp.hidden = true;
   el.loginView.hidden = false;
   $("#password").value = "";
-});
+  if (state.view === 'project-editor') closeProjectEditor();
+}
 
-document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => setView(button.dataset.view)));
+document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => {
+  const view = button.dataset.view;
+  requestProjectLeave(view === 'projects' && state.view === 'project-editor' ? closeProjectEditor : () => setView(view));
+}));
 $("#add-image-button").addEventListener("click", () => openImage());
 $("#add-project-button").addEventListener("click", () => openProject());
 $("#manage-tags-button").addEventListener("click", () => { closeRowMenu(); openTags(); });
@@ -1032,24 +1088,54 @@ el.imageForm.addEventListener("submit", async (event) => {
   }
 });
 
-el.projectForm.addEventListener("submit", async (event) => {
+el.projectForm.addEventListener("submit", event => {
   event.preventDefault();
-  const submit = event.submitter;
-  submit.disabled = true;
-  $("#project-error").textContent = "";
-  try {
-    const id = $("#project-id").value;
-    await api("/api/projects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: id || undefined, title: $("#project-title").value, client: $("#project-client").value, description: $("#project-description").value, sort_order: id ? projectFor(id)?.sort_order || 0 : Math.max(-10, ...state.data.projects.map((project) => project.sort_order || 0)) + 10, published: $("#project-published").checked, thumbnail_id: $("#project-thumbnail").value, ...(layoutEditor.dirty ? { composition: { columns: 12, manual: layoutEditor.custom, hero_id: layoutEditor.heroId || "", ...(layoutEditor.heroHidden ? { hero_hidden: true } : {}), placements: layoutEditor.placements, texts: layoutEditor.texts, rows: layoutEditor.rows } } : {}) }),
-    });
-    await refresh();
-    closeProjectEditor();
-    notify(id ? "Projekt aktualisiert" : "Projekt erstellt");
-  } catch (reason) { $("#project-error").textContent = reason.message; }
-  finally { submit.disabled = false; }
+  return saveProject(event.submitter || $('#project-save'));
 });
+
+async function saveProject(submit, leave = closeProjectEditor) {
+  if (state.projectSaving) return;
+  state.projectSaving = true;
+  submit.disabled = true;
+  el.projectForm.inert = true;
+  const error = $('#project-error');
+  error.textContent = '';
+  const id = $('#project-id').value;
+  const fields = projectFields();
+  try {
+    const composition = layoutEditor.dirty ? {
+      columns: 12, manual: layoutEditor.custom, hero_id: layoutEditor.heroId || '',
+      ...(layoutEditor.heroHidden ? { hero_hidden: true } : {}),
+      placements: layoutEditor.placements, texts: layoutEditor.texts, rows: layoutEditor.rows,
+    } : undefined;
+    await api('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: id || undefined,
+        ...fields,
+        sort_order: id ? projectFor(id)?.sort_order || 0 : Math.max(-10, ...state.data.projects.map(project => project.sort_order || 0)) + 10,
+        composition,
+      }),
+    });
+    layoutEditor.dirty = false;
+    state.projectInitialFields = fields;
+    try {
+      await refresh();
+      notify(id ? 'Projekt aktualisiert' : 'Projekt erstellt');
+    } catch {
+      notify('Projekt gespeichert. Die Übersicht konnte nicht aktualisiert werden.');
+    }
+  } catch (reason) {
+    error.textContent = reason.message || 'Das Projekt konnte nicht gespeichert werden.';
+  } finally {
+    state.projectSaving = false;
+    submit.disabled = false;
+    el.projectForm.inert = false;
+  }
+  if (error.textContent) error.focus();
+  else await leave();
+}
 
 el.newTagForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -1131,7 +1217,7 @@ function updateThumbnailPreview(images) {
 }
 $('#project-thumbnail').addEventListener('change', () => {
   updateThumbnailPreview(layoutEditor.visible);
-  if (!layoutEditor.heroId) changeLayoutHero($('#project-thumbnail').value || layoutEditor.visible[0]?.id || '', false);
+  if (!layoutEditor.heroId && !layoutEditor.heroHidden) changeLayoutHero($('#project-thumbnail').value || layoutEditor.visible[0]?.id || '', false);
 });
 function openLayoutEditor(project) {
   const assigned = state.data.images.filter(image => image.project_ids.includes(project?.id));
@@ -1169,16 +1255,16 @@ function changeLayoutHero(id, explicit = true) {
   layoutEditor.hero = next;
   const placement = layoutEditor.placements[next.id];
   delete layoutEditor.placements[next.id];
-  if (previous && previous !== next) {
+  if (layoutEditor.custom && previous && previous !== next) {
     if (placement) layoutEditor.placements[previous.id] = placement;
-    else if (layoutEditor.custom) placeLayoutAsset(previous.id);
+    else placeLayoutAsset(previous.id);
   }
   layoutEditor.hero = next;
   if (explicit) layoutEditor.heroId = next.id;
   layoutEditor.images = layoutEditor.visible.filter(image => image !== next);
   if (!layoutEditor.custom) layoutEditor.placements = automaticPlacements(layoutEditor.images);
   layoutEditor.rows = Math.max(layoutEditor.rows, 0, ...Object.values(layoutEditor.placements).map(p => p.row));
-  layoutEditor.dirty = true;
+  if (explicit || (layoutEditor.custom && previous !== next)) layoutEditor.dirty = true;
   renderLayoutEditor();
 }
 function allLayoutPlacements() { return { ...layoutEditor.placements, ...layoutEditor.texts }; }
@@ -1193,31 +1279,22 @@ function placeLayoutAsset(id, position = null) {
 }
 function renderLayoutEditor(focusId) {
   const editor = layoutEditor;
-  $('#layout-mode').hidden = !editor.visible.length;
-  $('#layout-mode').textContent = editor.custom ? 'Automatisches Layout' : '12-Spalten-Layout erstellen';
-  $('#layout-help').textContent = editor.custom
-    ? 'Asset, Hero oder leere Spalte auswählen: + fügt ein Asset hinzu, ↔ tauscht es aus und der Papierkorb entfernt das Element. T fügt Text in eine leere Spalte ein. Vorhandenen Text zum Bearbeiten anklicken. Zeilen am Griff ziehen oder mit ↑ und ↓ verschieben. Mit + eine Zeile einfügen. Assets ziehen; am rechten Griff die Breite ändern. Tastatur: Pfeiltasten verschieben, Umschalt + Links/Rechts ändert die Breite. Escape bricht das Ziehen ab. Änderungen werden mit dem Projekt gespeichert.'
-    : 'Hero oder Asset auswählen und über die Werkzeugleiste bearbeiten. Für freie Platzierung das 12-Spalten-Layout erstellen. Das gewählte Hero-Asset wird darüber dargestellt.';
+  $('#layout-help').textContent = 'Asset, Hero oder leere Spalte auswählen: + fügt ein Asset hinzu, ↔ tauscht es aus und der Papierkorb entfernt das Element. T fügt Text in eine leere Spalte ein. Vorhandenen Text zum Bearbeiten anklicken. Zeilen am Griff ziehen oder mit ↑ und ↓ verschieben. Mit + eine Zeile einfügen. Assets ziehen; am rechten Griff die Breite ändern. Tastatur: Pfeiltasten verschieben, Umschalt + Links/Rechts ändert die Breite. Escape bricht das Ziehen ab. Änderungen werden mit dem Projekt gespeichert.';
   const imageMarkup = image => mediaMarkup(image, "", image.alt_text || image.original_name);
   const hero = editor.hero ? `<div class="layout-meta"><span>${escapeHtml($('#project-title').value)}</span><span>${escapeHtml($('#project-client').value)}</span></div><div class="layout-hero" data-layout-hero><button type="button" class="layout-hero-select" data-select-hero aria-label="Hero auswählen" aria-describedby="layout-help">${imageMarkup(editor.hero)}</button><span>Hero · volle Breite</span>${layoutToolbar("hero")}</div>` : editor.visible.length ? `<div class="layout-hero layout-hero-empty" data-layout-hero><button type="button" class="layout-hero-select" data-select-hero aria-label="Leeren Hero-Bereich auswählen">Hero hinzufügen</button>${layoutToolbar('hero')}</div>` : '<p class="layout-empty">Noch keine veröffentlichten Assets zugeordnet. Assets unter „Alle Assets“ diesem Projekt zuordnen.</p>';
-  let body = '';
-  if (editor.custom) {
-    const insertButton = (row, top = false) => `<button type="button" class="layout-row-add${top ? ' is-top' : ''}" data-insert-row="${row}" aria-label="Zeile ${row} einfügen" ${editor.rows >= 1000 ? 'disabled' : ''}>+</button>`;
-    const occupied = new Set(Object.values(allLayoutPlacements()).map(p => p.row));
-    const rows = Array.from({ length: Math.max(1, editor.rows) }, (_, index) => {
-      const row = index + 1;
-      const grip = editor.rows > 1 ? `<button type="button" class="layout-row-grip" data-move-row="${row}" aria-label="Zeile ${row} verschieben" aria-describedby="layout-help" aria-keyshortcuts="ArrowUp ArrowDown">⠿</button>` : '';
-      return `<div class="layout-row${occupied.has(row) ? '' : ' is-empty'}" data-layout-row="${row}" style="grid-row:${row}">${row === 1 ? insertButton(1, true) : ''}${insertButton(row + 1)}${grip}${emptyLayoutCells(row)}${!occupied.has(row) ? `<span class="layout-row-empty" aria-hidden="true">Freie Zeile</span><button type="button" class="layout-row-remove" data-remove-row="${row}" aria-label="Leere Zeile ${row} entfernen">×</button>` : ''}</div>`;
-    }).join('');
-    body = `<div class="layout-grid${editor.composed ? ' composed-layout' : ''}">${rows}${editor.images.filter(image => editor.placements[image.id]).map(image => {
-      const p = editor.placements[image.id];
-      const column = p.column;
-      const span = p.span;
-      return `<div class="layout-tile" data-layout-image="${escapeHtml(image.id)}" style="grid-column:${column}/span ${span};grid-row:${p.row};${p.ratio ? `--layout-ratio:${p.ratio}` : ''}"><button type="button" class="layout-move" aria-describedby="layout-help" aria-label="${escapeHtml(image.original_name)} verschieben">${imageMarkup(image)}<span class="layout-tile-label">${escapeHtml(image.original_name)}</span></button><button type="button" class="layout-resize" aria-label="Breite von ${escapeHtml(image.original_name)} ändern" aria-describedby="layout-help">↔</button>${layoutToolbar(image.id)}</div>`;
-    }).join('')}${Object.entries(editor.texts).map(([id, p]) => `<div class="layout-tile layout-text-tile" data-layout-image="${escapeHtml(id)}" style="grid-column:${p.column}/span ${p.span};grid-row:${p.row}"><button type="button" class="layout-move" aria-label="Text bearbeiten oder verschieben" aria-describedby="layout-help"><span class="layout-white-text">${escapeHtml(p.text)}</span></button><button type="button" class="layout-resize" aria-label="Textbreite ändern">↔</button>${layoutToolbar(id)}</div>`).join('')}<div class="layout-target" hidden aria-hidden="true"></div></div>`;
-  } else {
-    body = `<div class="layout-auto">${projectRows(editor.images).map(({ image, span, ratio }) => `<div class="layout-tile layout-auto-tile" data-layout-image="${escapeHtml(image.id)}" style="grid-column:span ${span};--preview-ratio:${ratio}"><button type="button" class="layout-move" aria-label="${escapeHtml(image.original_name)} auswählen">${imageMarkup(image)}</button>${layoutToolbar(image.id)}</div>`).join('')}</div>`;
-  }
+  const insertButton = (row, top = false) => `<button type="button" class="layout-row-add${top ? ' is-top' : ''}" data-insert-row="${row}" aria-label="Zeile ${row} einfügen" ${editor.rows >= 1000 ? 'disabled' : ''}>+</button>`;
+  const occupied = new Set(Object.values(allLayoutPlacements()).map(p => p.row));
+  const rows = Array.from({ length: Math.max(1, editor.rows) }, (_, index) => {
+    const row = index + 1;
+    const grip = editor.rows > 1 ? `<button type="button" class="layout-row-grip" data-move-row="${row}" aria-label="Zeile ${row} verschieben" aria-describedby="layout-help" aria-keyshortcuts="ArrowUp ArrowDown">⠿</button>` : '';
+    return `<div class="layout-row${occupied.has(row) ? '' : ' is-empty'}" data-layout-row="${row}" style="grid-row:${row}">${row === 1 ? insertButton(1, true) : ''}${insertButton(row + 1)}${grip}${emptyLayoutCells(row)}${!occupied.has(row) ? `<span class="layout-row-empty" aria-hidden="true">Freie Zeile</span><button type="button" class="layout-row-remove" data-remove-row="${row}" aria-label="Leere Zeile ${row} entfernen">×</button>` : ''}</div>`;
+  }).join('');
+  const body = `<div class="layout-grid${editor.composed ? ' composed-layout' : ''}">${rows}${editor.images.filter(image => editor.placements[image.id]).map(image => {
+    const p = editor.placements[image.id];
+    const column = p.column;
+    const span = p.span;
+    return `<div class="layout-tile" data-layout-image="${escapeHtml(image.id)}" style="grid-column:${column}/span ${span};grid-row:${p.row};${p.ratio ? `--layout-ratio:${p.ratio}` : ''}"><button type="button" class="layout-move" aria-describedby="layout-help" aria-label="${escapeHtml(image.original_name)} verschieben">${imageMarkup(image)}<span class="layout-tile-label">${escapeHtml(image.original_name)}</span></button><button type="button" class="layout-resize" aria-label="Breite von ${escapeHtml(image.original_name)} ändern" aria-describedby="layout-help">↔</button>${layoutToolbar(image.id)}</div>`;
+  }).join('')}${Object.entries(editor.texts).map(([id, p]) => `<div class="layout-tile layout-text-tile" data-layout-image="${escapeHtml(id)}" style="grid-column:${p.column}/span ${p.span};grid-row:${p.row}"><button type="button" class="layout-move" aria-label="Text bearbeiten oder verschieben" aria-describedby="layout-help"><span class="layout-white-text">${escapeHtml(p.text)}</span></button><button type="button" class="layout-resize" aria-label="Textbreite ändern">↔</button>${layoutToolbar(id)}</div>`).join('')}<div class="layout-target" hidden aria-hidden="true"></div></div>`;
   $('#layout-page').innerHTML = hero + body;
   updateLayoutSelection();
   if (focusId) $(`[data-layout-image="${focusId}"] .layout-move`)?.focus({ preventScroll: true });
@@ -1239,6 +1316,7 @@ function commitLayoutPlacement(id, placement) {
     $('#layout-status').textContent = 'Hier ist kein Platz. Wähle eine freie Position im Raster.';
     return false;
   }
+  ensureManualLayout();
   if (layoutEditor.texts[id]) layoutEditor.texts[id] = placement;
   else layoutEditor.placements[id] = placement;
   layoutEditor.selected = id;
@@ -1249,19 +1327,9 @@ function commitLayoutPlacement(id, placement) {
   $('#layout-status').textContent = `Asset verschoben: Spalte ${Number(placement.column.toFixed(2))}, Breite ${Number(placement.span.toFixed(2))}, Zeile ${placement.row}.`;
   return true;
 }
-$('#layout-mode').addEventListener('click', () => {
-  layoutEditor.custom = !layoutEditor.custom;
-  layoutEditor.selected = null;
-  layoutEditor.empty = null;
-  layoutEditor.dirty = true;
-  layoutEditor.composed = true;
-  layoutEditor.placements = automaticPlacements(layoutEditor.images);
-  layoutEditor.texts = {};
-  layoutEditor.rows = Math.max(0, ...Object.values(layoutEditor.placements).map(p => p.row));
-  renderLayoutEditor();
-});
 function insertLayoutRow(row) {
   if (!Number.isInteger(row) || row < 1 || row > Math.max(1, layoutEditor.rows) + 1 || layoutEditor.rows >= 1000) return;
+  ensureManualLayout();
   for (const placement of Object.values(allLayoutPlacements())) if (placement.row >= row) placement.row++;
   layoutEditor.rows = Math.max(1, layoutEditor.rows) + 1;
   if (layoutEditor.empty && layoutEditor.empty.row >= row) layoutEditor.empty.row++;
@@ -1273,6 +1341,7 @@ function insertLayoutRow(row) {
 }
 function removeLayoutRow(row) {
   if (!Number.isInteger(row) || row < 1 || row > layoutEditor.rows || Object.values(allLayoutPlacements()).some(p => p.row === row)) return;
+  ensureManualLayout();
   for (const placement of Object.values(allLayoutPlacements())) if (placement.row > row) placement.row--;
   layoutEditor.rows--;
   if (layoutEditor.empty?.row === row) layoutEditor.empty = null;
@@ -1284,6 +1353,7 @@ function removeLayoutRow(row) {
 }
 function moveLayoutRow(from, to) {
   if (from === to || to < 1 || to > layoutEditor.rows) return;
+  ensureManualLayout();
   const shift = from < to ? -1 : 1;
   for (const placement of [...Object.values(allLayoutPlacements()), layoutEditor.empty].filter(Boolean)) {
     if (placement.row === from) placement.row = to;
@@ -1336,7 +1406,7 @@ $('#layout-page').addEventListener('keydown', event => {
     return;
   }
   const tile = event.target.closest('[data-layout-image]');
-  if (!layoutEditor.custom || !tile || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+  if (!tile || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
   event.preventDefault();
   const id = tile.dataset.layoutImage;
   layoutEditor.selected = id;
@@ -1347,7 +1417,7 @@ $('#layout-page').addEventListener('keydown', event => {
   commitLayoutPlacement(id, next);
 });
 $('#layout-page').addEventListener('pointerdown', event => {
-  if (layoutEditor.drag || !layoutEditor.custom || event.button !== 0 || event.isPrimary === false || event.target.closest('[data-layout-action]')) return;
+  if (layoutEditor.drag || event.button !== 0 || event.isPrimary === false || event.target.closest('[data-layout-action]')) return;
   const grip = event.target.closest('[data-move-row]');
   const tile = grip || event.target.closest('[data-layout-image]');
   if (!tile) return;
@@ -1692,11 +1762,7 @@ function layoutSelectionTarget() {
   return null;
 }
 function ensureManualLayout() {
-  if (layoutEditor.custom) return;
   layoutEditor.custom = true;
-  layoutEditor.composed = true;
-  layoutEditor.placements = automaticPlacements(layoutEditor.images);
-  layoutEditor.rows = Math.max(0, ...Object.values(layoutEditor.placements).map(p => p.row));
 }
 function handleLayoutAction(action, trigger) {
   if (action === 'asset') openLayoutAssetPicker(trigger);

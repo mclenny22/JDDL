@@ -154,7 +154,7 @@
             <button class="button project-back" type="button" id="project-back" aria-label="Zurück zu den Projekten">←</button>
             <div><p class="admin-eyebrow">Projekte</p><h1 id="project-editor-title" tabindex="-1">Neues Projekt</h1></div>
           </div>
-          <div class="project-editor-actions"><button class="button" type="button" id="project-cancel">Abbrechen</button><button class="button primary" type="submit">Projekt speichern</button></div>
+          <div class="project-editor-actions"><button class="button" type="button" id="project-cancel">Abbrechen</button><button class="button primary" id="project-save" type="submit">Projekt speichern</button></div>
         </div>
         <div class="project-editor-details">
         <div class="project-details-fields">
@@ -173,9 +173,9 @@
           <img id="project-thumbnail-preview" alt="Vorschau des Projekt-Vorschaubilds" hidden />
         </div>
         </div>
-        <p class="form-error" id="project-error" role="alert"></p>
+        <p class="form-error" id="project-error" role="alert" tabindex="-1"></p>
         <section class="project-layout-editor" aria-labelledby="layout-heading">
-          <div class="layout-heading"><h3 id="layout-heading">Asset-Layout</h3><button type="button" class="button" id="layout-mode">12-Spalten-Layout erstellen</button></div>
+          <div class="layout-heading"><h3 id="layout-heading">Asset-Layout</h3></div>
           <p class="layout-help" id="layout-help">Vorschau der Projektseite. Das gewählte Vorschaubild oder Video erscheint als Hero-Asset.</p>
           <p class="sr-only" id="layout-selection"></p>
           <div class="layout-viewport"><div class="layout-page" id="layout-page"></div></div>
@@ -210,6 +210,18 @@
         <div class="dialog-actions"><button class="button" type="button" data-close-dialog>Abbrechen</button><button class="button primary" id="layout-asset-confirm" type="submit" disabled>Auswahl übernehmen</button></div>
       </form>
     </dialog>
+    <dialog id="project-leave-dialog" aria-labelledby="project-leave-title" aria-describedby="project-leave-description">
+      <div class="dialog-panel">
+        <div class="dialog-heading"><h2 id="project-leave-title">Ungespeicherte Änderungen</h2></div>
+        <p id="project-leave-description">Möchtest du deine Änderungen am Projekt speichern, bevor du den Editor verlässt?</p>
+        <div class="dialog-actions project-leave-actions">
+          <button class="button" type="button" data-close-dialog autofocus>Weiter bearbeiten</button>
+          <button class="button danger" type="button" id="project-leave-discard">Verwerfen</button>
+          <button class="button primary" type="button" id="project-leave-save">Speichern und verlassen</button>
+        </div>
+      </div>
+    </dialog>
+
     <dialog id="layout-text-dialog" class="layout-text-dialog" aria-labelledby="layout-text-title">
       <form id="layout-text-form" class="dialog-panel">
         <div class="dialog-heading"><h2 id="layout-text-title">Text bearbeiten</h2><button class="icon-button" type="button" data-close-dialog aria-label="Schließen">×</button></div>

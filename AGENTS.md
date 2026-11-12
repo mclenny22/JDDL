@@ -111,8 +111,9 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   Escape and the return button use the existing history entry when possible;
   direct links return locally. Focus and gallery offsets are restored.
 - Automatic and manual project layouts share twelve integer columns and identical
-  gutters/crop ratios. Entering manual mode copies the automatic composition
-  without moving assets or adding empty rows. The editor has no asset sidebar.
+  gutters/crop ratios. The editor opens directly on the editable grid. For
+  automatic projects, the grid starts from the automatic composition and saves
+  as manual only after a grid edit. The editor has no asset sidebar.
   Selecting the hero, an image, a text block or an empty column reveals a compact
   toolbar at the selection's bottom right. + adds an asset, the exchange icon
   replaces it, T adds plain white text only when an empty column is selected,
@@ -132,15 +133,14 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   text from the T button in empty columns. Existing text opens its editor on
   click or keyboard activation; text changes apply only on confirmation and render
   as plain white text, never HTML. All confirmed changes remain local drafts
-  until the project is saved. Automatic mode can still be restored.
+  until the project is saved.
 - Project-specific layouts save atomically with metadata through `/api/projects`
   `composition`, stored in the `project_compositions` JSON setting keyed by project
   ID: `{columns:12, manual, hero_id, hero_hidden?, placements, texts, rows}`. Placements use
   `{column, span, row, ratio?}`; text entries add `text`. This lets shared assets
   have independent layouts in different projects. The backend validates project
   membership, bounds, overlap and text length. Unpublished projects' compositions
-  are omitted from public settings. Cancel discards drafts. Automatic mode can
-  be restored. Existing seven-column `project_layout` / `project_layout_rows`
+  are omitted from public settings. Existing seven-column `project_layout` / `project_layout_rows`
   data and the legacy `/api/settings` patch API still render until edited;
   opening the editor converts legacy geometry into a twelve-column draft.
   No content settings are rewritten just by opening an editor. `hero_hidden: true`
@@ -198,8 +198,9 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
 - Admin controls use a dependency-free shadcn-style neutral design. Project
   creation/editing replaces the main content with a full-page editor, keeping
   Projekte active in the navigation. Its sticky heading shows the project name,
-  a back arrow and Save/Cancel actions. Back/Cancel return to the list with focus
-  and scroll restored; unsaved drafts are discarded on reopening. Metadata and
+  a back arrow and Save/Cancel actions. Returning to the list restores focus and
+  scroll. Leaving the editor with unsaved changes offers save, discard or
+  continue editing. Reloading or closing the page uses the browser warning. Metadata and
   thumbnail controls sit above the full-width layout canvas; dragging autoscrolls
   the page. Image creation/editing opens a right-side modal drawer with fixed headers/actions,
   scrolling form content, native focus containment and Escape dismissal. Image
