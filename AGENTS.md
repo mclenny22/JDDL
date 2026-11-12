@@ -19,6 +19,9 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
 
 ## Frontend
 
+- Public page content is centered within a 1200px maximum width. The Index
+  visual and horizontal project rail extend across the viewport.
+
 - On the alternate-page branch, the wide desktop landing (1101px and up)
   follows Figma node `905:2230`. Highlight is the landing label for Selected.
   Its rail opens with the first tile partly cropped, using the same CMS order

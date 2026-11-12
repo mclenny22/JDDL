@@ -11,6 +11,9 @@
   --muted: #b5b5b5;
   --surface: #e6e6e6;
   --inset: 15px;
+  --layout-max-width: 1200px;
+  --layout-inset: max(var(--inset), calc((100vw - var(--layout-max-width)) / 2));
+  --layout-column: calc((min(100vw - 30px, var(--layout-max-width)) - 30px) / 3);
   --gap: 12.5px;
   --footer-height: 38px;
   --tile-height: 50vh;
@@ -24,7 +27,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 a { color: inherit; }
 button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid #838383; outline-offset: 4px; }
 p { margin: 0; }
-.masthead { position: fixed; z-index: 5000; inset: 15px 15px auto; display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; }
+.masthead { position: fixed; z-index: 5000; inset: 15px var(--layout-inset) auto; display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; }
 .studio { display: grid; grid-template-columns: calc((100vw - 60px) / 3) minmax(0, 1fr); gap: 15px; min-width: 0; flex: 1; }
 .studio-logo { display: block; height: 34px; width: 100%; overflow: hidden; }
 .studio-logo img { display: block; }
@@ -67,17 +70,17 @@ p { margin: 0; }
 .tile:is(:hover, :focus-visible) .tile-services { opacity: 1; }
 .tile:is(:hover, :focus-visible) .tile-caption::after { content: '●'; position: absolute; right: 0; bottom: 0; }
 .tile:focus-visible { outline-offset: -2px; }
-#status { margin: 0 15px 30px; }
-.site-footer, .project-footer { min-height: 38px; padding: 15px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; background: var(--paper); color: var(--muted); text-transform: uppercase; }
+#status { margin: 0 var(--layout-inset) 30px; }
+.site-footer, .project-footer { min-height: 38px; padding: 15px var(--layout-inset); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; background: var(--paper); color: var(--muted); text-transform: uppercase; }
 .site-footer { position: fixed; z-index: 3500; inset: auto 0 0; }
 .site-footer p, .project-footer p { overflow-wrap: anywhere; }
 .footer-imprint { display: inline-block; margin-left: 15px; }
 .imprint-page { overflow-y: auto; }
-.imprint-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; padding: 15px; }
+.imprint-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; padding: 15px var(--layout-inset); }
 .imprint-header > a:first-child { min-width: 0; overflow: hidden; }
 .imprint-header > a:last-child { flex: none; }
 .imprint-header img { display: block; }
-.imprint-content { margin: 80px 15px 30px; padding-left: calc((100vw - 60px) / 3 + 15px); text-transform: uppercase; }
+.imprint-content { margin: 80px var(--layout-inset) 30px; padding-left: calc(var(--layout-column) + 15px); text-transform: uppercase; }
 .imprint-content h1 { font: inherit; font-weight: 500; margin: 0 0 30px; }
 .imprint-content address { font-style: normal; }
 @media (max-width: 600px) {
@@ -99,7 +102,7 @@ p { margin: 0; }
 .project-detail { position: fixed; z-index: 4000; inset: 0; overflow-y: auto; overflow-x: hidden; background: #000; color: #fff; overscroll-behavior: contain; scrollbar-width: none; }
 .project-detail::-webkit-scrollbar { display: none; }
 .project-detail:focus, .studio-detail:focus { outline: none; }
-.project-detail-content { width: auto; margin: 0 15px; padding-top: max(247px, calc(var(--index-top, 89px) + 40px)); }
+.project-detail-content { margin: 0 var(--layout-inset); padding-top: max(247px, calc(var(--index-top, 89px) + 40px)); }
 .project-detail-info { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 15px; align-items: baseline; padding-block: 15px; }
 .project-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; min-width: 0; }
 .project-info-toggle { display: flex; justify-content: flex-end; gap: 4px; padding: 0; background: transparent; color: var(--muted); text-transform: uppercase; }
@@ -124,11 +127,11 @@ p { margin: 0; }
 /* Index has no footer; the field extends to the viewport bottom. */
 .index-open .site-footer { display: none; }
 .index-open .orbit-gallery { bottom: 0; }
-.studio-detail { position: fixed; inset: var(--index-top, 89px) 0 var(--footer-height); z-index: 3000; overflow-y: auto; background: var(--paper); padding: 80px 15px 30px; }
-.studio-detail-copy { margin-left: calc((100vw - 60px) / 3 + 15px); max-width: 580px; text-transform: uppercase; }
+.studio-detail { position: fixed; inset: var(--index-top, 89px) 0 var(--footer-height); z-index: 3000; overflow-y: auto; background: var(--paper); padding: 80px var(--layout-inset) 30px; }
+.studio-detail-copy { margin-left: calc(var(--layout-column) + 15px); max-width: 580px; text-transform: uppercase; }
 .studio-detail-copy h1, .studio-detail-copy h2 { font: inherit; font-weight: 500; margin: 0 0 15px; }
 .studio-detail-copy p { color: var(--muted); margin-bottom: 30px; white-space: pre-line; }
-.studio-close { margin-left: calc((100vw - 60px) / 3 + 15px); }
+.studio-close { margin-left: calc(var(--layout-column) + 15px); }
 /* Keep the masthead in the background crossfade and slide the page content. */
 ::view-transition { pointer-events: none; }
 .project-transitioning::view-transition-group(root) { animation-duration: 360ms; }
@@ -170,7 +173,7 @@ p { margin: 0; }
   .project-detail .meta-label { display: inline; }
   .tile-caption .caption-values { gap: 4px 15px; }
   .tile-services { opacity: 1; }
-  .site-footer, .project-footer { grid-template-columns: minmax(0, .7fr) minmax(0, 1.4fr) minmax(0, .8fr); gap: 10px; min-height: 68px; padding: 15px 15px 30px; }
+  .site-footer, .project-footer { grid-template-columns: minmax(0, .7fr) minmax(0, 1.4fr) minmax(0, .8fr); gap: 10px; min-height: 68px; padding-block: 15px 30px; }
   .index-filters { position: static; grid-column: 1 / -1; grid-row: 3; margin-top: 25px; width: 100%; padding: 0; justify-content: flex-start; }
   .project-detail-content { padding-top: calc(var(--index-top, 152px) + 16px); }
   .project-detail-info { grid-template-columns: 1fr; padding-block: 0 40px; }
@@ -391,12 +394,13 @@ body {
 
   body {
     --highlight-inset: 42px;
+    --highlight-layout-inset: max(var(--highlight-inset), var(--layout-inset));
 
     /* The opening artwork starts 50.921 units down on the Lottie canvas. */
     & .masthead {
       --logo-top: calc(var(--highlight-logo-height) * 50.921 / 50.923);
       --logo-left: var(--highlight-inset);
-      inset: var(--logo-top) var(--logo-left) auto;
+      inset: var(--logo-top) var(--highlight-layout-inset) auto;
       gap: 20px;
     }
     & .studio { grid-template-columns: auto minmax(0, 1fr); gap: 80px; }
@@ -419,10 +423,10 @@ body {
 
   body:has(> .project-detail:not([hidden])) {
     & .masthead::before {
-      inset: calc(-1 * var(--logo-top)) calc(-1 * var(--highlight-inset)) calc(-1 * var(--highlight-inset));
+      inset: calc(-1 * var(--logo-top)) calc(-1 * var(--highlight-layout-inset)) calc(-1 * var(--highlight-layout-inset));
     }
     & .project-detail-content {
-      margin-inline: var(--highlight-inset);
+      margin-inline: var(--highlight-layout-inset);
       padding-top: max(clamp(180px, 15.78125vw, 303px), calc(var(--index-top, 124px) + 24px));
     }
     & .project-detail-info { display: block; padding: 0 0 11px; }
