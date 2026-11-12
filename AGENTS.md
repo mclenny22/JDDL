@@ -127,10 +127,11 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   a horizontal row beneath the logo; studio copy moves below that row while
   the rail keeps its size. Selection, outside click and Escape close the menu.
 - `frontend/orbit.js` implements the CMS-backed infinite Index field with a
-  watch-style fisheye lens: tiles never tilt, the centred image fills about
-  50vh (at most 82% of the width) and a tanh/sech² falloff over a
-  superellipse matching the viewport ratio shrinks neighbours to zero at the
-  edge. It wraps on both axes and retains fixed 80% chaos and 2px corners. CMS tag chips filter images
+  radial center lens. Tiles never tilt; the centred image grows to about
+  50vh (at most 82% of the width) and side images scale to zero. The
+  `--index-falloff` custom property in `styles.css` (default 2.2, 1 = original
+  gentle lens) sets the falloff strength; layout re-reads it on resize. It wraps on both axes and retains its top/bottom fade,
+  800px image cap, fixed 80% chaos and 2px corners. CMS tag chips filter images
   by one category (All resets). A click/tap or Enter/Space opens the image's
   assigned project with that image as hero; dragging does not activate tiles.
   Two-axis pointer/touch drag, trackpad, Shift-wheel and all four arrow keys

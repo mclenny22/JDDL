@@ -1,4 +1,6 @@
 :root {
+  /* Index lens falloff: 1 = gentle, 2–4 = side images shrink to zero. */
+  --index-falloff: 2.2;
   font-family: Waldenburg, Arial, Helvetica, sans-serif;
   font-size: 13px;
   line-height: 1;
