@@ -121,7 +121,9 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   asset or changing project assignments. Empty columns are native focusable
   buttons; Left/Right selects adjacent free columns. Image/text movement still
   uses arrow keys, Shift+Left/Right resizing, and pointer/touch dragging with
-  autoscroll and a right-edge resize grip. Toolbar controls never start a drag.
+  autoscroll and a right-edge resize grip. Dragging an asset onto its neighbor
+  in the same row exchanges their slots. Left/Right swaps when the neighboring
+  asset blocks a move. Toolbar controls never start a drag.
   Explicit row insertion/removal remains; dragging/resizing never appends rows.
 - The asset toolbar opens a native modal with searchable published project assets,
   paused image/MP4 previews, single selection and explicit confirmation. Cancel,

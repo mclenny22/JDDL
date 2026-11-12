@@ -436,6 +436,53 @@ test('dragging a row moves its assets and text together and keyboard reordering 
   assert.equal(composition.rows, 3);
 });
 
+test('dragging or stepping onto an adjacent asset swaps slots of different widths', () => {
+  const { run, elements, context, Element } = mountLayout();
+  run(`layoutEditor.placements = {
+    second: { column: 1, span: 4, row: 1, ratio: 1 },
+    third: { column: 5, span: 8, row: 1, ratio: 2 }
+  };`);
+  const page = elements.get('#layout-page');
+  const tile = new Element();
+  tile.dataset.layoutImage = 'second';
+  tile.setPointerCapture = tile.releasePointerCapture = () => {};
+  tile.hasPointerCapture = () => true;
+  const grid = new Element();
+  const row = new Element();
+  row.dataset.layoutRow = '1';
+  row.getBoundingClientRect = () => ({ top: 0, bottom: 100, height: 100 });
+  grid.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1200 });
+  grid.querySelectorAll = () => [row];
+  const marker = new Element();
+  const classes = new Set();
+  marker.classList.toggle = (name, enabled) => enabled ? classes.add(name) : classes.delete(name);
+  marker.classList.remove = name => classes.delete(name);
+  grid.querySelector = selector => selector === '.layout-target' ? marker : row;
+  tile.closest = selector => selector === '[data-layout-image]' ? tile : selector === '.layout-grid' ? grid : null;
+  context.requestAnimationFrame = () => 1;
+  context.cancelAnimationFrame = () => {};
+
+  const pointer = clientX => ({ target: tile, button: 0, pointerId: 1, clientX, clientY: 50 });
+  const placements = () => JSON.parse(run('JSON.stringify(layoutEditor.placements)'));
+  const original = placements();
+  page.listeners.pointerdown(pointer(80));
+  page.listeners.pointermove(pointer(530));
+  assert.equal(classes.has('is-swap-target'), true);
+  assert.equal(classes.has('is-invalid'), false);
+  assert.deepEqual(placements(), original);
+  page.listeners.pointercancel(pointer(530));
+  assert.equal(classes.has('is-swap-target'), false);
+  assert.deepEqual(placements(), original);
+
+  page.listeners.pointerdown(pointer(80));
+  page.listeners.pointermove(pointer(530));
+  page.listeners.pointerup(pointer(530));
+  assert.deepEqual(placements(), { second: original.third, third: original.second });
+  assert.equal(run('layoutEditor.dirty'), true);
+  page.listeners.keydown({ key: 'ArrowLeft', target: tile, preventDefault() {} });
+  assert.deepEqual(placements(), original);
+});
+
 test('MP4 upload previews and saves video dimensions with the existing publication and assignment fields', async () => {
   const { elements, calls, run } = mount();
   run(`openImage(); selectFile({ type: 'video/mp4', name: 'identity.mp4', size: 1024 });
