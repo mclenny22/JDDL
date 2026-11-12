@@ -1428,7 +1428,7 @@ $('#layout-page').addEventListener('pointerdown', event => {
   };
   if (grip) {
     drag.row = Number(grip.dataset.moveRow);
-    drag.rows = [...grid.querySelectorAll('[data-layout-row]')];
+    drag.startGridTop = grid.getBoundingClientRect().top;
     grip.focus({ preventScroll: true });
   } else {
     drag.id = tile.dataset.layoutImage;
@@ -1456,26 +1456,47 @@ $('#layout-page').addEventListener('pointerdown', event => {
   };
   drag.frame = requestAnimationFrame(scroll);
 });
+function previewLayoutRowDrag(drag, gridTop) {
+  if (!drag.rows) {
+    drag.rows = [...drag.grid.querySelectorAll('[data-layout-row]')].map(element => {
+      const { top, height } = element.getBoundingClientRect();
+      return { top: top - gridTop, height, elements: [element] };
+    });
+    for (const tile of drag.grid.querySelectorAll('[data-layout-image]')) {
+      drag.rows[Number(tile.style.gridRow) - 1].elements.push(tile);
+    }
+    drag.grabOffset = drag.startY - drag.startGridTop - drag.rows[drag.row - 1].top;
+    drag.grid.classList.add('is-reordering-rows');
+    for (const element of drag.rows[drag.row - 1].elements) element.classList.add('is-row-dragging');
+  }
+
+  const source = drag.rows[drag.row - 1];
+  const first = drag.rows[0];
+  const last = drag.rows[drag.rows.length - 1];
+  const gap = drag.rows[1].top - first.top - first.height;
+  const pointerY = drag.y - gridTop;
+  const top = Math.max(first.top, Math.min(last.top + last.height - source.height, pointerY - drag.grabOffset));
+  for (const element of source.elements) element.style.translate = `0 ${top - source.top}px`;
+
+  // Compare against unshifted row midpoints so animated rows don't move the drop thresholds.
+  const before = drag.rows.findIndex((row, index) => index !== drag.row - 1 && pointerY < row.top + row.height / 2);
+  const boundary = before === -1 ? drag.rows.length : before;
+  const next = boundary < drag.row ? boundary + 1 : boundary;
+  if (next === drag.next) return;
+  drag.next = next;
+  drag.rows.forEach((row, index) => {
+    const number = index + 1;
+    if (number === drag.row) return;
+    const shift = number > drag.row && number <= next ? -1 : number < drag.row && number >= next ? 1 : 0;
+    for (const element of row.elements) element.style.translate = shift ? `0 ${shift * (source.height + gap)}px` : '';
+  });
+}
 function updateLayoutDrag() {
   const drag = layoutEditor.drag;
   if (!drag?.moved) return;
   const rect = drag.grid.getBoundingClientRect();
   if (drag.row) {
-    let boundary = 0;
-    let line = 0;
-    for (const row of drag.rows) {
-      const bounds = row.getBoundingClientRect();
-      line = bounds.top;
-      if (drag.y < bounds.top + bounds.height / 2) break;
-      boundary++;
-      line = bounds.bottom;
-    }
-    drag.next = boundary + (boundary < drag.row ? 1 : 0);
-    const target = drag.grid.querySelector('.layout-target');
-    target.hidden = drag.next === drag.row;
-    target.classList.remove('is-invalid');
-    target.classList.add('is-row-target');
-    Object.assign(target.style, { left: '0', top: `${line - rect.top}px`, width: '100%', height: '3px' });
+    previewLayoutRowDrag(drag, rect.top);
     return;
   }
   const gap = rect.width * .01064;
@@ -1514,7 +1535,15 @@ function finishLayoutDrag(commit) {
   drag.tile.classList.remove('is-dragging');
   const target = drag.grid.querySelector('.layout-target');
   target.hidden = true;
-  if (drag.row) target.classList.remove('is-row-target');
+  if (drag.rows) {
+    drag.grid.classList.remove('is-reordering-rows');
+    for (const row of drag.rows) {
+      for (const element of row.elements) {
+        element.style.translate = '';
+        element.classList.remove('is-row-dragging');
+      }
+    }
+  }
   if (commit && drag.moved && drag.row) moveLayoutRow(drag.row, drag.next);
   else if (commit && drag.moved && drag.next) commitLayoutPlacement(drag.id, drag.next);
   else if (commit && drag.moved) $('#layout-status').textContent = 'Hier ist kein Platz. Das Asset bleibt an seiner bisherigen Position.';

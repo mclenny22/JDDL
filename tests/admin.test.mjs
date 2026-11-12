@@ -394,32 +394,35 @@ test('dragging a row moves its assets and text together and keyboard reordering 
     renderLayoutEditor();`);
   const page = elements.get('#layout-page');
   assert.equal((page.innerHTML.match(/data-move-row=/g) || []).length, 3);
-  const marker = new Element();
   const grip = new Element('button');
   grip.dataset.moveRow = '1';
   const grid = new Element();
-  grid.querySelector = () => marker;
-  grid.querySelectorAll = () => [0, 100, 200].map(top => ({
-    getBoundingClientRect: () => ({ top, bottom: top + 90, height: 90 }),
+  const rows = [[0, 90], [100, 150], [260, 70]].map(([top, height]) => Object.assign(new Element(), {
+    getBoundingClientRect: () => ({ top, height }),
   }));
+  const tiles = [1, 1, 3].map(row => Object.assign(new Element(), { style: { gridRow: String(row) } }));
+  grid.querySelectorAll = selector => selector === '[data-layout-row]' ? rows : tiles;
   grip.closest = selector => selector === '[data-move-row]' ? grip : selector === '.layout-grid' ? grid : null;
   grip.setPointerCapture = grip.releasePointerCapture = () => {};
   grip.hasPointerCapture = () => true;
   context.requestAnimationFrame = () => 1;
   context.cancelAnimationFrame = () => {};
   const pointer = clientY => ({ target: grip, button: 0, pointerId: 1, clientX: 10, clientY });
-  page.listeners.pointerdown(pointer(10));
-  page.listeners.pointermove(pointer(275));
-  assert.equal(marker.hidden, false);
-  assert.equal(marker.style.top, '290px');
+  page.listeners.pointerdown(pointer(45));
+  page.listeners.pointermove(pointer(305));
+  assert.deepEqual(rows.map(row => row.style.translate), ['0 240px', '0 -100px', '0 -100px']);
+  assert.deepEqual(tiles.map(tile => tile.style.translate), ['0 240px', '0 240px', '0 -100px']);
   assert.equal(run('layoutEditor.placements.second.row'), 1);
-  page.listeners.pointercancel(pointer(275));
-  assert.equal(marker.hidden, true);
+
+  page.listeners.pointermove(pointer(180));
+  assert.deepEqual(rows.map(row => row.style.translate), ['0 135px', '0 -100px', '']);
+  page.listeners.pointercancel(pointer(180));
+  assert.ok([...rows, ...tiles].every(element => element.style.translate === ''));
   assert.equal(run('layoutEditor.dirty'), false);
 
-  page.listeners.pointerdown(pointer(10));
-  page.listeners.pointermove(pointer(275));
-  page.listeners.pointerup(pointer(275));
+  page.listeners.pointerdown(pointer(45));
+  page.listeners.pointermove(pointer(305));
+  page.listeners.pointerup(pointer(305));
   assert.equal(run('layoutEditor.placements.second.row'), 3);
   assert.equal(run('layoutEditor.texts.note.row'), 3);
   assert.equal(run('layoutEditor.placements.third.row'), 2);
