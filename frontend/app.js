@@ -72,7 +72,8 @@ async function start() {
   const menuWidths = new WeakMap();
   let menuPreview = null;
 
-  function revealMenu(button, reveal) {
+  const menuTypeStep = 40;
+  function revealMenu(button, reveal, duration = 220) {
     const from = button.getBoundingClientRect().width;
     menuWidths.get(button)?.cancel();
     button.classList.toggle('menu-revealed', reveal);
@@ -81,7 +82,7 @@ async function start() {
     if (from && to && from !== to) {
       menuWidths.set(button, button.animate(
         [{ width: `${from}px` }, { width: `${to}px` }],
-        { duration: 220, easing: 'cubic-bezier(.2,.7,.25,1)' },
+        { duration, easing: 'cubic-bezier(.2,.7,.25,1)' },
       ));
     }
   }
@@ -96,9 +97,17 @@ async function start() {
       menuPreview.frame = -1;
     }
     const elapsed = now - menuPreview.started;
-    if (touch && elapsed >= 520) {
+    if (touch && elapsed >= Math.max(520, name.length * menuTypeStep + 200)) {
       revealMenu(button, false);
       menuPreview = null;
+      return;
+    }
+    if (!selected) {
+      // Type the destination out while the pill eases open ahead of the text.
+      const count = reducedMotion.matches ? name.length : Math.min(name.length, Math.floor(elapsed / menuTypeStep) + 1);
+      if (count === menuPreview.frame) return;
+      menuPreview.frame = count;
+      text.textContent = name.slice(0, count);
       return;
     }
     const phase = selected && !touch ? elapsed % 1000 : elapsed;
@@ -148,7 +157,7 @@ async function start() {
       const fraction = Number.isFinite(event?.clientX) && width ? (event.clientX - left) / width : .5;
       const origin = Math.max(0, Math.min(name.length - 1, Math.floor(fraction * name.length)));
       reveal.dataset.label = name;
-      revealMenu(button, true);
+      revealMenu(button, true, name.length * menuTypeStep);
       menuPreview = { button, text: scrambled, name, origin, touch, started: performance.now(), selected: button.classList.contains('selected') };
       animateMenu(performance.now());
     }

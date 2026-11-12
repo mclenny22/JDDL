@@ -4,8 +4,33 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { normalizePortfolio, loadPortfolio } from '../frontend/projects.js';
 import { imagePlacement, projectRows, automaticPlacements, projectComposition } from '../frontend/project-view.js';
+import { rippleGlyph, rippleStrength, rippleTravel } from '../frontend/text-scramble.js';
 
 const seed = JSON.parse(fs.readFileSync(new URL('../backend/seed/content.json', import.meta.url)));
+
+test('text scramble ripples outward and fades with distance from the cursor', () => {
+  const always = () => 0;
+  assert.equal(rippleStrength(0, 100), 1);
+  assert.ok(rippleStrength(30, 100) > rippleStrength(70, 100));
+  assert.equal(rippleStrength(100, 100), 0);
+  // Letters outside the radius never scramble.
+  for (let elapsed = 0; elapsed < 1000; elapsed += 10) assert.equal(rippleGlyph('A', 120, 100, elapsed, always), 'A');
+  // The nearest letters scramble immediately; farther ones wait for the front.
+  assert.notEqual(rippleGlyph('A', 0, 100, 0, always), 'A');
+  assert.equal(rippleGlyph('A', 50, 100, rippleTravel * .5 - 1, always), 'A');
+  assert.notEqual(rippleGlyph('A', 50, 100, rippleTravel * .5 + 1, always), 'A');
+  // Close letters stay scrambled longer than distant ones.
+  const window = distance => {
+    let count = 0;
+    for (let elapsed = 0; elapsed < 1000; elapsed++) if (rippleGlyph('A', distance, 100, elapsed, always) !== 'A') count++;
+    return count;
+  };
+  assert.ok(window(10) > window(80));
+  // Weak letters only flicker some of the time; strong ones always.
+  assert.equal(rippleGlyph('A', 80, 100, rippleTravel * .8 + 1, () => .5), 'A');
+  assert.notEqual(rippleGlyph('A', 5, 100, rippleTravel * .05 + 1, () => .5), 'A');
+  assert.equal(rippleGlyph(' ', 0, 100, 0, always), ' ');
+});
 
 test('CMS projects use actual public assignments, image counts and content', () => {
   const projects = normalizePortfolio(seed);
@@ -645,16 +670,18 @@ test('mobile menu opens on demand, dismisses with Escape and collapses after nav
 });
 
 
-test('menu hover settles on the destination name and loops on the current page', async () => {
+test('menu hover types out the destination name and loops on the current page', async () => {
   const { elements, tick } = await mount();
   const [selected, index] = elements['.menu'].children;
   const revealText = button => button.children.at(-1).children[0].textContent;
   index.listeners.pointerenter({ pointerType: 'mouse', clientX: index.getBoundingClientRect().left + index.getBoundingClientRect().width - 1 });
   assert.ok(index.classes.has('menu-revealed'));
-  assert.equal(revealText(index).length, 5);
-  assert.equal(revealText(index).slice(0, -1), 'INDE');
-  assert.notEqual(revealText(index).at(-1), 'X');
-  tick(360);
+  assert.equal(revealText(index), 'I');
+  tick(40);
+  assert.equal(revealText(index), 'IN');
+  tick(80);
+  assert.equal(revealText(index), 'INDE');
+  tick(240);
   assert.equal(revealText(index), 'INDEX');
   tick(1000);
   assert.equal(revealText(index), 'INDEX');

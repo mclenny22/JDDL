@@ -23,11 +23,14 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   follows Figma node `905:2230`. Highlight is the landing label for Selected.
   Its rail opens with the first tile partly cropped, using the same CMS order
   and thumbnail selection. Project titles and tags appear above each tile.
-  Public site text on this branch uses 14px with a line height of 1. The
+  Public site text on this branch uses 13px with a line height of 1. The
+  alternate masthead appears on every view (Selected, Index, About and project
+  detail); Index filters sit in a row beneath its studio copy. The
   wide masthead uses the alternate studio copy with an inline opening
   sentence, muted body text and lighter Instagram and Imprint labels.
   The animation canvas sits flush with the viewport's top-left corner on
-  landing and project pages. The masthead copy uses fixed 14px type, sits
+  landing and project pages. The masthead copy uses fixed 13px type at 1.2 line height (the logo
+  scales with that line height), sits
   alongside the canvas on desktop. Below 1101px, it aligns with the opening
   A's left edge and starts 40px below its baseline with the menu closed.
   The local Lottie player loads the original
@@ -50,8 +53,8 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
 - `frontend/index.html`, `styles.css` and `app.js` implement the responsive
   light portfolio. Rail thumbnails are 50vh tall and retain a 4:5 frame
   with cover cropping.
-  Project tiles have a 25px horizontal gap. On wide screens the rail also
-  sits 25px above the viewport bottom.
+  Project tiles have a 12.5px horizontal gap. On wide screens the rail also
+  sits 12.5px above the viewport bottom.
   The AD4K logo and menu shapes are local, unmodified Figma SVG exports in
   `frontend/assets/`. Desktop and mobile logo exports keep their native sizes
   (460 × 34 and 203 × 34); the desktop asset includes its own whitespace.
@@ -107,9 +110,13 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   The active label uses the reference's pale rounded shape (Index is a pill);
   inactive numbers use triangle, hexagon, rounded square and circle shapes.
   Hover/focus varies inactive geometry without clipping labels or focus rings.
-  Hover expands the menu button smoothly to reveal the destination. Scrambles
-  spread from the pointer or touch point across menu labels and visible
-  portfolio text. The current destination repeats on hover until pointer exit.
+  Hover types the destination name out letter by letter (40ms per letter)
+  while the button eases open ahead of the text. Scrambles
+  spread from the pointer or touch point across menu labels. Visible portfolio
+  text scrambles as a local ripple: only letters within about seven font sizes
+  of the pointer change, the front travels outward over 260ms, and nearer
+  letters scramble longer and more densely. Moving half a radius or onto new
+  text drops another ripple (up to six overlap). The current destination repeats on hover until pointer exit.
   Reduced motion skips both the width animation and the scramble.
   Fine pointers use a 10px dot. After two seconds without movement, the
   cursor plays the supplied `ad4k-cursor1.json` until the pointer moves.

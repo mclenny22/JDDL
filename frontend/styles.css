@@ -1,6 +1,6 @@
 :root {
   font-family: Waldenburg, Arial, Helvetica, sans-serif;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
   color: #000;
   background: #f6f6f6;
@@ -9,7 +9,7 @@
   --muted: #b5b5b5;
   --surface: #e6e6e6;
   --inset: 15px;
-  --gap: 25px;
+  --gap: 12.5px;
   --footer-height: 38px;
   --tile-height: 50vh;
   --tile-width: calc(var(--tile-height) * 4 / 5);
@@ -56,7 +56,7 @@ p { margin: 0; }
 .menu button.menu-revealed > :not(.menu-reveal) { position: absolute; visibility: hidden; }
 .menu-revealed .menu-reveal { display: block; position: relative; white-space: nowrap; }
 .menu-reveal::before { content: attr(data-label); visibility: hidden; }
-.menu-reveal > span { position: absolute; inset: 0; overflow: hidden; text-align: center; }
+.menu-reveal > span { position: absolute; inset: 0; overflow: hidden; text-align: left; }
 ::highlight(scrambled-text) { color: transparent; }
 .text-scramble-overlay { position: fixed; inset: 0; z-index: 5100; pointer-events: none; }
 .text-scramble-overlay span { position: absolute; text-align: center; }
@@ -105,7 +105,6 @@ p { margin: 0; }
 .index-filters { position: absolute; top: 4px; left: 25%; width: 49.5%; display: flex; justify-content: center; flex-wrap: wrap; gap: 4px; padding-inline: 15px; }
 .index-filters button { background: var(--surface); color: var(--muted); min-height: 22px; padding: 4px 6px; border-radius: 4px; text-transform: uppercase; }
 .index-filters button[aria-pressed="true"], .index-filters button:hover { color: var(--ink); }
-.index-open .about { visibility: hidden; }
 .project-detail { position: fixed; z-index: 4000; inset: 0; overflow-y: auto; overflow-x: hidden; background: #000; color: #fff; overscroll-behavior: contain; scrollbar-width: none; }
 .project-detail::-webkit-scrollbar { display: none; }
 .project-detail:focus, .studio-detail:focus { outline: none; }
@@ -180,7 +179,6 @@ p { margin: 0; }
   .tile-caption .caption-values { gap: 4px 15px; }
   .tile-services { opacity: 1; }
   .site-footer, .project-footer { grid-template-columns: minmax(0, .7fr) minmax(0, 1.4fr) minmax(0, .8fr); gap: 10px; min-height: 68px; padding: 15px 15px 30px; }
-  .index-open .about { display: none; }
   .index-filters { position: static; grid-column: 1 / -1; grid-row: 3; margin-top: 25px; width: 100%; padding: 0; justify-content: flex-start; }
   .project-detail-content { padding-top: calc(var(--index-top, 152px) + 16px); }
   .project-detail-info { grid-template-columns: 1fr; padding-block: 0 40px; }
@@ -229,14 +227,14 @@ p { margin: 0; }
 .menu-highlight,
 .project-facts { display: none; }
 
-body:has(> .portfolio:not([hidden]), > .project-detail:not([hidden])) {
+body {
   --highlight-logo-height: 3lh;
   @supports (text-box: trim-both cap alphabetic) {
     --highlight-logo-height: calc(2lh + 1cap);
   }
   font-family: Haffer, Arial, Helvetica, sans-serif;
 
-  & .masthead { font-size: 14px; line-height: 1.2; }
+  & .masthead { font-size: 13px; line-height: 1.2; }
 
   & .studio-logo {
     position: relative;
@@ -330,7 +328,7 @@ body:has(> .portfolio:not([hidden]), > .project-detail:not([hidden])) {
 .project-open .idle-cursor { filter: invert(1); }
 
 @media (max-width: 1100px) {
-  body:has(> .portfolio:not([hidden]), > .project-detail:not([hidden])) {
+  body {
     --stacked-logo-unit: min(calc(var(--highlight-logo-height) / 50.923), calc(100vw / 446));
 
     & .masthead { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 15px; }
@@ -353,6 +351,14 @@ body:has(> .portfolio:not([hidden]), > .project-detail:not([hidden])) {
       margin: 40px 0 0 calc(var(--stacked-logo-unit) * 50.921 - var(--logo-left, 15px));
     }
     & .highlight-about .desktop-break { display: none; }
+    & .index-filters {
+      position: static;
+      grid-area: 4 / 1 / auto / -1;
+      width: auto;
+      margin: 25px 0 0 calc(var(--stacked-logo-unit) * 50.921 - var(--logo-left, 15px));
+      padding: 0;
+      justify-content: flex-start;
+    }
     & .portfolio {
       --tile-height: max(1px, min(50vh, calc(100vh - var(--index-top, 240px) - var(--footer-height) - 64px)));
       --tile-width: calc(var(--tile-height) * 4 / 5);
@@ -363,7 +369,7 @@ body:has(> .portfolio:not([hidden]), > .project-detail:not([hidden])) {
 @media (min-width: 1101px) {
   :root { --project-rail-image-height: 60vh; }
 
-  body:has(> .portfolio:not([hidden]), > .project-detail:not([hidden])) {
+  body {
     --highlight-inset: 42px;
 
     /* The opening artwork starts 50.921 units down on the Lottie canvas. */
@@ -374,6 +380,17 @@ body:has(> .portfolio:not([hidden]), > .project-detail:not([hidden])) {
       gap: 20px;
     }
     & .studio { grid-template-columns: auto minmax(0, 1fr); gap: 80px; }
+    & .masthead { flex-wrap: wrap; }
+    /* Index filters wrap onto their own row, aligned with the studio copy. */
+    & .index-filters {
+      position: static;
+      order: 1;
+      flex: 1 0 100%;
+      width: auto;
+      margin-top: 4px;
+      padding: 0 0 0 calc(var(--highlight-logo-height) * 326.816 / 50.923 + 80px);
+      justify-content: flex-start;
+    }
   }
 
   body:has(> .portfolio:not([hidden])) {
