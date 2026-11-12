@@ -9,11 +9,15 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
 
   let columns = 3;
   const maximumImageSide = 800;
-  // Lens falloff strength, exposed as the CSS custom property
-  // `--index-falloff` (styles.css). 1 is the original gentle lens; higher
-  // values keep one dominant image and shrink the sides towards zero.
-  const defaultFalloff = 2.2;
+  // Lens controls (Index sliders): falloff strength (1 = original gentle
+  // lens), minimum size as a share of the centre image, and the centre
+  // image's height as a share of the viewport. `--index-falloff` in
+  // styles.css supplies the default falloff.
+  const defaultFalloff = 3.1;
   let falloffStrength = defaultFalloff;
+  let falloffOverride = null;
+  let minimumShare = 0;
+  let peakHeightShare = 0.59;
   const maximumLensScale = 1.68;
   const minimumGap = 10;
   const targetGap = minimumGap + 1.25;
@@ -115,7 +119,8 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
     cachedLayout = null;
     const configured = parseFloat(typeof getComputedStyle === "function"
       ? getComputedStyle(gallery)?.getPropertyValue?.("--index-falloff") : "");
-    falloffStrength = Number.isFinite(configured) && configured > 0 ? configured : defaultFalloff;
+    falloffStrength = falloffOverride ??
+      (Number.isFinite(configured) && configured > 0 ? configured : defaultFalloff);
     const rect = gallery.getBoundingClientRect();
     state.width = rect.width;
     state.height = rect.height;
@@ -231,8 +236,12 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
           const sum = overlapX ** 2 + overlapY ** 2;
           const shareX = overlapY ** 2 / sum;
           const shareY = 1 - shareX;
-          const directionX = deltaX === 0 ? (first.index < second.index ? -1 : 1) : Math.sign(deltaX);
-          const directionY = deltaY === 0 ? (first.index < second.index ? -1 : 1) : Math.sign(deltaY);
+          // Soft directions fade through zero instead of flipping sides when
+          // two cards line up, so pushes stay continuous while panning.
+          const softness = gap * 2;
+          const tie = first.index < second.index ? -1 : 1;
+          const directionX = deltaX === 0 && deltaY === 0 ? tie : deltaX / Math.hypot(deltaX, softness);
+          const directionY = deltaX === 0 && deltaY === 0 ? tie : deltaY / Math.hypot(deltaY, softness);
           first.x += directionX * overlapX * shareX * firstShare;
           second.x -= directionX * overlapX * shareX * secondShare;
           first.y += directionY * overlapY * shareY * firstShare;
@@ -265,14 +274,15 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
       const normalizedY = (naturalY - centerY) / (state.height * 0.62);
       const normalizedX = (naturalX - centerX) / (state.width * 0.62);
       const focus = Math.exp(-(normalizedY ** 2 + normalizedX ** 2) * 2.7 * falloffStrength);
-      const edge = 1 - focus;
-      const edgeStrength = edge ** 1.35;
-      // The centred image grows to about half the viewport height (never
-      // wider than most of its width); the original falloff stays intact.
-      const peakScale = Math.max(1, Math.min(
-        state.height * 0.5 / tile.height, state.width * 0.82 / tile.width));
-      // Side images scale all the way down to zero.
-      const lensScale = focus * peakScale;
+      // Edge drift follows the original gentle lens, so a steep size falloff
+      // does not swing tiles sideways as they pass the centre.
+      const gentleFocus = falloffStrength > 1 ? focus ** (1 / falloffStrength) : focus;
+      const edgeStrength = (1 - gentleFocus) ** 1.35;
+      // The centred image fills the chosen share of the viewport height
+      // (never wider than most of its width); sides shrink to the minimum.
+      const peakScale = Math.max(0.01, Math.min(
+        state.height * peakHeightShare / tile.height, state.width * 0.82 / tile.width));
+      const lensScale = peakScale * (minimumShare + (1 - minimumShare) * focus);
       const scale = Math.min(lensScale, maximumImageSide / Math.max(tile.width, tile.height));
       const rotation = 0; // Index images stay upright.
       const x = naturalX + tile.edgeNoiseX * state.unit * edgeStrength * chaos;
@@ -286,7 +296,8 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
       const horizontalFade = 1 - smoothstep(
         state.width * 0.5, state.width * 0.7, Math.abs(x - centerX),
       );
-      const opacity = clamp(verticalFade * horizontalFade * smoothstep(0.01, 0.05, focus), 0, 1);
+      const sizeFade = minimumShare >= 0.05 ? 1 : smoothstep(0.01, 0.05, focus);
+      const opacity = clamp(verticalFade * horizontalFade * sizeFade, 0, 1);
       const bounds = rotatedBounds(tile.width, tile.height, scale, rotation);
 
       return {
@@ -303,7 +314,7 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
       };
     });
 
-    separate(targets, targetGap, 14);
+    separate(targets, targetGap, 24);
     cachedLayout = { cameraX: state.cameraX, cameraY: state.cameraY, reduced, targets };
     return targets;
   }
@@ -321,9 +332,9 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
     const reduced = reducedMotion.matches;
     // Exponential settling approaches the target without overshooting. Lens
     // changes trail position slightly, letting images grow and settle gently.
-    const positionResponse = 1 - Math.exp(-elapsed / 100);
-    const transformResponse = 1 - Math.exp(-elapsed / 180);
-    const opacityResponse = 1 - Math.exp(-elapsed / 110);
+    const positionResponse = 1 - Math.exp(-elapsed / 160);
+    const transformResponse = 1 - Math.exp(-elapsed / 220);
+    const opacityResponse = 1 - Math.exp(-elapsed / 160);
     let unsettled = false;
 
     const visible = targets.map((target) => {
@@ -555,6 +566,16 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
     requestFrame();
   });
   return {
+    getLens() {
+      return { falloff: falloffStrength, minimum: minimumShare, maximum: peakHeightShare };
+    },
+    setLens({ falloff, minimum, maximum } = {}) {
+      if (Number.isFinite(falloff) && falloff > 0) falloffOverride = falloffStrength = falloff;
+      if (Number.isFinite(minimum)) minimumShare = clamp(minimum, 0, 1);
+      if (Number.isFinite(maximum)) peakHeightShare = clamp(maximum, 0.05, 1);
+      cachedLayout = null;
+      requestFrame();
+    },
     setFilter(tag) {
       const filtered = tag ? allSources.filter(source => source.tags?.includes(tag)) : allSources;
       if (!filtered.length) return;

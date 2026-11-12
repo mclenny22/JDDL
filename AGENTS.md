@@ -25,7 +25,7 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   and thumbnail selection. Project titles and tags appear above each tile.
   Public site text on this branch uses 13px with a line height of 1. The
   alternate masthead appears on every view (Selected, Index, About and project
-  detail); Index filters sit in a row beneath its studio copy. The
+  detail); Index category filters are hidden. The
   wide masthead uses the alternate studio copy with an inline opening
   sentence, muted body text and lighter Instagram and Imprint labels.
   The animation canvas sits flush with the viewport's top-left corner on
@@ -128,11 +128,18 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   the rail keeps its size. Selection, outside click and Escape close the menu.
 - `frontend/orbit.js` implements the CMS-backed infinite Index field with a
   radial center lens. Tiles never tilt; the centred image grows to about
-  50vh (at most 82% of the width) and side images scale to zero. The
-  `--index-falloff` custom property in `styles.css` (default 2.2, 1 = original
-  gentle lens) sets the falloff strength; layout re-reads it on resize. It wraps on both axes and retains its top/bottom fade,
-  800px image cap, fixed 80% chaos and 2px corners. CMS tag chips filter images
-  by one category (All resets). A click/tap or Enter/Space opens the image's
+  59vh (at most 82% of the width) and side images scale to zero. A fixed
+  `.index-controls` panel (Index only, outside the drag surface) has Falloff
+  (default 3.1, 1 = original gentle lens), Min size (share of the centre
+  image, default 0%) and Max size (centre height, default 59vh) sliders.
+  Values persist in localStorage (`ad4k-index-lens`); `--index-falloff` in
+  `styles.css` supplies the default falloff. The 800px image cap still applies.
+  For smoothness, edge drift follows the original gentle lens regardless of
+  falloff, separation uses soft (non-flipping) push directions over 24 passes,
+  and settling eases over 160ms (position/opacity) and 220ms (scale).
+  Index hides the site footer and the field runs to the viewport bottom. It wraps on both axes and retains its top/bottom fade,
+  800px image cap, fixed 80% chaos and 2px corners. CMS tag chips (currently always
+  hidden) filter images by one category (All resets). A click/tap or Enter/Space opens the image's
   assigned project with that image as hero; dragging does not activate tiles.
   Two-axis pointer/touch drag, trackpad, Shift-wheel and all four arrow keys
   remain available. Coasting, separation and exponential settling account
