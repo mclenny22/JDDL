@@ -11,7 +11,7 @@
   --muted: #b5b5b5;
   --surface: #e6e6e6;
   --inset: 15px;
-  --layout-max-width: 1200px;
+  --layout-max-width: 1440px;
   --layout-inset: max(var(--inset), calc((100vw - var(--layout-max-width)) / 2));
   --layout-column: calc((min(100vw - 30px, var(--layout-max-width)) - 30px) / 3);
   --gap: 12.5px;
@@ -102,7 +102,7 @@ p { margin: 0; }
 .project-detail { position: fixed; z-index: 4000; inset: 0; overflow-y: auto; overflow-x: hidden; background: #000; color: #fff; overscroll-behavior: contain; scrollbar-width: none; }
 .project-detail::-webkit-scrollbar { display: none; }
 .project-detail:focus, .studio-detail:focus { outline: none; }
-.project-detail-content { margin: 0 var(--layout-inset); padding-top: max(247px, calc(var(--index-top, 89px) + 40px)); }
+.project-detail-content { margin: 0 var(--layout-inset); padding-top: calc(var(--index-top, 152px) + 16px); }
 .project-detail-info { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 15px; align-items: baseline; padding-block: 15px; }
 .project-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; min-width: 0; }
 .project-info-toggle { display: flex; justify-content: flex-end; gap: 4px; padding: 0; background: transparent; color: var(--muted); text-transform: uppercase; }
@@ -175,7 +175,6 @@ p { margin: 0; }
   .tile-services { opacity: 1; }
   .site-footer, .project-footer { grid-template-columns: minmax(0, .7fr) minmax(0, 1.4fr) minmax(0, .8fr); gap: 10px; min-height: 68px; padding-block: 15px 30px; }
   .index-filters { position: static; grid-column: 1 / -1; grid-row: 3; margin-top: 25px; width: 100%; padding: 0; justify-content: flex-start; }
-  .project-detail-content { padding-top: calc(var(--index-top, 152px) + 16px); }
   .project-detail-info { grid-template-columns: 1fr; padding-block: 0 40px; }
   .project-detail-info > .project-meta { margin-bottom: 15px; }
   .project-categories { flex-direction: column; align-items: flex-start; gap: 15px; }
@@ -425,10 +424,7 @@ body {
     & .masthead::before {
       inset: calc(-1 * var(--logo-top)) calc(-1 * var(--highlight-layout-inset)) calc(-1 * var(--highlight-layout-inset));
     }
-    & .project-detail-content {
-      margin-inline: var(--highlight-layout-inset);
-      padding-top: max(clamp(180px, 15.78125vw, 303px), calc(var(--index-top, 124px) + 24px));
-    }
+    & .project-detail-content { margin-inline: var(--highlight-layout-inset); }
     & .project-detail-info { display: block; padding: 0 0 11px; }
     & .project-hero { height: var(--project-rail-image-height); aspect-ratio: auto; }
     & .project-detail-info > :not(.project-facts) { display: none; }

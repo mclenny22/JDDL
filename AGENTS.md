@@ -19,7 +19,7 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
 
 ## Frontend
 
-- Public page content is centered within a 1200px maximum width. The Index
+- Public page content is centered within a 1440px maximum width. The Index
   visual and horizontal project rail extend across the viewport.
 
 - On the alternate-page branch, the wide desktop landing (1101px and up)
@@ -44,6 +44,7 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   thumbnails 40px above the viewport bottom.
   Wide project detail uses the dark alternate masthead and three always-visible
   text blocks above the hero, following Figma node `906:2297`.
+  Project content starts 40px below the measured masthead.
   Client and Info use the CMS client and description, and Services lists
   distinct tags from published project assets. Narrower project views retain
   the expandable Project Info presentation.
