@@ -422,7 +422,8 @@ body {
 
   body:has(> .project-detail:not([hidden])) {
     & .masthead::before {
-      inset: calc(-1 * var(--logo-top)) calc(-1 * var(--highlight-layout-inset)) calc(-1 * var(--highlight-layout-inset));
+      /* Extend across the side gutters while keeping the project info clear. */
+      inset: calc(-1 * var(--logo-top)) calc(-1 * var(--highlight-layout-inset)) -15px;
     }
     & .project-detail-content { margin-inline: var(--highlight-layout-inset); }
     & .project-detail-info { display: block; padding: 0 0 11px; }
