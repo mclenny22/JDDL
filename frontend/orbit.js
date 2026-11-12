@@ -8,7 +8,12 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   let columns = 3;
-  const maximumImageSide = 800;
+  // The focused image fills about half the viewport height (never wider than
+  // most of its width). Neighbours shrink towards zero at the viewport edge.
+  const heroHeightShare = 0.5;
+  const heroWidthShare = 0.82;
+  // A superellipse norm lets the falloff follow the viewport's rectangle.
+  const lensNormPower = 3;
   const maximumLensScale = 1.68;
   const minimumGap = 10;
   const targetGap = minimumGap + 1.25;
@@ -97,10 +102,10 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
           index, row, column, aspect: Number(source.aspect_ratio) || 1,
           element: figure, paint: {},
           offsetX: noise(index, 1), offsetY: noise(index, 2),
-          sizeNoise: noise(index, 3), rotationNoise: noise(index, 4),
+          sizeNoise: noise(index, 3),
           edgeNoiseX: noise(index, 5), edgeNoiseY: noise(index, 6),
           x: Number.NaN, y: Number.NaN, scale: Number.NaN,
-          rotation: Number.NaN, opacity: Number.NaN,
+          opacity: Number.NaN, naturalX: Number.NaN, naturalY: Number.NaN,
         });
       }
     }
@@ -180,19 +185,6 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
     requestFrame();
   }
 
-  function rotatedBounds(width, height, scale, rotation) {
-    const radians = (rotation * Math.PI) / 180;
-    const cosine = Math.abs(Math.cos(radians));
-    const sine = Math.abs(Math.sin(radians));
-    const scaledWidth = width * scale;
-    const scaledHeight = height * scale;
-
-    return {
-      width: scaledWidth * cosine + scaledHeight * sine,
-      height: scaledWidth * sine + scaledHeight * cosine,
-    };
-  }
-
   function separate(items, gap, passes) {
     for (let pass = 0; pass < passes; pass += 1) {
       let separated = false;
@@ -245,48 +237,45 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
     const centerY = state.height / 2;
     const centerX = state.width / 2;
     const reduced = reducedMotion.matches;
-    const chaos = chaosLevel();
+    const halfWidth = Math.max(1, state.width / 2);
+    const halfHeight = Math.max(1, state.height / 2);
+    // Centre magnification maps one natural unit to the hero size, so the
+    // fisheye spacing matches the enlarged image and neighbours stay clear.
+    const heroSize = Math.min(state.height * heroHeightShare, state.width * heroWidthShare);
+    const magnification = heroSize / Math.max(1, state.unit);
 
     const targets = state.tiles.map((tile) => {
       const naturalX = wrapAround(state.cameraX + tile.baseX, centerX, state.cycleWidth);
-      const naturalY = wrapAround(
-        state.cameraY + tile.baseY,
-        centerY,
-        state.cycleHeight,
+      const naturalY = wrapAround(state.cameraY + tile.baseY, centerY, state.cycleHeight);
+      const deltaX = (naturalX - centerX) / halfWidth;
+      const deltaY = (naturalY - centerY) / halfHeight;
+      const distance = (Math.abs(deltaX) ** lensNormPower + Math.abs(deltaY) ** lensNormPower) ** (1 / lensNormPower);
+      // tanh compresses the infinite plane into the viewport; its derivative
+      // (sech²) is the radial magnification, falling smoothly to zero.
+      const lensDistance = Math.tanh(magnification * distance);
+      const ratio = distance > 1e-6 ? lensDistance / distance : magnification;
+      const falloff = 1 / Math.cosh(magnification * distance) ** 2;
+      const heroScale = Math.min(
+        state.height * heroHeightShare / tile.height,
+        state.width * heroWidthShare / tile.width,
       );
-      const normalizedY = (naturalY - centerY) / (state.height * 0.62);
-      const normalizedX = (naturalX - centerX) / (state.width * 0.62);
-      const focus = Math.exp(-(normalizedY ** 2 + normalizedX ** 2) * 2.7);
-      const edge = 1 - focus;
-      const edgeStrength = edge ** 1.35;
-      const lensScale = reduced ? 0.76 + focus * 0.24 : 0.32 + focus * 1.36;
-      const scale = Math.min(lensScale, maximumImageSide / Math.max(tile.width, tile.height));
-      const rotation = reduced ? 0 : tile.rotationNoise * 7.65 * edgeStrength * chaos;
-      const x = naturalX + tile.edgeNoiseX * state.unit * edgeStrength * chaos;
-      const y =
-        naturalY + tile.edgeNoiseY * state.unit * 0.67 * edgeStrength * chaos;
-      const verticalFade = 1 - smoothstep(
-        state.height * 0.5,
-        state.height * 0.7,
-        Math.abs(y - centerY),
-      );
-      const horizontalFade = 1 - smoothstep(
-        state.width * 0.5, state.width * 0.7, Math.abs(x - centerX),
-      );
-      const opacity = clamp(verticalFade * horizontalFade, 0, 1);
-      const bounds = rotatedBounds(tile.width, tile.height, scale, rotation);
+      const scale = heroScale * falloff;
+      const x = centerX + deltaX * ratio * halfWidth;
+      const y = centerY + deltaY * ratio * halfHeight;
+      const opacity = smoothstep(0.015, 0.12, falloff);
 
       return {
         index: tile.index,
         tile,
         x,
         y,
-        width: bounds.width,
-        height: bounds.height,
+        naturalX,
+        naturalY,
+        width: tile.width * scale,
+        height: tile.height * scale,
         scale,
-        rotation,
         opacity,
-        focus,
+        focus: falloff,
       };
     });
 
@@ -320,32 +309,27 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
         tile.x = target.x;
         tile.y = target.y;
         tile.scale = target.scale;
-        tile.rotation = target.rotation;
         tile.opacity = target.opacity;
-      } else if (Math.abs(target.y - tile.y) > state.cycleHeight / 2 ||
-        (Math.abs(target.x - tile.x) > state.cycleWidth / 2)) {
+      } else if (Math.abs(target.naturalY - tile.naturalY) > state.cycleHeight / 2 ||
+        (Math.abs(target.naturalX - tile.naturalX) > state.cycleWidth / 2)) {
         // A recycled tile reappears offscreen instead of flying across the lens.
         tile.x = target.x;
         tile.y = target.y;
         tile.scale = target.scale;
-        tile.rotation = target.rotation;
         tile.opacity = target.opacity;
       } else if (reduced) {
         tile.x = target.x;
         tile.y = target.y;
         tile.scale = target.scale;
-        tile.rotation = target.rotation;
         tile.opacity = target.opacity;
       } else {
         unsettled ||= Math.abs(target.x - tile.x) > 0.08;
         unsettled ||= Math.abs(target.y - tile.y) > 0.08;
         unsettled ||= Math.abs(target.scale - tile.scale) > 0.0008;
-        unsettled ||= Math.abs(target.rotation - tile.rotation) > 0.005;
         unsettled ||= Math.abs(target.opacity - tile.opacity) > 0.001;
         tile.x += (target.x - tile.x) * positionResponse;
         tile.y += (target.y - tile.y) * positionResponse;
         tile.scale += (target.scale - tile.scale) * transformResponse;
-        tile.rotation += (target.rotation - tile.rotation) * transformResponse;
         tile.opacity += (target.opacity - tile.opacity) * opacityResponse;
       }
 
@@ -355,8 +339,8 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
         tile.element.tabIndex = reachable ? 0 : -1;
         tile.element.setAttribute('aria-hidden', String(!reachable));
       }
-      // Keep the displayed size capped while dimensions change on resize.
-      tile.scale = Math.min(tile.scale, maximumImageSide / Math.max(tile.width, tile.height));
+      tile.naturalX = target.naturalX;
+      tile.naturalY = target.naturalY;
       return { tile, x: tile.x, y: tile.y, focus: target.focus };
     });
 
@@ -369,7 +353,6 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
       paint(tile, "--x", `${(x - tile.width / 2).toFixed(2)}px`);
       paint(tile, "--y", `${(y - tile.height / 2).toFixed(2)}px`);
       paint(tile, "--scale", (Math.floor(tile.scale * 10000) / 10000).toFixed(4));
-      paint(tile, "--rotation", `${tile.rotation.toFixed(2)}deg`);
       paint(tile, "--opacity", tile.opacity.toFixed(3));
       paint(tile, "z-index", String(Math.round(focus * 1000)));
     });

@@ -393,13 +393,13 @@ test('Index remains available with one project and reduced motion responds direc
   elements['#gallery'].listeners.keydown({ key: 'ArrowDown', target: elements['#gallery'], preventDefault() {} });
   tick();
   assert.notEqual(tile.style['--y'], before);
-  assert.equal(tile.style['--rotation'], '0.00deg');
+  assert.equal(tile.style['--rotation'], undefined, 'Index tiles never tilt');
   elements['.menu'].children[0].listeners.click();
   assert.equal(elements['.portfolio'].hidden, false);
 });
 
 
-test('Index grows with viewport width and keeps displayed image sides within 800px in motion', async () => {
+test('Index grows with viewport width and keeps displayed images within the hero bounds in motion', async () => {
   const data = structuredClone(seed);
   data.images[0].aspect_ratio = 0.08;
   const sizes = [];
@@ -410,8 +410,9 @@ test('Index grows with viewport width and keeps displayed image sides within 800
     sizes.push(elements['#field'].children.length);
     const assertCap = () => {
       for (const tile of elements['#field'].children) {
-        const longest = Math.max(parseFloat(tile.style['--width']), parseFloat(tile.style['--height']));
-        assert.ok(longest * Number(tile.style['--scale']) <= 800, `Image exceeds cap at viewport ${width}`);
+        const scale = Number(tile.style['--scale']);
+        assert.ok(parseFloat(tile.style['--height']) * scale <= 700 * 0.5 + 0.5, `Image exceeds 50vh at viewport ${width}`);
+        assert.ok(parseFloat(tile.style['--width']) * scale <= width * 0.82 + 0.5, `Image exceeds width at viewport ${width}`);
       }
     };
     tick(); assertCap();
@@ -491,7 +492,7 @@ test('Index always opens the two-axis field with fixed 2px corners', async () =>
   assert.equal(gallery.capturedPointer, null);
 });
 
-test('Infinite field recycles in every direction, fills the viewport and keeps the image cap', async () => {
+test('Infinite field recycles in every direction, fills the viewport and keeps the hero bounds', async () => {
   const data = structuredClone(seed);
   data.images[0].aspect_ratio = 0.08;
   for (const reduced of [true, false]) {
@@ -503,8 +504,7 @@ test('Infinite field recycles in every direction, fills the viewport and keeps t
       for (let frame = 0; frame < 20; frame++) {
         tick(16);
         for (const tile of elements['#field'].children) {
-          const longest = Math.max(parseFloat(tile.style['--width']), parseFloat(tile.style['--height']));
-          assert.ok(longest * Number(tile.style['--scale']) <= 800);
+          assert.ok(parseFloat(tile.style['--height']) * Number(tile.style['--scale']) <= 700 * 0.5 + 0.5);
           assert.ok(Number.isFinite(parseFloat(tile.style['--x'])));
           assert.ok(Number.isFinite(parseFloat(tile.style['--y'])));
         }

@@ -100,7 +100,7 @@ p { margin: 0; }
 .orbit-gallery.is-dragging { cursor: grabbing; }
 .orbit-gallery:focus-visible:not(.pointer-focused) { outline-offset: -4px; }
 .orbit-field { position: absolute; inset: 0; pointer-events: none; -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent); mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent); }
-.orbit-tile { position: absolute; top: 0; left: 0; width: var(--width); height: var(--height); margin: 0; opacity: var(--opacity, 0); transform: translate3d(var(--x, 0), var(--y, 0), 0) rotate(var(--rotation, 0deg)) scale(var(--scale, .4)); transform-origin: center; will-change: transform, opacity; pointer-events: auto; cursor: pointer; }
+.orbit-tile { position: absolute; top: 0; left: 0; width: var(--width); height: var(--height); margin: 0; opacity: var(--opacity, 0); transform: translate3d(var(--x, 0), var(--y, 0), 0) scale(var(--scale, .4)); transform-origin: center; will-change: transform, opacity; pointer-events: auto; cursor: pointer; }
 .orbit-tile :is(img, video) { display: block; width: 100%; height: 100%; border-radius: var(--orbit-radius, 2px); object-fit: cover; }
 .index-filters { position: absolute; top: 4px; left: 25%; width: 49.5%; display: flex; justify-content: center; flex-wrap: wrap; gap: 4px; padding-inline: 15px; }
 .index-filters button { background: var(--surface); color: var(--muted); min-height: 22px; padding: 4px 6px; border-radius: 4px; text-transform: uppercase; }
@@ -282,11 +282,8 @@ body {
 .menu-number { font: inherit; letter-spacing: normal; }
 .menu button.selected[data-project="0"] .menu-label { display: none; }
 .menu button.selected .menu-highlight { display: block; }
-.project-open .menu button,
-.project-open .menu button.selected { background: #b6b6b6; color: #000; }
-.project-open .menu button[data-project="0"] { background: #fff; }
-.project-open .menu button[data-project="0"] .menu-number { display: none; }
-.project-open .menu button[data-project="0"] .menu-highlight { display: block; }
+.project-open .menu button { background: #b6b6b6; color: #000; }
+.project-open .menu button.selected { background: #fff; }
 
 .project-open .studio-logo .logo-highlight { filter: invert(1); }
 .project-open .highlight-links { color: #777; }
