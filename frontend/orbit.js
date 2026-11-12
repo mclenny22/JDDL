@@ -9,15 +9,13 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
 
   let columns = 3;
   const maximumImageSide = 800;
-  // Lens controls (Index sliders): falloff strength (1 = original gentle
-  // lens), minimum size as a share of the centre image, and the centre
-  // image's height as a share of the viewport. `--index-falloff` in
-  // styles.css supplies the default falloff.
-  const defaultFalloff = 3.1;
+  // Lens: falloff strength (1 = original gentle lens; `--index-falloff` in
+  // styles.css overrides it), minimum size as a share of the centre image,
+  // and the centre image's height as a share of the viewport.
+  const defaultFalloff = 2.8;
   let falloffStrength = defaultFalloff;
-  let falloffOverride = null;
-  let minimumShare = 0;
-  let peakHeightShare = 0.59;
+  const minimumShare = 0;
+  const peakHeightShare = 0.6;
   const maximumLensScale = 1.68;
   const minimumGap = 10;
   const targetGap = minimumGap + 1.25;
@@ -119,8 +117,7 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
     cachedLayout = null;
     const configured = parseFloat(typeof getComputedStyle === "function"
       ? getComputedStyle(gallery)?.getPropertyValue?.("--index-falloff") : "");
-    falloffStrength = falloffOverride ??
-      (Number.isFinite(configured) && configured > 0 ? configured : defaultFalloff);
+    falloffStrength = Number.isFinite(configured) && configured > 0 ? configured : defaultFalloff;
     const rect = gallery.getBoundingClientRect();
     state.width = rect.width;
     state.height = rect.height;
@@ -401,6 +398,11 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
     return unsettled;
   }
 
+  // Mobile (the site's 600px breakpoint) scrolls vertically only.
+  function horizontalLocked() {
+    return state.width > 0 && state.width <= 600;
+  }
+
   function normalizeCamera() {
     if (!state.cycleHeight) return;
     state.cameraY = wrapAround(state.cameraY, 0, state.cycleHeight);
@@ -414,6 +416,7 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
     const elapsed = state.lastFrameTime === null ? 1000 / 60 : clamp(now - state.lastFrameTime, 1, 64);
     state.lastFrameTime = now;
 
+    if (horizontalLocked()) state.velocityX = 0;
     if (state.pointerId === null) {
       const coastTime = 160;
       const damping = reduced ? 0 : Math.exp(-elapsed / coastTime);
@@ -476,7 +479,7 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
     state.pointerTime = now;
     const response = 1 - Math.exp(-elapsed / 45);
     const deltaY = event.clientY - state.pointerY;
-    const deltaX = event.clientX - state.pointerX;
+    const deltaX = horizontalLocked() ? 0 : event.clientX - state.pointerX;
     state.pointerY = event.clientY;
     state.pointerX = event.clientX;
     state.cameraX += deltaX;
@@ -512,7 +515,8 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
       event.preventDefault();
       const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? state.height : 1;
       const vertical = (event.shiftKey ? 0 : event.deltaY) * unit;
-      const horizontal = ((event.deltaX || 0) + (event.shiftKey ? event.deltaY : 0)) * unit;
+      const horizontal = horizontalLocked() ? 0 :
+        ((event.deltaX || 0) + (event.shiftKey ? event.deltaY : 0)) * unit;
 
       if (reducedMotion.matches) {
         state.cameraY -= vertical * 0.8;
@@ -536,7 +540,7 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
       ArrowUp: [0, distance], ArrowDown: [0, -distance],
       ArrowLeft: [distance, 0], ArrowRight: [-distance, 0],
     }[event.key];
-    if (!direction) return;
+    if (!direction || (horizontalLocked() && direction[0])) return;
     event.preventDefault();
     if (reducedMotion.matches) {
       state.cameraX += direction[0] * 5;
@@ -566,16 +570,6 @@ export function createOrbitGrid(projects, onOpen = () => {}) {
     requestFrame();
   });
   return {
-    getLens() {
-      return { falloff: falloffStrength, minimum: minimumShare, maximum: peakHeightShare };
-    },
-    setLens({ falloff, minimum, maximum } = {}) {
-      if (Number.isFinite(falloff) && falloff > 0) falloffOverride = falloffStrength = falloff;
-      if (Number.isFinite(minimum)) minimumShare = clamp(minimum, 0, 1);
-      if (Number.isFinite(maximum)) peakHeightShare = clamp(maximum, 0.05, 1);
-      cachedLayout = null;
-      requestFrame();
-    },
     setFilter(tag) {
       const filtered = tag ? allSources.filter(source => source.tags?.includes(tag)) : allSources;
       if (!filtered.length) return;

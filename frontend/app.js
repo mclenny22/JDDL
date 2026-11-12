@@ -218,40 +218,10 @@ async function start() {
     filterButtons.push(button);
     filters.append(button);
   }
-  // Lens sliders for the Index field. Values persist per browser.
-  const lensControls = document.querySelector('.index-controls');
-  const lensKey = 'ad4k-index-lens';
-  let savedLens = {};
-  try { savedLens = JSON.parse(localStorage.getItem(lensKey)) || {}; } catch { savedLens = {}; }
-  function readLens() {
-    if (!lensControls) return savedLens;
-    const value = name => Number(lensControls.querySelector(`[name="${name}"]`)?.value);
-    return { falloff: value('falloff'), minimum: value('minimum') / 100, maximum: value('maximum') / 100 };
-  }
-  function showLens(lens) {
-    if (!lensControls) return;
-    const set = (name, value, text) => {
-      const input = lensControls.querySelector(`[name="${name}"]`);
-      if (!input) return;
-      if (Number.isFinite(value)) input.value = String(value);
-      const output = input.parentElement?.querySelector('output');
-      if (output) output.textContent = text(Number(input.value));
-    };
-    set('falloff', lens.falloff, value => value.toFixed(1));
-    set('minimum', Number.isFinite(lens.minimum) ? Math.round(lens.minimum * 100) : undefined, value => `${value}%`);
-    set('maximum', Number.isFinite(lens.maximum) ? Math.round(lens.maximum * 100) : undefined, value => `${value}vh`);
-  }
-  lensControls?.addEventListener('input', () => {
-    const lens = readLens();
-    showLens({});
-    orbit?.setLens(lens);
-    try { localStorage.setItem(lensKey, JSON.stringify(lens)); } catch {}
-  });
   function syncShell() {
     document.documentElement.classList.toggle('index-open', showingIndex && !detailProject && !showingAbout);
     // Category filters stay hidden; their behaviour remains available.
     filters.hidden = true;
-    if (lensControls) lensControls.hidden = !showingIndex || Boolean(detailProject) || showingAbout;
     studioView.hidden = !showingAbout || Boolean(detailProject);
   }
   function showAbout(visible) {
@@ -317,11 +287,9 @@ async function start() {
     stopWheel();
     portfolio.hidden = visible;
     indexView.hidden = !visible;
-    if (visible && !orbit) {
-      orbit = createOrbitGrid(projects, openProject);
-      orbit.setLens(savedLens);
-      showLens(orbit.getLens());
-    }
+    // Index tiles open their project as set up (its own hero and layout),
+    // not with the clicked image promoted to hero.
+    if (visible && !orbit) orbit = createOrbitGrid(projects, (project, _image, source) => openProject(project, project.hero, source, true));
     orbit?.setVisible(visible);
     syncShell();
     if (returning) rail.scrollLeft = savedRailPosition;

@@ -86,8 +86,8 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   preview. Choices save with project metadata as `thumbnail_id`, backed by the
   `project_thumbnails` setting without a schema migration. The image list keeps
   its original order. Selected and the Project menu open the chosen thumbnail as
-  hero unless a separate hero is saved in the project composition. Index and
-  direct image links still open the selected image. Hover previews cycle through
+  hero unless a separate hero is saved in the project composition; Index
+  tiles do the same. Direct image links still open the selected image. Hover previews cycle through
   published still images at 12 fps and restore the chosen thumbnail on pointer
   exit. Touch and reduced motion skip the preview. All project images remain
   available in Index and the project detail.
@@ -107,9 +107,11 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   seamless wrapping. Resize preserves the fractional position, including
   a deferred re-measure after returning from a hidden gallery.
 - Navigation has four destinations: Selected, Index, Project and About.
-  The active label uses the reference's pale rounded shape (Index is a pill);
-  inactive numbers use triangle, hexagon, rounded square and circle shapes.
-  Hover/focus varies inactive geometry without clipping labels or focus rings.
+  Resting buttons are plain rectangles. On hover/focus, during the typed
+  reveal, or when active, each takes its own shape: Highlight a 5px linear
+  bevel, Index a pill, Project 12px side points (with 20px side padding) and
+  About 5px rounded corners. The fill lives on `::before` so clips never cut
+  focus rings; shapes ease over 220ms, instantly with reduced motion.
   Hover types the destination name out letter by letter (40ms per letter)
   while the button eases open ahead of the text. Scrambles
   spread from the pointer or touch point across menu labels. Visible portfolio
@@ -128,19 +130,19 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   the rail keeps its size. Selection, outside click and Escape close the menu.
 - `frontend/orbit.js` implements the CMS-backed infinite Index field with a
   radial center lens. Tiles never tilt; the centred image grows to about
-  59vh (at most 82% of the width) and side images scale to zero. A fixed
-  `.index-controls` panel (Index only, outside the drag surface) has Falloff
-  (default 3.1, 1 = original gentle lens), Min size (share of the centre
-  image, default 0%) and Max size (centre height, default 59vh) sliders.
-  Values persist in localStorage (`ad4k-index-lens`); `--index-falloff` in
-  `styles.css` supplies the default falloff. The 800px image cap still applies.
+  60vh (at most 82% of the width) and side images scale to zero
+  (falloff 2.8, 1 = original gentle lens; `--index-falloff` in `styles.css`
+  overrides it). The 800px image cap still applies.
   For smoothness, edge drift follows the original gentle lens regardless of
   falloff, separation uses soft (non-flipping) push directions over 24 passes,
   and settling eases over 160ms (position/opacity) and 220ms (scale).
-  Index hides the site footer and the field runs to the viewport bottom. It wraps on both axes and retains its top/bottom fade,
+  Index hides the site footer and the field runs to the viewport bottom.
+  At 600px wide or less the field scrolls vertically only: horizontal drag,
+  wheel/Shift-wheel and Left/Right are ignored. It wraps on both axes and retains its top/bottom fade,
   800px image cap, fixed 80% chaos and 2px corners. CMS tag chips (currently always
   hidden) filter images by one category (All resets). A click/tap or Enter/Space opens the image's
-  assigned project with that image as hero; dragging does not activate tiles.
+  assigned project as set up (its own hero, or none when hidden), not with the
+  clicked image as hero; dragging does not activate tiles.
   Two-axis pointer/touch drag, trackpad, Shift-wheel and all four arrow keys
   remain available. Coasting, separation and exponential settling account
   for elapsed time; stationary frames avoid redundant style/accessibility
@@ -202,8 +204,8 @@ Run `python3 server.py --preview` for a read-only placeholder portfolio at
   data and the legacy `/api/settings` patch API still render until edited;
   opening the editor converts legacy geometry into a twelve-column draft.
   No content settings are rewritten just by opening an editor. `hero_hidden: true`
-  omits the hero on default project visits (`#project/<slug>`); Index and explicit
-  image links still open their selected asset as hero. Hidden heroes use a quiet
+  omits the hero on default project visits (`#project/<slug>`), including
+  from Index; explicit image links still open their selected asset as hero. Hidden heroes use a quiet
   page transition and retain the normal source focus/history restoration.
 - No frontend framework, package dependencies or frontend build is required.
 - `frontend/imprint.html` is the static imprint page, linked from both site and

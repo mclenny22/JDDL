@@ -803,7 +803,7 @@ test('reduced motion avoids the native transition API and Project Info reflects 
   assert.equal(description.classes.has('is-open'), false);
 });
 
-test('Index filters use CMS tags and each tile opens its own assigned project and image', async () => {
+test('Index filters use CMS tags and each tile opens its assigned project as set up', async () => {
   const { elements, location, tick } = await mount(seed, true);
   elements['.menu'].children[1].listeners.click(); tick();
   const filter = elements['.index-filters'].children.find(button => button.textContent !== 'All');
@@ -812,8 +812,10 @@ test('Index filters use CMS tags and each tile opens its own assigned project an
   const allowed = normalizePortfolio(seed).flatMap(project => project.images.filter(image => image.tags.includes(filter.textContent)));
   assert.ok(elements['#field'].children.every(tile => allowed.some(image => image.url === tile.children[0].src)));
   const tile = elements['#field'].children[0];
+  const owner = normalizePortfolio(seed).find(project => project.images.some(image => image.url === tile.children[0].src));
   tile.listeners.keydown({ key: 'Enter', preventDefault() {} });
-  assert.equal(elements['.project-hero'].src, tile.children[0].src);
+  if (owner.heroHidden) assert.equal(elements['.project-hero'].hidden, true);
+  else assert.equal(elements['.project-hero'].src, owner.hero.url);
   assert.match(location.hash, /^#project\//);
   elements['#project-detail'].listeners.keydown({ key: 'Escape', preventDefault() {} });
   assert.equal(elements['#gallery'].hidden, false);
