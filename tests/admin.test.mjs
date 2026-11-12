@@ -341,6 +341,53 @@ test('row insertion shifts later images once and persists a bottom empty row on 
 });
 
 
+test('dragging a row moves its assets and text together and keyboard reordering saves the draft order', async () => {
+  const { run, elements, calls, context, Element } = mountLayout();
+  run(`layoutEditor.custom = true; layoutEditor.composed = true; layoutEditor.rows = 3;
+    layoutEditor.placements = { second: { column: 1, span: 4, row: 1, ratio: 2 }, third: { column: 1, span: 4, row: 3 } };
+    layoutEditor.texts = { note: { column: 5, span: 8, row: 1, text: 'Note' } };
+    renderLayoutEditor();`);
+  const page = elements.get('#layout-page');
+  assert.equal((page.innerHTML.match(/data-move-row=/g) || []).length, 3);
+  const marker = new Element();
+  const grip = new Element('button');
+  grip.dataset.moveRow = '1';
+  const grid = new Element();
+  grid.querySelector = () => marker;
+  grid.querySelectorAll = () => [0, 100, 200].map(top => ({
+    getBoundingClientRect: () => ({ top, bottom: top + 90, height: 90 }),
+  }));
+  grip.closest = selector => selector === '[data-move-row]' ? grip : selector === '.layout-grid' ? grid : null;
+  grip.setPointerCapture = grip.releasePointerCapture = () => {};
+  grip.hasPointerCapture = () => true;
+  context.requestAnimationFrame = () => 1;
+  context.cancelAnimationFrame = () => {};
+  const pointer = clientY => ({ target: grip, button: 0, pointerId: 1, clientX: 10, clientY });
+  page.listeners.pointerdown(pointer(10));
+  page.listeners.pointermove(pointer(275));
+  assert.equal(marker.hidden, false);
+  assert.equal(marker.style.top, '290px');
+  assert.equal(run('layoutEditor.placements.second.row'), 1);
+  page.listeners.pointercancel(pointer(275));
+  assert.equal(marker.hidden, true);
+  assert.equal(run('layoutEditor.dirty'), false);
+
+  page.listeners.pointerdown(pointer(10));
+  page.listeners.pointermove(pointer(275));
+  page.listeners.pointerup(pointer(275));
+  assert.equal(run('layoutEditor.placements.second.row'), 3);
+  assert.equal(run('layoutEditor.texts.note.row'), 3);
+  assert.equal(run('layoutEditor.placements.third.row'), 2);
+  grip.dataset.moveRow = '3';
+  page.listeners.keydown({ key: 'ArrowUp', target: grip, preventDefault() {} });
+  await elements.get('#project-form').listeners.submit({ preventDefault() {}, submitter: { disabled: false } });
+  const { composition } = JSON.parse(calls.find(call => call.url === '/api/projects').options.body);
+  assert.deepEqual(composition.placements.second, { column: 1, span: 4, row: 2, ratio: 2 });
+  assert.deepEqual(composition.texts.note, { column: 5, span: 8, row: 2, text: 'Note' });
+  assert.equal(composition.placements.third.row, 3);
+  assert.equal(composition.rows, 3);
+});
+
 test('MP4 upload previews and saves video dimensions with the existing publication and assignment fields', async () => {
   const { elements, calls, run } = mount();
   run(`openImage(); selectFile({ type: 'video/mp4', name: 'identity.mp4', size: 1024 });
