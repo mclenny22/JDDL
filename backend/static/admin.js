@@ -51,6 +51,7 @@ const el = {
   projectForm: $("#project-form"),
   newTagForm: $("#new-tag-form"),
   imageFile: $("#image-file"),
+  replaceImageFile: $("#replace-image-file"),
   imagePreview: $("#image-preview"),
   dropzone: $("#dropzone"),
   dropzoneCopy: $("#dropzone-copy"),
@@ -692,12 +693,11 @@ function openImage(image = null, field = "name") {
   el.projectSelection.value = image?.project_ids[0] || "";
   el.projectValue.textContent = [...state.selectedProjects].map(id => projectFor(id)?.title).join(", ") || "Kein Projekt";
   closeProjectSelect();
-  state.selectedFile = null;
-  el.imageFile.disabled = Boolean(image);
-  el.imagePreview.hidden = !image;
+  el.imageFile.multiple = !image;
+  el.imageFile.tabIndex = image ? -1 : 0;
+  el.replaceImageFile.hidden = !image;
   el.dropzoneCopy.hidden = Boolean(image);
   el.imagePreview = setMediaPreview(el.imagePreview, image, true);
-  el.dropzone.classList.toggle("is-readonly", Boolean(image));
   openDrawer(el.imageDialog);
   const focusTargets = { name: "#image-name", tags: "#image-tags-field input", project: "#image-project-trigger" };
   const target = $(focusTargets[field] || focusTargets.name) || $("#image-name");
@@ -958,7 +958,11 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-el.imageFile.addEventListener("change", () => selectFiles(el.imageFile.files));
+el.replaceImageFile.addEventListener("click", () => el.imageFile.click());
+el.imageFile.addEventListener("change", () => {
+  selectFiles(el.imageFile.files);
+  el.imageFile.value = "";
+});
 el.dropzone.addEventListener("dragover", (event) => { if (!el.imageFile.disabled) event.preventDefault(); });
 el.dropzone.addEventListener("drop", (event) => { if (!el.imageFile.disabled) { event.preventDefault(); selectFiles(event.dataTransfer.files); } });
 
@@ -971,15 +975,16 @@ el.imageForm.addEventListener("submit", async (event) => {
   if (!id && !state.selectedFile) { error.textContent = "Wähle zuerst ein Bild oder MP4-Video aus."; return; }
   const label = submit.textContent;
   submit.disabled = true;
-  submit.textContent = id ? "Speichert…" : "Lädt hoch…";
+  el.imageFile.disabled = el.replaceImageFile.disabled = true;
+  submit.textContent = id && !state.selectedFile ? "Speichert…" : "Lädt hoch…";
   el.imageForm.setAttribute("aria-busy", "true");
   error.textContent = "";
   try {
     const tagIds = [...document.querySelectorAll('input[name="image-tag"]:checked')].map((input) => input.value);
     const projectIds = [...state.selectedProjects];
-    // Keep existing metadata; new uploads derive their ratio from the actual image.
-    let aspectRatio = state.data.images.find((image) => image.id === id)?.aspect_ratio || 1;
-    if (!id) {
+    const current = state.data.images.find((image) => image.id === id);
+    let aspectRatio = current?.aspect_ratio || 1;
+    if (state.selectedFile) {
       try { aspectRatio = await mediaDimensions(el.imagePreview); }
       catch { throw new Error("Die Datei konnte nicht gelesen werden. Wähle ein gültiges Bild oder MP4-Video aus."); }
     }
@@ -992,7 +997,15 @@ el.imageForm.addEventListener("submit", async (event) => {
       tag_names: tagIds.map((tagId) => tagFor(tagId)?.name).filter(Boolean).join(", "),
       project_ids: projectIds,
     };
-    if (id) {
+    if (id && state.selectedFile) {
+      const fields = { aspect_ratio: aspectRatio };
+      if (shared.original_name !== current.original_name) fields.original_name = shared.original_name;
+      if (shared.alt_text !== (current.alt_text || "")) fields.alt_text = shared.alt_text;
+      if (shared.published !== Boolean(current.published && !current.archived)) fields.published = shared.published;
+      if (!sameSelection(tagIds, current.tag_ids)) fields.tag_names = shared.tag_names;
+      if (!sameSelection(projectIds, current.project_ids)) fields.project_ids = projectIds;
+      await api(`/api/images/${id}`, { method: "PUT", body: mediaUploadForm(state.selectedFile, fields) });
+    } else if (id) {
       await api(`/api/images/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(shared) });
     } else {
       const queue = state.selectedFiles.length ? state.selectedFiles : [state.selectedFile];
@@ -1000,11 +1013,8 @@ el.imageForm.addEventListener("submit", async (event) => {
         const file = queue[0];
         submit.textContent = `Lädt hoch… ${queue.length} verbleibend`;
         const ratio = file === state.selectedFile ? aspectRatio : await fileDimensions(file);
-        const form = new FormData();
-        form.append("image", file);
         const fields = { ...shared, aspect_ratio: ratio, original_name: state.selectedFiles.length > 1 || file !== state.selectedFile ? file.name : shared.original_name };
-        Object.entries(fields).forEach(([key, value]) => form.append(key, Array.isArray(value) ? JSON.stringify(value) : String(value)));
-        await api("/api/images", { method: "POST", body: form });
+        await api("/api/images", { method: "POST", body: mediaUploadForm(file, fields) });
         queue.shift();
         state.selectedFiles = queue;
         $("#upload-queue").textContent = queue.map(item => item.name).join(' · ');
@@ -1016,6 +1026,7 @@ el.imageForm.addEventListener("submit", async (event) => {
   } catch (reason) { error.textContent = reason.message; if (!id) { await refresh(); error.textContent += " Bereits hochgeladene Assets bleiben gespeichert; erneut speichern setzt die Warteschlange fort."; } }
   finally {
     submit.disabled = false;
+    el.imageFile.disabled = el.replaceImageFile.disabled = false;
     submit.textContent = label;
     el.imageForm.removeAttribute("aria-busy");
   }
@@ -1129,9 +1140,9 @@ function openLayoutEditor(project) {
   const assignedIds = new Set(assigned.map(image => image.id));
   composition.placements = Object.fromEntries(Object.entries(composition.placements).filter(([id]) => assignedIds.has(id)));
   layoutEditor.visible = visible;
-  layoutEditor.heroId = composition.hero_id;
+  layoutEditor.heroId = assignedIds.has(composition.hero_id) ? composition.hero_id : '';
   layoutEditor.heroHidden = Boolean(composition.hero_hidden);
-  layoutEditor.hero = visible.find(image => image.id === (composition.hero_id || project?.thumbnail_id)) || visible[0];
+  layoutEditor.hero = visible.find(image => image.id === (layoutEditor.heroId || project?.thumbnail_id)) || visible[0];
   if (layoutEditor.heroHidden) layoutEditor.hero = null;
   layoutEditor.images = visible.filter(image => image !== layoutEditor.hero);
   layoutEditor.custom = composition.manual;
@@ -1397,15 +1408,33 @@ for (const selector of ['#project-title', '#project-client']) {
   });
 }
 
+function sameSelection(ids, current) {
+  return ids.length === current.length && ids.every(id => current.includes(id));
+}
+
+function mediaUploadForm(file, fields) {
+  const form = new FormData();
+  form.append("image", file);
+  Object.entries(fields).forEach(([key, value]) => form.append(key, Array.isArray(value) ? JSON.stringify(value) : String(value)));
+  return form;
+}
+
 function selectFiles(files) {
   const queue = [...files];
   if (!queue.length) return;
+  const replacing = Boolean($("#image-id").value);
+  if (replacing && queue.length > 1) {
+    $("#image-error").textContent = "Wähle genau eine Datei als Ersatz aus.";
+    return;
+  }
   const limit = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 20 : 4) * 1024 * 1024;
   const invalid = queue.find(file => !['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'video/mp4'].includes(file.type) || file.size > limit);
   if (invalid) { $('#image-error').textContent = `${invalid.name}: Format nicht unterstützt oder Datei zu groß (max. ${limit / 1024 / 1024} MB pro Datei).`; return; }
   state.selectedFiles = queue;
   selectFile(queue[0]);
-  $('#upload-queue').textContent = `${queue.length} ${queue.length === 1 ? 'Datei' : 'Dateien'} · ${queue.map(file => file.name).join(' · ')}`;
+  $('#upload-queue').textContent = replacing
+    ? `Neue Datei · ${queue[0].name}`
+    : `${queue.length} ${queue.length === 1 ? 'Datei' : 'Dateien'} · ${queue.map(file => file.name).join(' · ')}`;
 }
 async function fileDimensions(file) {
   const url = URL.createObjectURL(file);
@@ -1423,6 +1452,8 @@ function updateLibrarySelection() {
   checkbox.indeterminate = count > 0 && count < ids.length;
   $('#library-selection-count').textContent = `${state.librarySelected.size} ausgewählt`;
   $('#library-clear-selection').hidden = !state.librarySelected.size;
+  $('#library-delete-selection').hidden = !state.librarySelected.size;
+  $('#library-delete-selection').disabled = state.batchBusy;
 }
 function inlineEditorMarkup(id, field) {
   const edit = state.inlineEdit;
@@ -1463,7 +1494,14 @@ el.imageBody.addEventListener('click', async event => {
       await api('/api/images/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: edit.ids, changes }) });
       state.inlineEdit = null; await refresh(); notify(`${edit.ids.length} Assets aktualisiert`);
     } catch (error) { $('#inline-error').textContent = error.message; }
-    finally { state.batchBusy = false; const message = $("#inline-error")?.textContent; if (state.inlineEdit) { renderImages(); $("#inline-error").textContent = message; } }
+    finally {
+      state.batchBusy = false;
+      if (state.inlineEdit) {
+        const message = $("#inline-error").textContent;
+        renderImages();
+        $("#inline-error").textContent = message;
+      } else updateLibrarySelection();
+    }
     return;
   }
   const trigger = event.target.closest('[data-inline-field]');
@@ -1483,6 +1521,64 @@ $('#library-select-all').addEventListener('change', event => {
   state.inlineEdit = null; renderImages();
 });
 $('#library-clear-selection').addEventListener('click', () => { state.librarySelected.clear(); state.inlineEdit = null; renderImages(); });
+
+const deleteSelectionDialog = $('#library-delete-dialog');
+const deleteSelectionConfirm = $('#library-delete-confirm');
+let deleteSelectionIds = [];
+$('#library-delete-selection').addEventListener('click', () => {
+  if (state.batchBusy || !state.librarySelected.size) return;
+  deleteSelectionIds = [...state.librarySelected];
+  const count = deleteSelectionIds.length;
+  const hiddenCount = count - filteredImages().filter(image => state.librarySelected.has(image.id)).length;
+  $('#library-delete-title').textContent = `${count} ${count === 1 ? 'Asset' : 'Assets'} endgültig löschen?`;
+  const hiddenMessage = hiddenCount ? ` Der aktuelle Filter blendet ${hiddenCount} davon aus.` : '';
+  $('#library-delete-description').textContent = (count === 1
+    ? 'Das Asset wird aus der Bibliothek und allen zugeordneten Projekten entfernt.'
+    : 'Die Assets werden aus der Bibliothek und allen zugeordneten Projekten entfernt.') + hiddenMessage;
+  $('#library-delete-error').hidden = true;
+  $('#library-delete-error').textContent = '';
+  $('#library-delete-selection').focus();
+  deleteSelectionDialog.showModal();
+});
+deleteSelectionDialog.addEventListener('cancel', event => {
+  if (deleteSelectionConfirm.disabled) event.preventDefault();
+});
+$('#library-delete-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (!deleteSelectionDialog.open || deleteSelectionConfirm.disabled) return;
+  const ids = new Set(deleteSelectionIds);
+  const cancel = $('#library-delete-cancel');
+  const error = $('#library-delete-error');
+  cancel.disabled = deleteSelectionConfirm.disabled = true;
+  deleteSelectionConfirm.textContent = 'Wird gelöscht…';
+  error.hidden = true;
+  try {
+    await api('/api/images/batch-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: deleteSelectionIds }),
+    });
+  } catch (reason) {
+    error.textContent = reason.message;
+    error.hidden = false;
+    return;
+  } finally {
+    cancel.disabled = deleteSelectionConfirm.disabled = false;
+    deleteSelectionConfirm.textContent = 'Endgültig löschen';
+    if (!error.hidden) deleteSelectionConfirm.focus();
+  }
+  state.data.images = state.data.images.filter(image => !ids.has(image.id));
+  ids.forEach(id => {
+    state.librarySelected.delete(id);
+    state.exportSelected.delete(id);
+  });
+  state.inlineEdit = null;
+  deleteSelectionDialog.close();
+  renderAll();
+  $('#image-search').focus();
+  notify(ids.size === 1 ? 'Asset gelöscht' : `${ids.size} Assets gelöscht`);
+});
+
 el.imageBody.addEventListener('keydown', event => {
   if (event.key !== 'Escape' || !state.inlineEdit || state.batchBusy) return;
   event.preventDefault();

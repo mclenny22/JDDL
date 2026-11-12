@@ -361,6 +361,42 @@ test('MP4 upload previews and saves video dimensions with the existing publicati
   assert.equal(elements.get('#image-preview').tagName, 'IMG');
 });
 
+test('editing stages one replacement, discards it on cancel, and saves it with changed metadata', async () => {
+  const { elements, calls, run } = mount();
+  run('openImage()');
+  assert.equal(elements.get('#replace-image-file').hidden, true);
+  assert.equal(elements.get('#image-file').multiple, true);
+  run('openImage(state.data.images[0]); refresh = async () => {};');
+  const picker = elements.get('#image-file');
+  assert.equal(elements.get('#replace-image-file').hidden, false);
+  assert.equal(picker.multiple, false);
+  const clip = { type: 'video/mp4', name: 'new.mp4', size: 1024 };
+  picker.files = [clip, clip];
+  picker.listeners.change();
+  assert.equal(run('state.selectedFile'), null);
+  assert.match(elements.get('#image-error').textContent, /genau eine Datei/);
+  picker.files = [clip];
+  picker.listeners.change();
+  assert.match(elements.get('#upload-queue').textContent, /Neue Datei · new.mp4/);
+  assert.equal(elements.get('#image-preview').src, 'blob:new.mp4');
+  assert.equal(calls.some(call => call.url.startsWith('/api/images')), false);
+  run('el.imageDialog.close(); openImage(state.data.images[0]);');
+  assert.equal(run('state.selectedFile'), null);
+
+  picker.listeners.change();
+  run('el.imagePreview.readyState = 1; el.imagePreview.videoWidth = 1920; el.imagePreview.videoHeight = 1080;');
+  elements.get('#image-alt').value = 'Updated description';
+  await elements.get('#image-form').listeners.submit({ preventDefault() {}, submitter: { disabled: false } });
+  const request = calls.find(call => call.url === '/api/images/image');
+  assert.equal(request.options.method, 'PUT');
+  assert.equal(request.options.body.get('image'), clip);
+  assert.equal(Number(request.options.body.get('aspect_ratio')), 16 / 9);
+  assert.equal(request.options.body.get('alt_text'), 'Updated description');
+  for (const field of ['original_name', 'project_ids', 'tag_names', 'published']) {
+    assert.equal(request.options.body.get(field), undefined);
+  }
+});
+
 test('MP4 thumbnails and layout previews render video, and print selection excludes videos', () => {
   const { elements, run } = mount();
   run(`state.data.images[0].mime_type = 'video/mp4'; state.data.images[0].url = '/clip.mp4';
@@ -598,6 +634,47 @@ test('inline multi-edit targets the selection and sends only changed tag relatio
   await body.listeners.click({target:{closest:selector=>selector==='[data-inline-save]'?{}:null}});
   const payload=JSON.parse(calls.find(call=>call.url==='/api/images/batch').options.body);
   assert.deepEqual(payload,{ids:['image','second'],changes:{add_tag_ids:['shared'],remove_tag_ids:[]}});
+});
+
+test('batch deletion confirms the full selection, keeps it on failure, and clears it after success', async () => {
+  const { run, elements, calls, context, document } = mount();
+  const trigger = elements.get('#library-delete-selection');
+  const dialog = elements.get('#library-delete-dialog');
+  const submit = () => elements.get('#library-delete-form').listeners.submit({ preventDefault() {} });
+  run('updateLibrarySelection()');
+  assert.equal(trigger.hidden, true);
+  run(`state.data.images.push({ ...state.data.images[0], id: 'second', original_name: 'Video' });
+    state.librarySelected = new Set(['image', 'second']);
+    state.search = 'Photo';
+    updateLibrarySelection();`);
+  assert.equal(trigger.hidden, false);
+  trigger.listeners.click();
+  assert.equal(dialog.open, true);
+  assert.match(elements.get('#library-delete-title').textContent, /2 Assets/);
+  assert.match(elements.get('#library-delete-description').textContent, /Filter blendet 1 davon aus/);
+  dialog.close();
+  await submit();
+  assert.equal(calls.some(call => call.url === '/api/images/batch-delete'), false);
+  assert.equal(run('state.librarySelected.size'), 2);
+
+  trigger.listeners.click();
+  const originalFetch = context.fetch;
+  context.fetch = async () => { throw new Error('Offline'); };
+  await submit();
+  assert.equal(dialog.open, true);
+  assert.equal(elements.get('#library-delete-error').textContent, 'Offline');
+  assert.equal(run('state.librarySelected.size'), 2);
+
+  context.fetch = originalFetch;
+  await submit();
+  const requests = calls.filter(call => call.url === '/api/images/batch-delete');
+  assert.equal(requests.length, 1);
+  assert.deepEqual(JSON.parse(requests[0].options.body), { ids: ['image', 'second'] });
+  assert.equal(dialog.open, false);
+  assert.equal(trigger.hidden, true);
+  assert.equal(run('state.librarySelected.size'), 0);
+  assert.equal(run('state.data.images.length'), 0);
+  assert.equal(document.activeElement, elements.get('#image-search'));
 });
 
 test('multi-upload uses one request per file and retries only files not yet uploaded', async () => {

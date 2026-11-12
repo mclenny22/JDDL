@@ -57,7 +57,12 @@
               <button class="button primary" id="add-image-button" type="button">Asset hinzufügen</button>
             </div>
           </div>
-          <div class="library-selection"><span id="library-selection-count" role="status">0 ausgewählt</span><button class="text-button" id="library-clear-selection" type="button" hidden>Auswahl aufheben</button><span>Auswählen und Status, Projekte oder Tags direkt in der Zeile bearbeiten.</span></div>
+          <div class="library-selection">
+            <span id="library-selection-count" role="status">0 ausgewählt</span>
+            <button class="text-button" id="library-clear-selection" type="button" hidden>Auswahl aufheben</button>
+            <button class="text-button danger" id="library-delete-selection" type="button" aria-haspopup="dialog" hidden>Auswahl löschen</button>
+            <span>Auswählen und Status, Projekte oder Tags direkt in der Zeile bearbeiten.</span>
+          </div>
           <div class="table-shell">
             <table id="image-table">
               <thead><tr><th class="select-col"><input id="library-select-all" type="checkbox" aria-label="Alle angezeigten Assets auswählen" /></th><th class="thumb-col">Vorschau</th><th>Name</th><th>Tags</th><th>Projekt</th><th>Status</th><th>Hinzugefügt</th><th class="action-col"><span class="sr-only">Aktionen</span></th></tr></thead>
@@ -183,6 +188,18 @@
       </main>
     </div>
 
+    <dialog id="library-delete-dialog" aria-labelledby="library-delete-title" aria-describedby="library-delete-description">
+      <form id="library-delete-form">
+        <div class="dialog-heading"><h2 id="library-delete-title"></h2></div>
+        <p id="library-delete-description"></p>
+        <p class="form-error" id="library-delete-error" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button class="button" id="library-delete-cancel" type="button" data-close-dialog autofocus>Abbrechen</button>
+          <button class="button danger" id="library-delete-confirm" type="submit">Endgültig löschen</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="layout-asset-dialog" class="layout-picker-dialog" aria-labelledby="layout-asset-title" aria-describedby="layout-asset-help">
       <form id="layout-asset-form" class="dialog-panel">
         <div class="dialog-heading"><h2 id="layout-asset-title">Asset auswählen</h2><button class="icon-button" type="button" data-close-dialog aria-label="Schließen">×</button></div>
@@ -212,6 +229,7 @@
           <img id="image-preview" alt="Vorschau des ausgewählten Bildes" hidden />
           <span id="dropzone-copy"><strong>Assets auswählen</strong><small>Mehrere Bilder oder MP4 hierher ziehen · MP4 am besten mit H.264 · lokal max. 20 MB, online unter 4 MB</small></span>
         </label>
+        <button class="button" id="replace-image-file" type="button" hidden>Datei ersetzen</button>
         <p id="upload-queue" class="upload-queue" role="status"></p>
         <label class="field" for="image-name"><span>Name</span><input id="image-name" maxlength="240" required /></label>
         <label class="field" for="image-alt"><span>Alternativtext</span><input id="image-alt" placeholder="Beschreibe das Bild oder Video" /></label>

@@ -275,7 +275,7 @@ export function createProjectView(projects, settings, reducedMotion, onClose) {
       ];
       // Direct image links can promote a placed asset to hero. Keep the chosen
       // project hero in the body so that following such a link loses no content.
-      const defaultHero = project.images.find(item => item.id === (composition.hero_id || project.thumbnail?.id));
+      const defaultHero = project.hero || project.thumbnail;
       if (showHero && !composition.hero_hidden && defaultHero && defaultHero.id !== image.id && !composition.placements[defaultHero.id]) {
         entries.push({ image: defaultHero, placement: { column: 1, span: 12, row: composition.rows + 1, ratio: Number(defaultHero.aspect_ratio) || 1 } });
       }

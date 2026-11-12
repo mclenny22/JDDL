@@ -387,6 +387,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.upload_image()
             if path == "/api/images/batch":
                 return self.batch_images(self.read_json())
+            if path == "/api/images/batch-delete":
+                return self.batch_delete_images(self.read_json())
         except (ValueError, json.JSONDecodeError, sqlite3.IntegrityError) as error:
             return self.json_response({"error": str(error)}, 400)
         self.send_error(404)
@@ -405,6 +407,8 @@ class Handler(SimpleHTTPRequestHandler):
         if not match:
             return self.send_error(404)
         try:
+            if self.headers.get_content_type() == "multipart/form-data":
+                return self.replace_image_file(match.group(1))
             return self.update_image(match.group(1), self.read_json())
         except (ValueError, json.JSONDecodeError, sqlite3.IntegrityError) as error:
             return self.json_response({"error": str(error)}, 400)
@@ -667,19 +671,28 @@ class Handler(SimpleHTTPRequestHandler):
                 fields[name] = content.decode("utf-8")
         return fields, files
 
-    def upload_image(self) -> None:
+    def read_media_upload(self) -> tuple[dict, dict]:
         fields, files = self.multipart()
         upload = files.get("image")
         if not upload or not upload["content"]:
             raise ValueError("Wähle ein Bild oder MP4-Video zum Hochladen aus")
         if upload["type"] not in ALLOWED_MEDIA_TYPES:
             raise ValueError("Unterstützte Formate: JPEG, PNG, WebP, GIF, AVIF und MP4")
-        image_id = uuid.uuid4().hex
+        return fields, upload
+
+    @staticmethod
+    def write_media_upload(file_id: str, upload: dict) -> tuple[str, str | None]:
         extension = mimetypes.guess_extension(upload["type"]) or Path(upload["filename"]).suffix.lower() or ".img"
-        filename = f"{image_id}{extension.replace('.jpe', '.jpg')}"
-        remote_url = store_upload(filename, upload["content"], upload["type"]) if CLOUD else None
-        if not CLOUD:
-            (UPLOADS / filename).write_bytes(upload["content"])
+        filename = f"{file_id}{'.jpg' if extension == '.jpe' else extension}"
+        if CLOUD:
+            return filename, store_upload(filename, upload["content"], upload["type"])
+        (UPLOADS / filename).write_bytes(upload["content"])
+        return filename, None
+
+    def upload_image(self) -> None:
+        fields, upload = self.read_media_upload()
+        image_id = uuid.uuid4().hex
+        filename, remote_url = self.write_media_upload(image_id, upload)
         ratio = float(fields.get("aspect_ratio") or 1)
         published = int(str(fields.get("published", "false")).lower() == "true")
         archived = int(str(fields.get("archived", str(not published))).lower() == "true")
@@ -691,28 +704,82 @@ class Handler(SimpleHTTPRequestHandler):
             self.replace_image_links(db, image_id, fields.get("tag_names", ""), fields.get("project_ids", "[]"))
         self.json_response({"image": image_id}, 201)
 
-    def replace_image_links(self, db: sqlite3.Connection, image_id: str, tag_names: str, project_ids_json: str | list) -> None:
-        names = [name.strip() for name in str(tag_names).split(",") if name.strip()]
-        project_ids = project_ids_json if isinstance(project_ids_json, list) else json.loads(project_ids_json or "[]")
-        if not isinstance(project_ids, list):
-            raise ValueError("Die Projektauswahl muss eine Liste sein")
-        if any(not isinstance(item, str) for item in project_ids):
-            raise ValueError("Ungültige Projektauswahl")
-        project_ids = list(dict.fromkeys(project_ids))
-        with connect(PROJECTS_DB) as projects_db:
-            valid = {row["id"] for row in projects_db.execute("SELECT id FROM projects")}
-        if not set(project_ids).issubset(valid):
-            raise ValueError("Projekt nicht gefunden")
-        db.execute("DELETE FROM image_tags WHERE image_id = ?", (image_id,))
-        db.execute("DELETE FROM image_projects WHERE image_id = ?", (image_id,))
-        for position, name in enumerate(names):
-            existing = db.execute("SELECT id FROM tags WHERE name = ? COLLATE NOCASE", (name,)).fetchone()
-            tag_id = existing["id"] if existing else slugify(name)
-            if not existing:
-                db.execute("INSERT INTO tags (id, slug, name, sort_order) VALUES (?, ?, ?, ?)", (tag_id, tag_id, name, position * 10 + 100))
-            db.execute("INSERT OR IGNORE INTO image_tags VALUES (?, ?)", (image_id, tag_id))
-        for position, project_id in enumerate(project_ids):
-            db.execute("INSERT OR IGNORE INTO image_projects VALUES (?, ?, ?)", (image_id, str(project_id), position))
+    def replace_image_links(self, db: sqlite3.Connection, image_id: str, tag_names: str | None, project_ids_json: str | list | None) -> None:
+        if project_ids_json is not None:
+            project_ids = project_ids_json if isinstance(project_ids_json, list) else json.loads(project_ids_json or "[]")
+            if not isinstance(project_ids, list):
+                raise ValueError("Die Projektauswahl muss eine Liste sein")
+            if any(not isinstance(item, str) for item in project_ids):
+                raise ValueError("Ungültige Projektauswahl")
+            project_ids = list(dict.fromkeys(project_ids))
+            with connect(PROJECTS_DB) as projects_db:
+                valid = {row["id"] for row in projects_db.execute("SELECT id FROM projects")}
+            if not set(project_ids).issubset(valid):
+                raise ValueError("Projekt nicht gefunden")
+            db.execute("DELETE FROM image_projects WHERE image_id = ?", (image_id,))
+            for position, project_id in enumerate(project_ids):
+                db.execute("INSERT OR IGNORE INTO image_projects VALUES (?, ?, ?)", (image_id, project_id, position))
+        if tag_names is not None:
+            names = [name.strip() for name in str(tag_names).split(",") if name.strip()]
+            db.execute("DELETE FROM image_tags WHERE image_id = ?", (image_id,))
+            for position, name in enumerate(names):
+                existing = db.execute("SELECT id FROM tags WHERE name = ? COLLATE NOCASE", (name,)).fetchone()
+                tag_id = existing["id"] if existing else slugify(name)
+                if not existing:
+                    db.execute("INSERT INTO tags (id, slug, name, sort_order) VALUES (?, ?, ?, ?)", (tag_id, tag_id, name, position * 10 + 100))
+                db.execute("INSERT OR IGNORE INTO image_tags VALUES (?, ?)", (image_id, tag_id))
+
+    def replace_image_file(self, image_id: str) -> None:
+        fields, upload = self.read_media_upload()
+        ratio = float(fields.get("aspect_ratio") or 1)
+        if not math.isfinite(ratio) or ratio <= 0:
+            raise ValueError("Ungültiges Medienformat")
+        published = fields.get("published")
+        if published not in (None, "true", "false"):
+            raise ValueError("Ungültiger Status")
+        name = fields.get("original_name")
+        if name is not None:
+            name = name.strip() or "Untitled image"
+        with connect(IMAGES_DB) as db:
+            if not db.execute("SELECT 1 FROM images WHERE id = ?", (image_id,)).fetchone():
+                return self.json_response({"error": "Bild nicht gefunden"}, 404)
+        filename, remote_url = self.write_media_upload(uuid.uuid4().hex, upload)
+        updated = False
+        try:
+            with connect(IMAGES_DB) as db:
+                db.execute("BEGIN IMMEDIATE")
+                previous = db.execute("SELECT filename, remote_url FROM images WHERE id = ?", (image_id,)).fetchone()
+                if previous:
+                    db.execute(
+                        """UPDATE images SET filename=?, remote_url=?, mime_type=?, aspect_ratio=?,
+                           original_name=COALESCE(?, original_name), alt_text=COALESCE(?, alt_text),
+                           published=COALESCE(?, published), archived=COALESCE(?, archived),
+                           updated_at=CURRENT_TIMESTAMP WHERE id=?""",
+                        (filename, remote_url, upload["type"], ratio, name, fields.get("alt_text"),
+                         None if published is None else int(published == "true"),
+                         None if published is None else int(published == "false"), image_id),
+                    )
+                    self.replace_image_links(db, image_id, fields.get("tag_names"), fields.get("project_ids"))
+                    updated = True
+        finally:
+            # A failed commit can leave its outcome unknown in the hosted database.
+            if not updated:
+                self.cleanup_media_upload(filename, remote_url)
+        if not previous:
+            return self.json_response({"error": "Bild nicht gefunden"}, 404)
+        self.cleanup_media_upload(previous["filename"], previous["remote_url"])
+        self.json_response({"image": image_id})
+
+    def cleanup_media_upload(self, filename: str | None, remote_url: str | None) -> None:
+        if not filename:
+            return
+        try:
+            if CLOUD and remote_url:
+                delete_upload(remote_url)
+            else:
+                (UPLOADS / Path(filename).name).unlink(missing_ok=True)
+        except Exception as error:
+            self.log_error("Could not clean up upload %s (%s)", filename, type(error).__name__)
 
     def update_image(self, image_id: str, payload: dict) -> None:
         with connect(IMAGES_DB) as db:
@@ -731,7 +798,8 @@ class Handler(SimpleHTTPRequestHandler):
                 ),
             )
             tag_names = payload.get("tag_names", "")
-            self.replace_image_links(db, image_id, tag_names, payload.get("project_ids", []))
+            project_ids = payload.get("project_ids", [])
+            self.replace_image_links(db, image_id, str(tag_names), project_ids if project_ids is not None else [])
         self.json_response({"image": image_id})
 
     def batch_images(self, payload: dict) -> None:
@@ -775,16 +843,31 @@ class Handler(SimpleHTTPRequestHandler):
                             db.execute("INSERT INTO image_tags VALUES (?, ?)", (image_id, relation))
         self.json_response({"updated": len(set(ids))})
 
-    def delete_image(self, image_id: str) -> None:
+    def remove_images(self, ids: list[str]) -> int:
+        removed = []
         with connect(IMAGES_DB) as db:
-            image = db.execute("SELECT filename, remote_url FROM images WHERE id = ?", (image_id,)).fetchone()
-            if not image:
-                return self.json_response({"error": "Bild nicht gefunden"}, 404)
-            db.execute("DELETE FROM images WHERE id = ?", (image_id,))
-        if CLOUD and image["filename"] and image["remote_url"]:
-            delete_upload(image["remote_url"])
-        elif image["filename"]:
-            (UPLOADS / Path(image["filename"]).name).unlink(missing_ok=True)
+            db.execute("BEGIN IMMEDIATE")
+            for start in range(0, len(ids), 500):
+                chunk = tuple(ids[start:start + 500])
+                placeholders = ",".join("?" for _ in chunk)
+                removed.extend(db.execute(f"SELECT filename, remote_url FROM images WHERE id IN ({placeholders})", chunk))
+                db.execute(f"DELETE FROM images WHERE id IN ({placeholders})", chunk)
+        for image in removed:
+            self.cleanup_media_upload(image["filename"], image["remote_url"])
+        return len(removed)
+
+    def batch_delete_images(self, payload: dict) -> None:
+        ids = payload.get("ids") if isinstance(payload, dict) else None
+        if not isinstance(ids, list) or not ids or any(
+            not isinstance(image_id, str) or not re.fullmatch(r"[a-zA-Z0-9-]+", image_id) for image_id in ids
+        ):
+            raise ValueError("Ungültige Asset-Auswahl")
+        deleted = self.remove_images(list(dict.fromkeys(ids)))
+        self.json_response({"deleted": deleted})
+
+    def delete_image(self, image_id: str) -> None:
+        if not self.remove_images([image_id]):
+            return self.json_response({"error": "Bild nicht gefunden"}, 404)
         self.json_response({"deleted": True})
 
 

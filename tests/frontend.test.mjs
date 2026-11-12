@@ -903,6 +903,21 @@ test('hover slowdown and acceleration cover the same distance at different frame
   assert.ok(Math.max(...distances)-Math.min(...distances)<.01);
 });
 
+test('direct image links retain the fallback thumbnail in a manual layout after the saved hero is deleted', async () => {
+  const data = structuredClone(seed);
+  const project = normalizePortfolio(data).find(item => item.images.length >= 3);
+  const [thumbnail, deletedHero, directHero] = project.images;
+  data.images = data.images.filter(image => image.id !== deletedHero.id);
+  data.projects.find(item => item.id === project.id).thumbnail_id = thumbnail.id;
+  data.settings.project_compositions = JSON.stringify({ [project.id]: {
+    columns: 12, manual: true, hero_id: deletedHero.id, rows: 1,
+    placements: { [directHero.id]: { column: 1, span: 12, row: 1 } }, texts: {},
+  } });
+  const { elements } = await mount(data, true, 310, 1000, `#project/${project.slug}/${directHero.id}`);
+  assert.equal(elements['.project-hero'].src, directHero.url);
+  assert.ok(elements['.project-grid'].children.some(item => item.tagName === 'FIGURE' && item.children[0].src === thumbnail.url));
+});
+
 test('removing a hero hides it on the project layout while explicit image links still open their hero', async () => {
   const data=structuredClone(seed);
   const project=normalizePortfolio(data)[0];

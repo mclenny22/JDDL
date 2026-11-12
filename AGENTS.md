@@ -207,6 +207,10 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   Drawer entrance motion respects reduced motion; mobile drawers fill the width.
   Image aspect ratio is hidden metadata: uploads derive it from natural dimensions,
   and editing retains the stored ratio without a manual dimension control.
+  In the asset drawer, “Datei ersetzen” stages one image or MP4 for the next
+  save. Multipart PUT to `/api/images/<id>` replaces the file and media dimensions
+  in place, retaining the asset ID, metadata unless edited, and references from
+  projects, thumbnails and layouts. The file receives a fresh URL.
   Image/project row actions live in ellipsis dropdowns with edit and delete items;
   menus support arrow keys, Home/End, Escape and return focus to their trigger.
   The shared menu sits outside table overflow and closes on outside click/scroll.
@@ -218,6 +222,9 @@ public site at `/`, the editor at `/admin`, and APIs at `/api/*`, defaulting to
   selection checkboxes and select-all for the filtered results. Clicking a status,
   project or tag cell opens an inline editor; if that row is selected, changes
   apply to the full selection. Mixed tags/projects remain unchanged until toggled.
+  “Auswahl löschen” confirms the full selection in a modal, including assets
+  outside the current filter. `/api/images/batch-delete` deletes the selected
+  assets and their assignments in one transaction, then removes stored uploads.
   `/api/images/batch` validates the whole selection and applies status/relation
   changes in one transaction, preserving unrelated metadata and relations.
   Multi-file selection/drop uploads each file in a separate request, derives its
