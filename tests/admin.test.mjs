@@ -445,6 +445,7 @@ test('dragging or stepping onto an adjacent asset swaps slots of different width
   const page = elements.get('#layout-page');
   const tile = new Element();
   tile.dataset.layoutImage = 'second';
+  tile.getBoundingClientRect = () => ({ left: 0 });
   tile.setPointerCapture = tile.releasePointerCapture = () => {};
   tile.hasPointerCapture = () => true;
   const grid = new Element();
@@ -452,7 +453,9 @@ test('dragging or stepping onto an adjacent asset swaps slots of different width
   row.dataset.layoutRow = '1';
   row.getBoundingClientRect = () => ({ top: 0, bottom: 100, height: 100 });
   grid.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1200 });
-  grid.querySelectorAll = () => [row];
+  const neighbor = new Element();
+  neighbor.dataset.layoutImage = 'third';
+  grid.querySelectorAll = selector => selector === '[data-layout-row]' ? [row] : [tile, neighbor];
   const marker = new Element();
   const classes = new Set();
   marker.classList.toggle = (name, enabled) => enabled ? classes.add(name) : classes.delete(name);
@@ -469,8 +472,16 @@ test('dragging or stepping onto an adjacent asset swaps slots of different width
   page.listeners.pointermove(pointer(530));
   assert.equal(classes.has('is-swap-target'), true);
   assert.equal(classes.has('is-invalid'), false);
+  assert.equal(tile.style.translate, '450px 0');
+  assert.ok(Math.abs(parseFloat(neighbor.style.translate) + 404.256) < 0.001);
   assert.deepEqual(placements(), original);
+  page.listeners.pointermove(pointer(200));
+  assert.equal(neighbor.style.translate, '');
+  assert.equal(tile.style.translate, '120px 0');
+  page.listeners.pointermove(pointer(530));
   page.listeners.pointercancel(pointer(530));
+  assert.equal(tile.style.translate, '');
+  assert.equal(neighbor.style.translate, '');
   assert.equal(classes.has('is-swap-target'), false);
   assert.deepEqual(placements(), original);
 
@@ -479,6 +490,11 @@ test('dragging or stepping onto an adjacent asset swaps slots of different width
   page.listeners.pointerup(pointer(530));
   assert.deepEqual(placements(), { second: original.third, third: original.second });
   assert.equal(run('layoutEditor.dirty'), true);
+  tile.getBoundingClientRect = () => ({ left: 404.256 });
+  page.listeners.pointerdown(pointer(530));
+  page.listeners.pointermove(pointer(200));
+  assert.ok(Math.abs(parseFloat(neighbor.style.translate) - 808.512) < 0.001);
+  page.listeners.pointercancel(pointer(200));
   page.listeners.keydown({ key: 'ArrowLeft', target: tile, preventDefault() {} });
   assert.deepEqual(placements(), original);
 });

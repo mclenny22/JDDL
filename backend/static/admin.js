@@ -1466,6 +1466,10 @@ $('#layout-page').addEventListener('pointerdown', event => {
     drag.original = { ...allLayoutPlacements()[drag.id] };
     drag.resize = Boolean(event.target.closest('.layout-resize'));
     drag.neighbors = drag.resize ? [] : adjacentLayoutAssets(drag.id);
+    if (drag.neighbors.length) {
+      drag.neighborTiles = [...grid.querySelectorAll('[data-layout-image]')]
+        .filter(element => drag.neighbors.includes(element.dataset.layoutImage));
+    }
     drag.offsetX = event.clientX - tile.getBoundingClientRect().left;
     layoutEditor.selected = drag.id;
     layoutEditor.empty = null;
@@ -1523,6 +1527,23 @@ function previewLayoutRowDrag(drag, gridTop) {
     for (const element of row.elements) element.style.translate = shift ? `0 ${shift * (source.height + gap)}px` : '';
   });
 }
+function previewLayoutAssetDrag(drag, unit, offset = null) {
+  if (!drag.neighborTiles) return;
+  drag.grid.classList.add('is-dragging-asset');
+  drag.tile.classList.toggle('is-following-pointer', offset !== null);
+  drag.tile.style.translate = offset === null ? '' : `${offset}px 0`;
+  for (const tile of drag.neighborTiles) {
+    const id = tile.dataset.layoutImage;
+    if (id !== drag.swapId) {
+      tile.style.translate = '';
+      continue;
+    }
+    const slot = layoutEditor.placements[id];
+    const columns = drag.original.column - slot.column;
+    const shift = columns > 0 ? columns + drag.original.span - slot.span : columns;
+    tile.style.translate = `${shift * unit}px 0`;
+  }
+}
 function updateLayoutDrag() {
   const drag = layoutEditor.drag;
   if (!drag?.moved) return;
@@ -1534,6 +1555,7 @@ function updateLayoutDrag() {
   const gap = rect.width * .01064;
   const unit = (rect.width + gap) / 12;
   let next = { ...drag.original };
+  let dragOffset = null;
   drag.swapId = null;
   const target = drag.grid.querySelector('.layout-target');
   if (drag.resize) next.span = Math.max(1, Math.min(13 - next.column, Math.round((drag.x - rect.left - (next.column - 1) * unit + gap) / unit)));
@@ -1545,10 +1567,14 @@ function updateLayoutDrag() {
       drag.next = null;
       target.hidden = true;
       target.classList.remove('is-swap-target');
+      previewLayoutAssetDrag(drag, unit);
       return;
     }
     next.row = Number(row.dataset.layoutRow);
     if (next.row === drag.original.row) {
+      const left = (drag.original.column - 1) * unit;
+      const maxLeft = (12 - drag.original.span) * unit;
+      dragOffset = Math.max(0, Math.min(maxLeft, drag.x - rect.left - drag.offsetX)) - left;
       const column = (drag.x - rect.left) / unit + 1;
       drag.swapId = drag.neighbors.find(assetId => {
         const slot = layoutEditor.placements[assetId];
@@ -1557,6 +1583,7 @@ function updateLayoutDrag() {
       if (drag.swapId) next = layoutEditor.placements[drag.swapId];
     }
   }
+  previewLayoutAssetDrag(drag, unit, dragOffset);
   drag.next = drag.swapId || canPlaceImage(drag.id, next) ? next : null;
   const row = drag.grid.querySelector(`[data-layout-row="${next.row}"]`).getBoundingClientRect();
   target.hidden = false;
@@ -1583,6 +1610,12 @@ function finishLayoutDrag(commit) {
   const target = drag.grid.querySelector('.layout-target');
   target.hidden = true;
   if (drag.swapId) target.classList.remove('is-swap-target');
+  if (drag.neighborTiles) {
+    drag.grid.classList.remove('is-dragging-asset');
+    drag.tile.classList.remove('is-following-pointer');
+    drag.tile.style.translate = '';
+    for (const tile of drag.neighborTiles) tile.style.translate = '';
+  }
   if (drag.rows) {
     drag.grid.classList.remove('is-reordering-rows');
     for (const row of drag.rows) {
